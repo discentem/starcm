@@ -22,15 +22,14 @@ func (m *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Val
 	return starlark.None, nil
 }
 
-func New() (*base.Module, error) {
+func New() *base.Module {
 	var str string
 	a := &action{}
-	m, err := base.NewModule(
+	return base.NewModule(
 		"example",
 		[]base.ArgPair{
 			{Key: "str", Type: &str},
 		},
 		a,
 	)
-	return m, err
 }

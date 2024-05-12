@@ -21,7 +21,7 @@ type Module struct {
 	Action Runnable
 }
 
-func (m *Module) Function() (starlarkhelpers.Function, error) {
+func (m *Module) Function() starlarkhelpers.Function {
 	finalArgs := make([]any, 0)
 	for _, arg := range m.Args {
 		finalArgs = append(finalArgs, arg.Key, arg.Type)
@@ -79,16 +79,16 @@ func (m *Module) Function() (starlarkhelpers.Function, error) {
 		}
 		fmt.Println("Running module: ", name)
 		return m.Action.Run(args, kwargs)
-	}, nil
+	}
 
 }
 
 func NewModule(
 	name string,
 	args []ArgPair,
-	action Runnable) (*Module, error) {
+	action Runnable) *Module {
 	m := &Module{}
 	m.Args = args
 	m.Action = action
-	return m, nil
+	return m
 }

@@ -127,16 +127,8 @@ func main() {
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
 				}, nil
 			case "example":
-				ex, err := starcmexampleMod.New()
-				if err != nil {
-					return nil, err
-				}
-				exFn, err := ex.Function()
-				if err != nil {
-					return nil, err
-				}
 				return starlark.StringDict{
-					"example": starlark.NewBuiltin("example", exFn),
+					"example": starlark.NewBuiltin("example", starcmexampleMod.New().Function()),
 				}, nil
 			default:
 				// set both to nil to allow the loader to load a .star file from a path.
