@@ -9,7 +9,8 @@ import (
 	"path"
 	"strings"
 
-	starcmshell "github.com/discentem/starcm/shell"
+	starcmexampleMod "github.com/discentem/starcm/modules/example"
+	starcmshell "github.com/discentem/starcm/modules/shell"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -124,6 +125,18 @@ func main() {
 			case "struct":
 				return starlark.StringDict{
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
+				}, nil
+			case "example":
+				ex, err := starcmexampleMod.New()
+				if err != nil {
+					return nil, err
+				}
+				exFn, err := ex.Function()
+				if err != nil {
+					return nil, err
+				}
+				return starlark.StringDict{
+					"example": starlark.NewBuiltin("example", exFn),
 				}, nil
 			default:
 				// set both to nil to allow the loader to load a .star file from a path.

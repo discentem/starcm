@@ -1,19 +1,23 @@
 '''
 '''
-load("shellout", "exec")
-load("shellout.star", "cmd")
-load("struct", "struct")
+# load("shellout", "exec")
+# load("shellout.star", "cmd")
+# load("struct", "struct")
 
 
-# import a function defined in .star file
-print(cmd())
+# # import a function defined in .star file
+# print(cmd())
 
-thing = struct(a=1, b=2)
+# thing = struct(a=1, b=2)
 
-print(thing.a)
+# print(thing.a)
 
-exec(
-    name = "echo hello :D",
-    cmd  = "echo", 
-    args = ["hello"],
-)
+# exec(
+#     name = "echo hello :D",
+#     cmd  = "echo", 
+#     args = ["hello"],
+# )
+
+load("example", "example")
+
+print(example(name="blah",str="hello"))

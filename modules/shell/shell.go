@@ -21,7 +21,7 @@ func (b *NopBufferCloser) Close() error {
 }
 
 func Shellout(ex RealExecutor, buf *bytes.Buffer) (
-	starlarkhelpers.StarlarkBuiltin,
+	starlarkhelpers.Function,
 	error) {
 	var wc io.WriteCloser
 	if buf != nil {
