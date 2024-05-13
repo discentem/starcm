@@ -21,6 +21,7 @@ type Module struct {
 	Action Runnable
 }
 
+// Function produces a starlark Function that has common behavior that useful for all modules like only_if, not_if, and after
 func (m *Module) Function() starlarkhelpers.Function {
 	finalArgs := make([]any, 0)
 	for _, arg := range m.Args {
@@ -33,12 +34,17 @@ func (m *Module) Function() starlarkhelpers.Function {
 		after  starlark.Callable
 	)
 
-	finalArgs = append(
-		finalArgs,
+	// Common arguments automatically available for all modules
+	commonArgs := []any{
 		"name", &name,
 		"only_if?", &onlyIf,
 		"after?", &after,
 		"not_if?", &notIf,
+	}
+
+	finalArgs = append(
+		finalArgs,
+		commonArgs...,
 	)
 
 	return func(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
@@ -50,10 +56,12 @@ func (m *Module) Function() starlarkhelpers.Function {
 		); err != nil {
 			return starlark.None, err
 		}
+		// skip module if not_if is true
 		if notIf.Truth() {
 			fmt.Printf("skipping module %s because not_if was true", name)
 			return starlark.None, nil
 		}
+
 		isDefined := func(value starlark.Value) bool {
 			return value != starlark.None
 		}
@@ -72,7 +80,9 @@ func (m *Module) Function() starlarkhelpers.Function {
 			if err != nil {
 				return starlark.None, err
 			}
-			fmt.Println(afterResult)
+			if afterResult.String() != `"<nil>"` {
+				fmt.Println("after result:", afterResult)
+			}
 		}
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)

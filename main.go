@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/discentem/starcm/libraries/shell"
 	starcmexampleMod "github.com/discentem/starcm/modules/example"
 	starcmshell "github.com/discentem/starcm/modules/shell"
 	"go.starlark.net/starlark"
@@ -115,12 +116,8 @@ func main() {
 		Predeclared: func(module string) (starlark.StringDict, error) {
 			switch module {
 			case "shellout":
-				so, err := starcmshell.Shellout(starcmshell.RealExecutor{}, nil)
-				if err != nil {
-					return nil, err
-				}
 				return starlark.StringDict{
-					"exec": starlark.NewBuiltin("exec", so),
+					"exec": starlark.NewBuiltin("exec", starcmshell.New(&shell.RealExecutor{}, os.Stdout).Function()),
 				}, nil
 			case "struct":
 				return starlark.StringDict{
