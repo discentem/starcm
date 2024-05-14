@@ -7,7 +7,7 @@ import (
 
 type action struct{}
 
-func (m *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (m *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	for _, kwargs := range kwargs {
 		iter := kwargs.Iterate()
 		defer iter.Done()
@@ -15,11 +15,26 @@ func (m *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Val
 		for iter.Next(&v) {
 			if v.String() == "\"str\"" {
 				iter.Next(&v)
-				return v, nil
+				return &base.Result{
+					Output: func() *string {
+						s := v.String()
+						return &s
+					}(),
+					Success: true,
+					Changed: true,
+					Diff:    nil,
+					Comment: v.String(),
+				}, nil
 			}
 		}
 	}
-	return starlark.None, nil
+	return &base.Result{
+		Output:  nil,
+		Success: false,
+		Changed: false,
+		Diff:    nil,
+		Comment: "str not found",
+	}, nil
 }
 
 func New() *base.Module {

@@ -16,7 +16,7 @@ type action struct {
 	buff     bytes.Buffer
 }
 
-func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
@@ -56,8 +56,18 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Val
 	if err != nil {
 		return nil, err
 	}
+	res := &base.Result{
+		Output: func() *string {
+			s := a.buff.String()
+			return &s
+		}(),
+		Success: a.executor.ExitCode() == 0,
+		Changed: true,
+		Diff:    nil,
+		Comment: "",
+	}
 
-	return starlark.String(a.buff.String()), nil
+	return res, nil
 }
 
 func New(ex shelllib.Executor, wc io.WriteCloser) *base.Module {

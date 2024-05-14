@@ -23,6 +23,7 @@ func (b *NopBufferCloser) Close() error {
 type Executor interface {
 	Command(path string, args ...string)
 	Stream(posters ...io.WriteCloser) error
+	ExitCode() int
 }
 
 var (
@@ -31,6 +32,11 @@ var (
 
 type RealExecutor struct {
 	*exec.Cmd
+	exitCode int
+}
+
+func (e *RealExecutor) ExitCode() int {
+	return e.exitCode
 }
 
 func (e *RealExecutor) Command(bin string, args ...string) {
@@ -64,7 +70,10 @@ func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 	}
 
 	if err := e.Wait(); err != nil {
-		return err
+		if exitError, ok := err.(*exec.ExitError); ok {
+			e.exitCode = exitError.ExitCode()
+			return exitError
+		}
 	}
 	return nil
 }

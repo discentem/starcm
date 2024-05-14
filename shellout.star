@@ -18,4 +18,4 @@ def cmd(**kwargs):
         args = ["hello"],
         # not_if = ('a'+'b') == 'ab',
         after = curlGoogle,
-    )
+    ).output
