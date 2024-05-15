@@ -33,14 +33,12 @@ func (m *Module) Function() starlarkhelpers.Function {
 		name   string
 		notIf  starlark.Bool
 		onlyIf starlark.Bool
-		before starlark.Callable
 	)
 
 	// Common arguments automatically available for all modules
 	commonArgs := []any{
 		"name", &name,
 		"only_if??", &onlyIf,
-		"before?", &before,
 		"not_if?", &notIf,
 	}
 
@@ -78,10 +76,6 @@ func (m *Module) Function() starlarkhelpers.Function {
 			return starlark.None, nil
 		}
 
-		beforeResult, err := starlark.Call(thread, before, args, kwargs)
-		if err != nil {
-			return starlark.None, err
-		}
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
@@ -95,9 +89,6 @@ func (m *Module) Function() starlarkhelpers.Function {
 		if diff == nil {
 			sdiff = starlark.String("")
 		}
-
-		name = ""
-
 		ss := starlarkstruct.FromKeywords(
 			starlark.String("result"),
 			[]starlark.Tuple{
@@ -116,10 +107,6 @@ func (m *Module) Function() starlarkhelpers.Function {
 				{
 					starlark.String("diff"),
 					sdiff,
-				},
-				{
-					starlark.String("before_result"),
-					beforeResult,
 				},
 			},
 		)
