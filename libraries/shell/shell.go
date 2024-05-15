@@ -40,6 +40,7 @@ func (e *RealExecutor) ExitCode() int {
 }
 
 func (e *RealExecutor) Command(bin string, args ...string) {
+	e.exitCode = -1
 	e.Cmd = exec.Command(bin, args...)
 }
 
@@ -75,6 +76,7 @@ func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 			return exitError
 		}
 	}
+	e.exitCode = 0
 	return nil
 }
 

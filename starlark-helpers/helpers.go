@@ -12,7 +12,6 @@ import (
 type Function func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error)
 
 func FindValueOfKeyInKwargs(kwargs []starlark.Tuple, value string) (int, error) {
-	fmt.Println("searching for:", value)
 	for i, v := range kwargs {
 		if v[0].String() == fmt.Sprintf("\"%s\"", value) {
 			return i, nil

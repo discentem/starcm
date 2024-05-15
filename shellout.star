@@ -2,12 +2,17 @@
 '''
 load("shellout", "exec")
 
+def msg(s):
+    def ret(args, **kwargs):
+        return s
+    return ret
+
 def curlGoogle(args, **kwargs):
     return exec(
         name = "curlGoogle",
         cmd = "curl",
         args = ["google.com"],
-        after = lambda args,**kwargs : (print("curling google.com..."))
+        before = msg("curling google.com...")
     )
 
 def cmd(**kwargs):
@@ -17,5 +22,5 @@ def cmd(**kwargs):
         cmd  = "echo", 
         args = ["hello"],
         # not_if = ('a'+'b') == 'ab',
-        after = curlGoogle,
-    ).output
+        before = curlGoogle,
+    )
