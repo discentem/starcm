@@ -14,6 +14,9 @@ import (
 	starcmshell "github.com/discentem/starcm/modules/shell"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+
+	"github.com/google/deck"
+	deckloggers "github.com/google/deck/backends/logger"
 )
 
 type loaderFunc func(_ *starlark.Thread, module string) (starlark.StringDict, error)
@@ -111,6 +114,9 @@ func main() {
 		}
 		f = &args[0]
 	}
+	deck.Add(deckloggers.Init(os.Stdout, 0))
+	deck.Info("starting starcm...")
+
 	loader := Loader{
 		WorkspacePath: ".",
 		Predeclared: func(module string) (starlark.StringDict, error) {

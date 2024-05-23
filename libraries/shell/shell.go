@@ -3,13 +3,10 @@ package shell
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
-)
-
-const (
-	IndexNotFound int = -1
 )
 
 type NopBufferCloser struct {
@@ -23,7 +20,7 @@ func (b *NopBufferCloser) Close() error {
 type Executor interface {
 	Command(path string, args ...string)
 	Stream(posters ...io.WriteCloser) error
-	ExitCode() int
+	ExitCode() (int, error)
 }
 
 var (
@@ -32,15 +29,16 @@ var (
 
 type RealExecutor struct {
 	*exec.Cmd
-	exitCode int
 }
 
-func (e *RealExecutor) ExitCode() int {
-	return e.exitCode
+func (e *RealExecutor) ExitCode() (int, error) {
+	if !e.Cmd.ProcessState.Exited() {
+		return -2, errors.New("ExitCode() called before cmd finished")
+	}
+	return e.Cmd.ProcessState.ExitCode(), nil
 }
 
 func (e *RealExecutor) Command(bin string, args ...string) {
-	e.exitCode = -1
 	e.Cmd = exec.Command(bin, args...)
 }
 
@@ -72,11 +70,9 @@ func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 
 	if err := e.Wait(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
-			e.exitCode = exitError.ExitCode()
 			return exitError
 		}
 	}
-	e.exitCode = 0
 	return nil
 }
 

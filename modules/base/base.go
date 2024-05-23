@@ -79,7 +79,8 @@ func (m *Module) Function() starlarkhelpers.Function {
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
-		fmt.Println("Running module: ", name)
+		fmt.Printf("[%s]: Starting...\n", name)
+		// Run the module-specific behavior
 		result, err := m.Action.Run(args, kwargs)
 		if err != nil {
 			return starlark.None, err
