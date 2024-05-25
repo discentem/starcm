@@ -2,10 +2,13 @@ package base
 
 import (
 	"fmt"
+	"log"
+	"time"
 
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
+	"github.com/google/deck"
+	googlogger "github.com/google/logger"
 	"go.starlark.net/starlark"
-	"go.starlark.net/starlarkstruct"
 )
 
 type ArgPair struct {
@@ -30,9 +33,10 @@ func (m *Module) Function() starlarkhelpers.Function {
 		finalArgs = append(finalArgs, arg.Key, arg.Type)
 	}
 	var (
-		name   string
-		notIf  starlark.Bool
-		onlyIf starlark.Bool
+		name    string
+		notIf   starlark.Bool
+		onlyIf  starlark.Bool
+		timeout string
 	)
 
 	// Common arguments automatically available for all modules
@@ -40,7 +44,10 @@ func (m *Module) Function() starlarkhelpers.Function {
 		"name", &name,
 		"only_if??", &onlyIf,
 		"not_if?", &notIf,
+		"timeout??", &timeout,
 	}
+
+	googlogger.SetFlags(log.Lmsgprefix)
 
 	finalArgs = append(
 		finalArgs,
@@ -79,39 +86,42 @@ func (m *Module) Function() starlarkhelpers.Function {
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
-		fmt.Printf("[%s]: Starting...\n", name)
+		deck.Infof("[%s]: Starting...\n", name)
+
+		if !(timeout == "") {
+			actionCh := make(chan Result, 1)
+			go func() {
+				r, err := m.Action.Run(args, kwargs)
+				if err != nil {
+					actionCh <- Result{
+						Error: err,
+					}
+					return
+				}
+				actionCh <- *r
+			}()
+
+			duration, err := time.ParseDuration(timeout)
+			if err != nil {
+				return starlark.None, fmt.Errorf("error parsing timeout [%s]: %s", timeout, err)
+			}
+			select {
+			case res := <-actionCh:
+				return StarlarkResult(res)
+			case <-time.After(duration):
+				return StarlarkResult(Result{
+					Error: fmt.Errorf("timeout %s exceeded", timeout),
+				})
+			}
+		}
+
 		// Run the module-specific behavior
 		result, err := m.Action.Run(args, kwargs)
 		if err != nil {
 			return starlark.None, err
 		}
-		var sdiff starlark.String
-		diff := result.Diff
-		if diff == nil {
-			sdiff = starlark.String("")
-		}
-		ss := starlarkstruct.FromKeywords(
-			starlark.String("result"),
-			[]starlark.Tuple{
-				{
-					starlark.String("output"),
-					starlark.String(*result.Output),
-				},
-				{
-					starlark.String("success"),
-					starlark.Bool(result.Success),
-				},
-				{
-					starlark.String("changed"),
-					starlark.Bool(result.Changed),
-				},
-				{
-					starlark.String("diff"),
-					sdiff,
-				},
-			},
-		)
-		return ss, nil
+		// Convert Result struct to starlark.Value
+		return StarlarkResult(*result)
 	}
 
 }

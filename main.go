@@ -12,11 +12,10 @@ import (
 	"github.com/discentem/starcm/libraries/shell"
 	starcmexampleMod "github.com/discentem/starcm/modules/example"
 	starcmshell "github.com/discentem/starcm/modules/shell"
+	"github.com/google/deck"
+	"github.com/google/deck/backends/logger"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
-
-	"github.com/google/deck"
-	deckloggers "github.com/google/deck/backends/logger"
 )
 
 type loaderFunc func(_ *starlark.Thread, module string) (starlark.StringDict, error)
@@ -106,6 +105,7 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 
 func main() {
 	f := flag.String("file", "example.star", "path to the starlark file")
+	verbosity := flag.Int("v", 2, "verbosity level")
 	flag.Parse()
 	if f == nil {
 		args := os.Args
@@ -114,8 +114,9 @@ func main() {
 		}
 		f = &args[0]
 	}
-	deck.Add(deckloggers.Init(os.Stdout, 0))
+	deck.Add(logger.Init(os.Stdout, 0))
 	deck.Info("starting starcm...")
+	deck.SetVerbosity(*verbosity)
 
 	loader := Loader{
 		WorkspacePath: ".",
@@ -123,7 +124,12 @@ func main() {
 			switch module {
 			case "shellout":
 				return starlark.StringDict{
-					"exec": starlark.NewBuiltin("exec", starcmshell.New(&shell.RealExecutor{}, os.Stdout).Function()),
+					"exec": starlark.NewBuiltin(
+						"exec",
+						starcmshell.New(
+							&shell.RealExecutor{},
+						).Function(),
+					),
 				}, nil
 			case "struct":
 				return starlark.StringDict{

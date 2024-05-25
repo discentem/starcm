@@ -3,8 +3,8 @@ package shell
 import (
 	"bytes"
 	"fmt"
-	"io"
 
+	"github.com/discentem/starcm/libraries/logging"
 	shelllib "github.com/discentem/starcm/libraries/shell"
 	base "github.com/discentem/starcm/modules/base"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
@@ -68,7 +68,7 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result
 
 	a.executor.Command(c, cmdArgsGo...)
 
-	err = a.executor.Stream(&shelllib.NopBufferCloser{Buffer: &a.buff})
+	err = a.executor.Stream()
 
 	res := &base.Result{
 		Output: func() *string {
@@ -81,9 +81,31 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result
 			if !ok {
 				return false
 			}
-			deck.Infof("expected exit code: %v", expectedExitCode)
-			actualExitCode, _ := a.executor.ExitCode()
-			deck.Infof("actualExitCode: %v", actualExitCode)
+			logging.Message{
+				Prefix:    "shell",
+				Format:    "expectedExitCode: %v",
+				Vs:        []any{expectedExitCode},
+				Attribute: deck.V(2),
+			}.Infof()
+
+			actualExitCode, err := a.executor.ExitCode()
+			if err != nil {
+				logging.Message{
+					Prefix:    "shell",
+					Format:    "error getting exit code: %v",
+					Vs:        []any{err},
+					Attribute: deck.V(2),
+				}.Errorf()
+				return false
+			}
+
+			logging.Message{
+				Prefix:    "shell",
+				Format:    "actualExitCode: %v",
+				Vs:        []any{expectedExitCode},
+				Attribute: deck.V(2),
+			}.Infof()
+
 			return int64(actualExitCode) == expectedExitCode
 		}(),
 		Changed: true,
@@ -94,7 +116,7 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result
 	return res, nil
 }
 
-func New(ex shelllib.Executor, wc io.WriteCloser) *base.Module {
+func New(ex shelllib.Executor) *base.Module {
 	var str string
 	var args *starlark.List
 	var exitCode starlark.Int

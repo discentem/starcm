@@ -1,5 +1,10 @@
 package base
 
+import (
+	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
+)
+
 type Result struct {
 	Output  *string
 	Error   error
@@ -7,4 +12,52 @@ type Result struct {
 	Changed bool
 	Diff    *string
 	Comment string
+}
+
+func StarlarkResult(r Result) (starlark.Value, error) {
+	var soutput starlark.String
+	if r.Output != nil {
+		soutput = starlark.String(*r.Output)
+	} else {
+		soutput = starlark.String("")
+	}
+
+	var serror starlark.String
+	if r.Error != nil {
+		serror = starlark.String(r.Error.Error())
+	} else {
+		serror = starlark.String("")
+	}
+
+	var sdiff starlark.String
+	diff := r.Diff
+	if diff == nil {
+		sdiff = starlark.String("")
+	}
+	ss := starlarkstruct.FromKeywords(
+		starlark.String("result"),
+		[]starlark.Tuple{
+			{
+				starlark.String("output"),
+				soutput,
+			},
+			{
+				starlark.String("error"),
+				serror,
+			},
+			{
+				starlark.String("success"),
+				starlark.Bool(r.Success),
+			},
+			{
+				starlark.String("changed"),
+				starlark.Bool(r.Changed),
+			},
+			{
+				starlark.String("diff"),
+				sdiff,
+			},
+		},
+	)
+	return ss, nil
 }
