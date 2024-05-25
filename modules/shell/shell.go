@@ -79,38 +79,17 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 		Success: func() bool {
 			expectedExitCode, ok := expectedExitCode.Int64()
 			if !ok {
-				logging.Message{
-					Prefix:    moduleName,
-					Format:    "expectedExitCode.Int64() conversion failed: %v",
-					Vs:        []any{expectedExitCode},
-					Attribute: deck.V(2),
-				}.Errorf()
+				logging.Log(moduleName, nil, "error", "expectedExitCode.Int64() conversion failed: %v", err)
 				return false
 			}
-			logging.Message{
-				Prefix:    moduleName,
-				Format:    "expectedExitCode: %v",
-				Vs:        []any{expectedExitCode},
-				Attribute: deck.V(2),
-			}.Infof()
+			logging.Log(moduleName, deck.V(2), "info", "expectedExitCode: %v", expectedExitCode)
 
 			actualExitCode, err := a.executor.ExitCode()
 			if err != nil {
-				logging.Message{
-					Prefix:    moduleName,
-					Format:    "error getting exit code: %v",
-					Vs:        []any{err},
-					Attribute: deck.V(2),
-				}.Errorf()
+				logging.Log(moduleName, nil, "error", "error getting exit code: %v", err)
 				return false
 			}
-
-			logging.Message{
-				Prefix:    moduleName,
-				Format:    "actualExitCode: %v",
-				Vs:        []any{expectedExitCode},
-				Attribute: deck.V(2),
-			}.Infof()
+			logging.Log(moduleName, deck.V(2), "info", "actualExitCode: %v", actualExitCode)
 
 			return int64(actualExitCode) == expectedExitCode
 		}(),

@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/discentem/starcm/libraries/logging"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	googlogger "github.com/google/logger"
@@ -65,7 +66,7 @@ func (m *Module) Function() starlarkhelpers.Function {
 		}
 		// skip module if not_if is true
 		if notIf.Truth() {
-			fmt.Printf("skipping module %s because not_if was true", name)
+			logging.Log(name, nil, "info", "skipping module %q because not_if was true", name)
 			return starlark.None, nil
 		}
 
@@ -78,8 +79,7 @@ func (m *Module) Function() starlarkhelpers.Function {
 		}
 
 		if onlyIf.Truth() == starlark.False {
-			fmt.Println(onlyIf)
-			fmt.Printf("skipping module %s because only_if was false", name)
+			logging.Log(name, nil, "info", "skipping module %q because only_if was false", name)
 			return starlark.None, nil
 		}
 

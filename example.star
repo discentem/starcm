@@ -3,7 +3,7 @@
 load("shellout.star", "cmd")
 load("shellout", "exec")
 # # import a function defined in .star file
-# print(cmd())
+print(cmd())
 
 a = exec(
     name               = "explicitly exit 2",
