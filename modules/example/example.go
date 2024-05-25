@@ -7,7 +7,7 @@ import (
 
 type action struct{}
 
-func (m *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (m *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	for _, kwargs := range kwargs {
 		iter := kwargs.Iterate()
 		defer iter.Done()

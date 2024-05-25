@@ -17,7 +17,7 @@ type ArgPair struct {
 }
 
 type Runnable interface {
-	Run(args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
+	Run(modulenName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
 }
 
 type Module struct {
@@ -91,7 +91,7 @@ func (m *Module) Function() starlarkhelpers.Function {
 		if !(timeout == "") {
 			actionCh := make(chan Result, 1)
 			go func() {
-				r, err := m.Action.Run(args, kwargs)
+				r, err := m.Action.Run(name, args, kwargs)
 				if err != nil {
 					actionCh <- Result{
 						Error: err,
@@ -116,7 +116,7 @@ func (m *Module) Function() starlarkhelpers.Function {
 		}
 
 		// Run the module-specific behavior
-		result, err := m.Action.Run(args, kwargs)
+		result, err := m.Action.Run(name, args, kwargs)
 		if err != nil {
 			return starlark.None, err
 		}

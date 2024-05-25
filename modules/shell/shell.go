@@ -17,7 +17,7 @@ type action struct {
 	buff     bytes.Buffer
 }
 
-func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
@@ -79,10 +79,16 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result
 		Success: func() bool {
 			expectedExitCode, ok := expectedExitCode.Int64()
 			if !ok {
+				logging.Message{
+					Prefix:    moduleName,
+					Format:    "expectedExitCode.Int64() conversion failed: %v",
+					Vs:        []any{expectedExitCode},
+					Attribute: deck.V(2),
+				}.Errorf()
 				return false
 			}
 			logging.Message{
-				Prefix:    "shell",
+				Prefix:    moduleName,
 				Format:    "expectedExitCode: %v",
 				Vs:        []any{expectedExitCode},
 				Attribute: deck.V(2),
@@ -91,7 +97,7 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result
 			actualExitCode, err := a.executor.ExitCode()
 			if err != nil {
 				logging.Message{
-					Prefix:    "shell",
+					Prefix:    moduleName,
 					Format:    "error getting exit code: %v",
 					Vs:        []any{err},
 					Attribute: deck.V(2),
@@ -100,7 +106,7 @@ func (a *action) Run(args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result
 			}
 
 			logging.Message{
-				Prefix:    "shell",
+				Prefix:    moduleName,
 				Format:    "actualExitCode: %v",
 				Vs:        []any{expectedExitCode},
 				Attribute: deck.V(2),
