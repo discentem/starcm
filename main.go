@@ -4,14 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
+	starcmexampleMod "github.com/discentem/starcm/functions/example"
+	starcmshell "github.com/discentem/starcm/functions/shell"
+	"github.com/discentem/starcm/libraries/logging"
 	"github.com/discentem/starcm/libraries/shell"
-	starcmexampleMod "github.com/discentem/starcm/modules/example"
-	starcmshell "github.com/discentem/starcm/modules/shell"
 	"github.com/google/deck"
 	"github.com/google/deck/backends/logger"
 	"go.starlark.net/starlark"
@@ -20,17 +21,34 @@ import (
 
 type loaderFunc func(_ *starlark.Thread, module string) (starlark.StringDict, error)
 
-func LoadFromFile(ctx context.Context, filepath string, src interface{}, load loaderFunc) error {
+func LoadFromFile(ctx context.Context, fpath string, src interface{}, load loaderFunc) error {
+	logging.Log("LoadFromFile", deck.V(2), "info", "loading file %q", fpath)
 	thread := &starlark.Thread{
 		Load:  load,
 		Name:  "my_program_main_thread",
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 	}
-	if _, err := starlark.ExecFile(thread, filepath, src, nil); err != nil {
+
+	var currentDir string
+	if len(thread.CallStack()) > 0 {
+		currentDir = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
+	} else {
+		// Fallback if there are no call frames, assuming the initial script directory
+		currentDir = fpath
+	}
+
+	logging.Log("LoadFromFile", deck.V(2), "info", "current starlark execution dir %q", currentDir)
+	if currentDir != fpath {
+		fpath = filepath.Join(currentDir, fpath)
+	}
+
+	logging.Log("LoadFromFile", deck.V(2), "info", "loading file %q", fpath)
+
+	if _, err := starlark.ExecFile(thread, fpath, src, nil); err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			return fmt.Errorf(evalErr.Backtrace())
 		}
-		return fmt.Errorf("load at path: %q: %s", filepath, err)
+		return fmt.Errorf("load at path: %q: %s", fpath, err)
 	}
 	return nil
 }
@@ -79,6 +97,11 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 					modulepath = path.Join(l.WorkspacePath, module)
 				}
 
+				if len(thread.CallStack()) > 0 {
+					modulepath = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
+					modulepath = path.Join(modulepath, module)
+				}
+
 				data, err := os.ReadFile(modulepath)
 				if err != nil {
 					return nil, fmt.Errorf("loading module %q: %s", modulepath, err)
@@ -104,22 +127,19 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 }
 
 func main() {
-	f := flag.String("file", "example.star", "path to the starlark file")
-	verbosity := flag.Int("v", 2, "verbosity level")
+	f := flag.String(
+		"root_file",
+		"",
+		"path to the first starlark file to run",
+	)
+	verbosity := flag.Int("v", 1, "verbosity level")
 	flag.Parse()
-	if f == nil {
-		args := os.Args
-		if len(args) == 0 {
-			log.Fatal("no .star file provided")
-		}
-		f = &args[0]
-	}
 	deck.Add(logger.Init(os.Stdout, 0))
 	deck.Info("starting starcm...")
 	deck.SetVerbosity(*verbosity)
 
 	loader := Loader{
-		WorkspacePath: ".",
+		WorkspacePath: filepath.Dir(*f),
 		Predeclared: func(module string) (starlark.StringDict, error) {
 			switch module {
 			case "shellout":

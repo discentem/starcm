@@ -126,10 +126,7 @@ func (m *Module) Function() starlarkhelpers.Function {
 
 }
 
-func NewModule(
-	name string,
-	args []ArgPair,
-	action Runnable) *Module {
+func NewModule(name string, args []ArgPair, action Runnable) *Module {
 	m := &Module{}
 	m.Args = args
 	m.Action = action

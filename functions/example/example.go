@@ -1,7 +1,7 @@
 package example
 
 import (
-	"github.com/discentem/starcm/modules/base"
+	"github.com/discentem/starcm/functions/base"
 	"go.starlark.net/starlark"
 )
 

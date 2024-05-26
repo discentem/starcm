@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
+	base "github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
 	shelllib "github.com/discentem/starcm/libraries/shell"
-	base "github.com/discentem/starcm/modules/base"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"go.starlark.net/starlark"

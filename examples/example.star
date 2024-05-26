@@ -1,6 +1,6 @@
 '''
 '''
-load("shellout.star", "cmd")
+load("shellout/shellout.star", "cmd")
 load("shellout", "exec")
 # # import a function defined in .star file
 print(cmd())
@@ -10,6 +10,7 @@ a = exec(
     cmd                = "sh", 
     args               = ["-c", "exit 2"],
     expected_exit_code = 2,
+    not_if             = False
 )
 print(a)
 
@@ -18,9 +19,5 @@ b = exec(
     cmd                = "ping", 
     args               = ["-n", "google.com"],
     expected_exit_code = 2,
-    timeout            = "3s"
+    timeout            = "3s",
 )
-def printErr(s):
-    if s.error != "":
-        print(s.error)
-printErr(b)
