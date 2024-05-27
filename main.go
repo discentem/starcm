@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -13,7 +12,6 @@ import (
 	starcmexampleMod "github.com/discentem/starcm/functions/example"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	"github.com/discentem/starcm/libraries/logging"
-	"github.com/discentem/starcm/libraries/shell"
 	"github.com/google/deck"
 	"github.com/google/deck/backends/logger"
 	"go.starlark.net/starlark"
@@ -141,8 +139,6 @@ func main() {
 	deck.Info("starting starcm...")
 	deck.SetVerbosity(*verbosity)
 
-	buff := bytes.Buffer{}
-
 	loader := Loader{
 		WorkspacePath: filepath.Dir(*f),
 		Predeclared: func(module string) (starlark.StringDict, error) {
@@ -151,10 +147,7 @@ func main() {
 				return starlark.StringDict{
 					"exec": starlark.NewBuiltin(
 						"exec",
-						starcmshell.New(
-							&shell.RealExecutor{},
-							&buff,
-						).Function(),
+						starcmshell.New().Function(),
 					),
 				}, nil
 			case "struct":

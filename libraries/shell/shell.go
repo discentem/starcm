@@ -48,10 +48,12 @@ func (e *RealExecutor) Command(bin string, args ...string) {
 func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 	stdout, err := e.StdoutPipe()
 	if err != nil {
+		logging.Log("shelllib", deck.V(1), "error", "error getting stdout pipe: %v", err)
 		return err
 	}
 	stderr, err := e.StderrPipe()
 	if err != nil {
+		logging.Log("shelllib", deck.V(1), "error", "error getting stderr pipe: %v", err)
 		return err
 	}
 	inputPipes := []io.ReadCloser{stdout, stderr}

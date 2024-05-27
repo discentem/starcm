@@ -16,6 +16,6 @@ def cmd(args=None, **kwargs):
     return exec(
         name = "echo_hello_after_curlGoogle",
         cmd  = "echo", 
-        args = ["hello"],
+        args = ["hello googs"],
         # not_if = ('a'+'b') == 'ab',
     )

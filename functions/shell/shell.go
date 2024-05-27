@@ -14,10 +14,7 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type action struct {
-	executor shelllib.Executor
-	buff     *bytes.Buffer
-}
+type action struct{}
 
 func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "cmd")
@@ -79,26 +76,24 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 		cmdArgsGo = append(cmdArgsGo, v.(starlark.String).GoString())
 	}
 
-	a.executor.Command(c, cmdArgsGo...)
+	ex := shelllib.RealExecutor{}
+	ex.Command(c, cmdArgsGo...)
 
+	buff := bytes.NewBuffer(nil)
 	wc := shelllib.NopBufferCloser{
-		Buffer: a.buff,
+		Buffer: buff,
 	}
 
 	posters := []io.WriteCloser{&wc}
 	if liveOutput.Truth() {
 		posters = append(posters, os.Stdout)
 	}
-	err = a.executor.Stream(posters...)
-	if err != nil {
-		fmt.Println("error immediately after stream: ", err)
-		return nil, err
-	}
+	err = ex.Stream(posters...)
 
 	res := &base.Result{
 		Name: &moduleName,
 		Output: func() *string {
-			s := a.buff.String()
+			s := buff.String()
 			return &s
 		}(),
 		Error: err,
@@ -110,7 +105,7 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 			}
 			logging.Log(moduleName, deck.V(2), "info", "expectedExitCode: %v", expectedExitCode)
 
-			actualExitCode, err := a.executor.ExitCode()
+			actualExitCode, err := ex.ExitCode()
 			if err != nil {
 				logging.Log(moduleName, nil, "error", "error getting exit code: %v", err)
 				return false
@@ -127,16 +122,13 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 	return res, nil
 }
 
-func New(ex shelllib.Executor, buff *bytes.Buffer) *base.Module {
+func New() *base.Module {
 	var (
 		str        string
 		args       *starlark.List
 		exitCode   starlark.Int
 		liveOutput starlark.Bool
 	)
-	if buff != nil {
-		buff = &bytes.Buffer{}
-	}
 
 	return base.NewModule(
 		"shell",
@@ -146,9 +138,6 @@ func New(ex shelllib.Executor, buff *bytes.Buffer) *base.Module {
 			{Key: "expected_exit_code??", Type: &exitCode},
 			{Key: "live_output??", Type: &liveOutput},
 		},
-		&action{
-			executor: ex,
-			buff:     buff,
-		},
+		&action{},
 	)
 }

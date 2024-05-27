@@ -16,9 +16,8 @@ exec(
 a = exec(
     name               = "explicitly exit 2",
     cmd                = "sh", 
-    args               = ["-c", "exit 2"],
+    args               = ["-c", "echo 'hello'; exit 2"],
     expected_exit_code = 2,
     live_output        = True
-    # not_if = True
 )
-# print(a)
+print(a)

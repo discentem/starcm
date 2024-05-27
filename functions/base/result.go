@@ -1,8 +1,6 @@
 package base
 
 import (
-	"github.com/discentem/starcm/libraries/logging"
-	"github.com/google/deck"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -18,7 +16,6 @@ type Result struct {
 }
 
 func StarlarkResult(r Result) (starlark.Value, error) {
-	logging.Log("", deck.V(3), "info", "StarlarkResult: %v", r)
 	var sname starlark.String
 	if r.Name != nil {
 		sname = starlark.String(*r.Name)
