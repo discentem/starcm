@@ -7,6 +7,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/discentem/starcm/libraries/logging"
+	"github.com/google/deck"
 )
 
 type NopBufferCloser struct {
@@ -54,6 +57,7 @@ func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 	inputPipes := []io.ReadCloser{stdout, stderr}
 
 	if err := e.Start(); err != nil {
+		logging.Log("shelllib", deck.V(1), "error", "error starting command: %v", err)
 		return err
 	}
 

@@ -3,6 +3,8 @@ package shell
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"os"
 
 	base "github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
@@ -58,6 +60,17 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 		}()
 	}
 
+	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "live_output")
+	if err != nil {
+		return nil, err
+	}
+	var liveOutput starlark.Bool
+	if idx == starlarkhelpers.IndexNotFound {
+		liveOutput = starlark.Bool(false)
+	} else {
+		liveOutput = (kwargs[idx][1]).(starlark.Bool)
+	}
+
 	iter := cargs.Iterate()
 	defer iter.Done()
 	var v starlark.Value
@@ -72,8 +85,13 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 		Buffer: a.buff,
 	}
 
-	err = a.executor.Stream(&wc)
+	posters := []io.WriteCloser{&wc}
+	if liveOutput.Truth() {
+		posters = append(posters, os.Stdout)
+	}
+	err = a.executor.Stream(posters...)
 	if err != nil {
+		fmt.Println("error immediately after stream: ", err)
 		return nil, err
 	}
 
@@ -111,9 +129,10 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 
 func New(ex shelllib.Executor, buff *bytes.Buffer) *base.Module {
 	var (
-		str      string
-		args     *starlark.List
-		exitCode starlark.Int
+		str        string
+		args       *starlark.List
+		exitCode   starlark.Int
+		liveOutput starlark.Bool
 	)
 	if buff != nil {
 		buff = &bytes.Buffer{}
@@ -125,6 +144,7 @@ func New(ex shelllib.Executor, buff *bytes.Buffer) *base.Module {
 			{Key: "cmd", Type: &str},
 			{Key: "args", Type: &args},
 			{Key: "expected_exit_code??", Type: &exitCode},
+			{Key: "live_output??", Type: &liveOutput},
 		},
 		&action{
 			executor: ex,
