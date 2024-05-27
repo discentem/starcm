@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -97,6 +98,8 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 					modulepath = path.Join(l.WorkspacePath, module)
 				}
 
+				// if we hit a load statement in a .star file
+				//  load the next module relative to the current module
 				if len(thread.CallStack()) > 0 {
 					modulepath = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
 					modulepath = path.Join(modulepath, module)
@@ -138,6 +141,8 @@ func main() {
 	deck.Info("starting starcm...")
 	deck.SetVerbosity(*verbosity)
 
+	buff := bytes.Buffer{}
+
 	loader := Loader{
 		WorkspacePath: filepath.Dir(*f),
 		Predeclared: func(module string) (starlark.StringDict, error) {
@@ -148,6 +153,7 @@ func main() {
 						"exec",
 						starcmshell.New(
 							&shell.RealExecutor{},
+							&buff,
 						).Function(),
 					),
 				}, nil

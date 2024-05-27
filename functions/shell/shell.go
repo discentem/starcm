@@ -14,7 +14,7 @@ import (
 
 type action struct {
 	executor shelllib.Executor
-	buff     bytes.Buffer
+	buff     *bytes.Buffer
 }
 
 func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
@@ -68,9 +68,17 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 
 	a.executor.Command(c, cmdArgsGo...)
 
-	err = a.executor.Stream()
+	wc := shelllib.NopBufferCloser{
+		Buffer: a.buff,
+	}
+
+	err = a.executor.Stream(&wc)
+	if err != nil {
+		return nil, err
+	}
 
 	res := &base.Result{
+		Name: &moduleName,
 		Output: func() *string {
 			s := a.buff.String()
 			return &s
@@ -101,10 +109,16 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 	return res, nil
 }
 
-func New(ex shelllib.Executor) *base.Module {
-	var str string
-	var args *starlark.List
-	var exitCode starlark.Int
+func New(ex shelllib.Executor, buff *bytes.Buffer) *base.Module {
+	var (
+		str      string
+		args     *starlark.List
+		exitCode starlark.Int
+	)
+	if buff != nil {
+		buff = &bytes.Buffer{}
+	}
+
 	return base.NewModule(
 		"shell",
 		[]base.ArgPair{
@@ -114,7 +128,7 @@ func New(ex shelllib.Executor) *base.Module {
 		},
 		&action{
 			executor: ex,
-			buff:     bytes.Buffer{},
+			buff:     buff,
 		},
 	)
 }

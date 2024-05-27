@@ -1,11 +1,14 @@
 package base
 
 import (
+	"github.com/discentem/starcm/libraries/logging"
+	"github.com/google/deck"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
 type Result struct {
+	Name    *string
 	Output  *string
 	Error   error
 	Success bool
@@ -15,6 +18,14 @@ type Result struct {
 }
 
 func StarlarkResult(r Result) (starlark.Value, error) {
+	logging.Log("", deck.V(3), "info", "StarlarkResult: %v", r)
+	var sname starlark.String
+	if r.Name != nil {
+		sname = starlark.String(*r.Name)
+	} else {
+		sname = starlark.String("not_provided")
+	}
+
 	var soutput starlark.String
 	if r.Output != nil {
 		soutput = starlark.String(*r.Output)
@@ -34,9 +45,13 @@ func StarlarkResult(r Result) (starlark.Value, error) {
 	if diff == nil {
 		sdiff = starlark.String("")
 	}
-	ss := starlarkstruct.FromKeywords(
+	return starlarkstruct.FromKeywords(
 		starlark.String("result"),
 		[]starlark.Tuple{
+			{
+				starlark.String("name"),
+				sname,
+			},
 			{
 				starlark.String("output"),
 				soutput,
@@ -58,6 +73,5 @@ func StarlarkResult(r Result) (starlark.Value, error) {
 				sdiff,
 			},
 		},
-	)
-	return ss, nil
+	), nil
 }

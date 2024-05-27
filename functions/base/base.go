@@ -18,7 +18,7 @@ type ArgPair struct {
 }
 
 type Runnable interface {
-	Run(modulenName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
+	Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
 }
 
 type Module struct {
@@ -27,7 +27,7 @@ type Module struct {
 }
 
 // Function produces a starlark Function that has common behavior that useful for all modules like only_if, not_if, and after
-func (m *Module) Function() starlarkhelpers.Function {
+func (m Module) Function() starlarkhelpers.Function {
 	finalArgs := make([]any, 0)
 	// Add arguments that are specific to this module
 	for _, arg := range m.Args {
@@ -43,9 +43,9 @@ func (m *Module) Function() starlarkhelpers.Function {
 	// Common arguments automatically available for all modules
 	commonArgs := []any{
 		"name", &name,
-		"only_if??", &onlyIf,
+		"only_if?", &onlyIf,
 		"not_if?", &notIf,
-		"timeout??", &timeout,
+		"timeout?", &timeout,
 	}
 
 	googlogger.SetFlags(log.Lmsgprefix)
@@ -64,17 +64,29 @@ func (m *Module) Function() starlarkhelpers.Function {
 		); err != nil {
 			return starlark.None, err
 		}
+		idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "not_if")
+		if err != nil {
+			return nil, err
+		}
+		if idx != starlarkhelpers.IndexNotFound {
+			logging.Log(name, deck.V(2), "info", "not_if was: %q", kwargs[idx][1].String())
+		} else {
+			notIf = starlark.False
+		}
+
 		// skip module if not_if is true
 		if notIf.Truth() {
 			logging.Log(name, nil, "info", "skipping module %q because not_if was true", name)
 			return starlark.None, nil
 		}
 
-		isAbsent := func(value starlark.Value) bool {
-			return value != starlark.None
+		idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "only_if")
+		if err != nil {
+			return nil, err
 		}
-		// If onlyIf is absent, it is assumed to be true meaning the module will run
-		if isAbsent(onlyIf) {
+		if idx != starlarkhelpers.IndexNotFound {
+			logging.Log(name, deck.V(2), "info", "only_if was: %q", kwargs[idx][1].String())
+		} else {
 			onlyIf = starlark.True
 		}
 
@@ -94,6 +106,7 @@ func (m *Module) Function() starlarkhelpers.Function {
 				r, err := m.Action.Run(name, args, kwargs)
 				if err != nil {
 					actionCh <- Result{
+						Name:  &name,
 						Error: err,
 					}
 					return
@@ -109,7 +122,9 @@ func (m *Module) Function() starlarkhelpers.Function {
 			case res := <-actionCh:
 				return StarlarkResult(res)
 			case <-time.After(duration):
+				logging.Log(name, deck.V(1), "error", "timeout %s exceeded", timeout)
 				return StarlarkResult(Result{
+					Name:  &name,
 					Error: fmt.Errorf("timeout %s exceeded", timeout),
 				})
 			}
