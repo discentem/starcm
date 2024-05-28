@@ -30,11 +30,11 @@ func StarlarkResult(r Result) (starlark.Value, error) {
 		soutput = starlark.String("")
 	}
 
-	var serror starlark.String
+	var serror starlark.Value
 	if r.Error != nil {
 		serror = starlark.String(r.Error.Error())
 	} else {
-		serror = starlark.String("")
+		serror = starlark.None
 	}
 
 	var sdiff starlark.String

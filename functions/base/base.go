@@ -122,7 +122,6 @@ func (m Module) Function() starlarkhelpers.Function {
 			case res := <-actionCh:
 				return StarlarkResult(res)
 			case <-time.After(duration):
-				logging.Log(name, deck.V(1), "error", "timeout %s exceeded", timeout)
 				return StarlarkResult(Result{
 					Name:  &name,
 					Error: fmt.Errorf("timeout %s exceeded", timeout),
