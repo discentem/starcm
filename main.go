@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	starcmexampleMod "github.com/discentem/starcm/functions/example"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	"github.com/discentem/starcm/libraries/logging"
 	"github.com/google/deck"
@@ -139,6 +138,8 @@ func main() {
 	deck.Info("starting starcm...")
 	deck.SetVerbosity(*verbosity)
 
+	ctx := context.Background()
+
 	loader := Loader{
 		WorkspacePath: filepath.Dir(*f),
 		Predeclared: func(module string) (starlark.StringDict, error) {
@@ -147,16 +148,12 @@ func main() {
 				return starlark.StringDict{
 					"exec": starlark.NewBuiltin(
 						"exec",
-						starcmshell.New().Function(),
+						starcmshell.New(ctx).Function(),
 					),
 				}, nil
 			case "struct":
 				return starlark.StringDict{
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
-				}, nil
-			case "example":
-				return starlark.StringDict{
-					"example": starlark.NewBuiltin("example", starcmexampleMod.New().Function()),
 				}, nil
 			default:
 				// set both to nil to allow the loader to load a .star file from a path.

@@ -1,6 +1,7 @@
 package base
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -18,12 +19,13 @@ type ArgPair struct {
 }
 
 type Runnable interface {
-	Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
+	Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
 }
 
 type Module struct {
 	Args   []ArgPair
 	Action Runnable
+	Ctx    context.Context
 }
 
 // Function produces a starlark Function that has common behavior that useful for all modules like only_if, not_if, and after
@@ -103,7 +105,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		if !(timeout == "") {
 			actionCh := make(chan Result, 1)
 			go func() {
-				r, err := m.Action.Run(name, args, kwargs)
+				r, err := m.Action.Run(m.Ctx, name, args, kwargs)
 				if err != nil {
 					actionCh <- Result{
 						Name:  &name,
@@ -130,7 +132,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		// Run the module-specific behavior
-		result, err := m.Action.Run(name, args, kwargs)
+		result, err := m.Action.Run(m.Ctx, name, args, kwargs)
 		if err != nil {
 			return starlark.None, err
 		}
@@ -140,8 +142,12 @@ func (m Module) Function() starlarkhelpers.Function {
 
 }
 
-func NewModule(name string, args []ArgPair, action Runnable) *Module {
-	m := &Module{}
+func NewModule(ctx context.Context, name string, args []ArgPair, action Runnable) *Module {
+	m := &Module{
+		Args:   args,
+		Action: action,
+		Ctx:    ctx,
+	}
 	m.Args = args
 	m.Action = action
 	return m

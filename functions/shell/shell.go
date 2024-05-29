@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -16,7 +17,7 @@ import (
 
 type action struct{}
 
-func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
@@ -122,7 +123,7 @@ func (a *action) Run(moduleName string, args starlark.Tuple, kwargs []starlark.T
 	return res, nil
 }
 
-func New() *base.Module {
+func New(ctx context.Context) *base.Module {
 	var (
 		str        string
 		args       *starlark.List
@@ -131,6 +132,7 @@ func New() *base.Module {
 	)
 
 	return base.NewModule(
+		ctx,
 		"shell",
 		[]base.ArgPair{
 			{Key: "cmd", Type: &str},
