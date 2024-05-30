@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	base "github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
@@ -92,14 +91,9 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	}
 
 	resultChan := make(chan *base.Result, 1)
-	errChan := make(chan error, 1)
 
 	go func() {
 		err := ex.Stream(posters...)
-		if err != nil {
-			errChan <- err
-			return
-		}
 		resultChan <- &base.Result{
 			Name: &moduleName,
 			Output: func() *string {
@@ -132,7 +126,6 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 
 	select {
 	case <-ctx.Done():
-		time.Sleep(5 * time.Millisecond)
 		select {
 		case res := <-resultChan:
 			return res, ctx.Err()
@@ -147,9 +140,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 			}, ctx.Err()
 		}
 	case res := <-resultChan:
-		return res, nil
-	case err := <-errChan:
-		return nil, err
+		return res, err
 	}
 }
 
