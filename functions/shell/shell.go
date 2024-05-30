@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	base "github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
@@ -89,38 +90,67 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	if liveOutput.Truth() {
 		posters = append(posters, os.Stdout)
 	}
-	err = ex.Stream(posters...)
 
-	res := &base.Result{
-		Name: &moduleName,
-		Output: func() *string {
-			s := buff.String()
-			return &s
-		}(),
-		Error: err,
-		Success: func() bool {
-			expectedExitCode, ok := expectedExitCode.Int64()
-			if !ok {
-				logging.Log(moduleName, nil, "error", "expectedExitCode.Int64() conversion failed: %v", err)
-				return false
-			}
-			logging.Log(moduleName, deck.V(2), "info", "expectedExitCode: %v", expectedExitCode)
+	resultChan := make(chan *base.Result, 1)
+	errChan := make(chan error, 1)
 
-			actualExitCode, err := ex.ExitCode()
-			if err != nil {
-				logging.Log(moduleName, nil, "error", "error getting exit code: %v", err)
-				return false
-			}
-			logging.Log(moduleName, deck.V(2), "info", "actualExitCode: %v", actualExitCode)
+	go func() {
+		err := ex.Stream(posters...)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		resultChan <- &base.Result{
+			Name: &moduleName,
+			Output: func() *string {
+				s := buff.String()
+				return &s
+			}(),
+			Error: err,
+			Success: func() bool {
+				expectedExitCode, ok := expectedExitCode.Int64()
+				if !ok {
+					logging.Log(moduleName, nil, "error", "expectedExitCode.Int64() conversion failed: %v", err)
+					return false
+				}
+				logging.Log(moduleName, deck.V(2), "info", "expectedExitCode: %v", expectedExitCode)
 
-			return int64(actualExitCode) == expectedExitCode
-		}(),
-		Changed: true,
-		Diff:    nil,
-		Comment: "",
+				actualExitCode, err := ex.ExitCode()
+				if err != nil {
+					logging.Log(moduleName, nil, "error", "error getting exit code: %v", err)
+					return false
+				}
+				logging.Log(moduleName, deck.V(2), "info", "actualExitCode: %v", actualExitCode)
+
+				return int64(actualExitCode) == expectedExitCode
+			}(),
+			Changed: true,
+			Diff:    nil,
+			Comment: "",
+		}
+	}()
+
+	select {
+	case <-ctx.Done():
+		time.Sleep(5 * time.Millisecond)
+		select {
+		case res := <-resultChan:
+			return res, ctx.Err()
+		default:
+			return &base.Result{
+				Name:  &moduleName,
+				Error: ctx.Err(),
+				Output: func() *string {
+					s := buff.String()
+					return &s
+				}(),
+			}, ctx.Err()
+		}
+	case res := <-resultChan:
+		return res, nil
+	case err := <-errChan:
+		return nil, err
 	}
-
-	return res, nil
 }
 
 func New(ctx context.Context) *base.Module {

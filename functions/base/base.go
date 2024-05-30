@@ -103,31 +103,15 @@ func (m Module) Function() starlarkhelpers.Function {
 		deck.Infof("[%s]: Starting...\n", name)
 
 		if !(timeout == "") {
-			actionCh := make(chan Result, 1)
-			go func() {
-				r, err := m.Action.Run(m.Ctx, name, args, kwargs)
-				if err != nil {
-					actionCh <- Result{
-						Name:  &name,
-						Error: err,
-					}
-					return
-				}
-				actionCh <- *r
-			}()
-
-			duration, err := time.ParseDuration(timeout)
+			dur, err := time.ParseDuration(timeout)
 			if err != nil {
 				return starlark.None, fmt.Errorf("error parsing timeout [%s]: %s", timeout, err)
 			}
-			select {
-			case res := <-actionCh:
-				return StarlarkResult(res)
-			case <-time.After(duration):
-				return StarlarkResult(Result{
-					Name:  &name,
-					Error: fmt.Errorf("timeout %s exceeded", timeout),
-				})
+			ctx, cancel := context.WithTimeout(m.Ctx, dur)
+			defer cancel()
+			r, err := m.Action.Run(ctx, name, args, kwargs)
+			if err != nil {
+				return StarlarkResult(*r)
 			}
 		}
 

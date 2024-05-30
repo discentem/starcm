@@ -67,28 +67,19 @@ func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 		posters = []io.WriteCloser{os.Stdout}
 	}
 
+	writer := NewMultiWriteCloser(posters...)
+
 	for _, pipe := range inputPipes {
-		for _, post := range posters {
-			//nolint:errcheck
-			go WriteOutput(pipe, post)
+		r := bufio.NewScanner(pipe)
+		for r.Scan() {
+			m := r.Text()
+			writer.Write([]byte(m + "\n"))
 		}
 	}
 
 	if err := e.Wait(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			return exitError
-		}
-	}
-	return nil
-}
-
-func WriteOutput(in io.ReadCloser, post io.WriteCloser) error {
-	r := bufio.NewScanner(in)
-	for r.Scan() {
-		m := r.Text()
-		_, err := post.Write([]byte(m + "\n"))
-		if err != nil {
-			return err
 		}
 	}
 	return nil
