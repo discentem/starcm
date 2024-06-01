@@ -15,6 +15,7 @@ import (
 	"github.com/google/deck/backends/logger"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
+	"go.starlark.net/syntax"
 )
 
 type loaderFunc func(_ *starlark.Thread, module string) (starlark.StringDict, error)
@@ -28,7 +29,7 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load loade
 	}
 
 	var currentDir string
-	if len(thread.CallStack()) > 0 {
+	if len(thread.CallStack()) > 1 {
 		currentDir = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
 	} else {
 		// Fallback if there are no call frames, assuming the initial script directory
@@ -40,9 +41,15 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load loade
 		fpath = filepath.Join(currentDir, fpath)
 	}
 
-	logging.Log("LoadFromFile", deck.V(2), "info", "loading file %q", fpath)
-
-	if _, err := starlark.ExecFile(thread, fpath, src, nil); err != nil {
+	if _, err := starlark.ExecFileOptions(
+		&syntax.FileOptions{
+			// Allow if statements and for loops to be top-level in the module.
+			TopLevelControl: true,
+		},
+		thread,
+		fpath,
+		src, nil,
+	); err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
 			return fmt.Errorf(evalErr.Backtrace())
 		}
@@ -97,7 +104,7 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 
 				// if we hit a load statement in a .star file
 				//  load the next module relative to the current module
-				if len(thread.CallStack()) > 0 {
+				if len(thread.CallStack()) > 1 {
 					modulepath = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
 					modulepath = path.Join(modulepath, module)
 				}
@@ -109,7 +116,16 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 
 				// create a thread for the module and set Load
 				thread := &starlark.Thread{Name: "exec " + module, Load: load}
-				globals, err := starlark.ExecFile(thread, module, data, nil)
+				globals, err := starlark.ExecFileOptions(
+					&syntax.FileOptions{
+						// Allow if statements and for loops to be top-level in the module.
+						TopLevelControl: true,
+					},
+					thread,
+					module,
+					data,
+					nil,
+				)
 				if err != nil {
 					return nil, fmt.Errorf("executing module %q: %s", module, err)
 				}

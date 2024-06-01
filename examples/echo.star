@@ -1,8 +1,8 @@
 load("shellout", "exec")
-
-a = exec(
-    name = "echo_hello",
-    cmd  = "echo", 
-    args = ["hello world!"],
+exec(
+    name               = "hello_from_starcm",
+    cmd                = "echo", 
+    args               = ["hello from starcm!"],
+    timeout            = "3s",
+    live_output        = True
 )
-print(a)

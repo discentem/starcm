@@ -5,15 +5,35 @@
 
 # Intro to starcm language
 
-## `exec`
+## Shelling out
+
+Let's look at an example starcm configuration file that uses the `exec` function: [examples/echo.star](examples/echo.star)
+
+```python
+% cat examples/echo.star
+load("shellout", "exec")
+exec(
+    name               = "ping google a few times",
+    cmd                = "echo", 
+    args               = ["hello from starcm!"],
+    timeout            = "3s",
+    live_output        = True
+)
+```
+
+We can execute it with
+
+```shell
+go run main.go --root_file examples/echo.star
+```
+
+[ping_apple.star](examples/ping_apple.star)
+
 <details>
-    <summary><h3 style="display:inline-block">Shellout to <code>curl</code></h3></summary>
+    <summary><h3 style="display:inline-block">Long running commands</h3></summary>
 <body>
-    
-Let's look at an example starcm configuration file that uses the `exec` function: [ping_apple.star](examples/ping_apple.star)
 
-
-This configuration will simply shell out to curl and ping [apple.com](apple.com).
+This configuration will simply shell out to ping and ping [apple.com](apple.com).
 
 ```python
 % cat examples/ping_apple.star 
@@ -47,7 +67,7 @@ But you might notice a problem: `ping -n apple.com` never exits! We can handle t
 </details>
 
 <details>
-    <summary><h3 style="display:inline-block">Shellout to <code>curl</code> with a timeout</h3></summary>
+    <summary><h3 style="display:inline-block">with a timeout</h3></summary>
 <body>
     
 See [examples/ping_google_with_timeout.star](examples/ping_google_with_timeout.star).
@@ -80,50 +100,16 @@ go run main.go --root_file examples/ping_google_with_timeout.star
 result(changed = False, diff = "", error = "context deadline exceeded", name = "ping google a few times", output = "PING apple.com (17.253.144.10): 56 data bytes\n64 bytes from 17.253.144.10: icmp_seq=0 ttl=56 time=16.329 ms\n64 bytes from 17.253.144.10: icmp_seq=1 ttl=56 time=21.740 ms\n64 bytes from 17.253.144.10: icmp_seq=2 ttl=56 time=22.659 ms\n64 bytes from 17.253.144.10: icmp_seq=3 ttl=56 time=20.311 ms\n64 bytes from 17.253.144.10: icmp_seq=4 ttl=56 time=20.397 ms\n64 bytes from 17.253.144.10: icmp_seq=5 ttl=56 time=20.845 ms\n", success = False)
 ```
 
-Now we get a `result` struct! Generally all starcm functions return this result struct, which we can interact with inside the `.star` file. But let's put that aside for a moment because we got a failure (e.g. **`success = False`**).
+Now we get a `result` struct! Generally all starcm functions return this result struct, which we can use for dynamic/conditional behavior. This will be explored in a future section. 
 
-For now, let's see what a successful `exec` looks like with a simple echo command:
-</body>
-</details>
-
-<body>
-<details>
-<summary><h3 style="display:inline-block"><code>echo</code></h3></summary>
-
-See [examples/ping_google_with_timeout.star](examples/ping_google_with_timeout.star).
-
-```python
-% cat examples/echo.star
-load("shellout", "exec")
-
-a = exec(
-    name = "echo_hello",
-    cmd  = "echo", 
-    args = ["hello world!"],
-)
-print(a)
-```
-
-We can execute it with
-
-```shell
-go run main.go --root_file examples/echo.star
-```
-
-```shell
-INFO: 2024/05/29 22:30:19 starting starcm...
-INFO: 2024/05/29 22:30:19 [echo_hello]: Starting...
-result(changed = True, diff = "", error = None, name = "echo_hello", output = "hello world!\n", success = True)
-```
-
-We can even have a success if the exit code is not expected to be zero.
+For now, we'll see how we can deal with expected non-zero exit codes.
 
 </details>
 </body>
 
 <body>
 <details>
-<summary><h3 style="display:inline-block">expect non-zero exit</h3></summary>
+<summary><h3 style="display:inline-block">handling non-zero exit codes</h3></summary>
 
 See [examples/expect_exit_code_non_zero.star](examples/expect_exit_code_non_zero.star)
 
@@ -169,6 +155,63 @@ result(changed = True, diff = "", error = "exit status 2", name = "explicitly ex
 <body>
 <details>
 <summary><h3 style="display:inline-block">if statements</h3></summary>
+
+Starlark, and by extension starcm, supports `if` statements. Starlark requires if statements to be inside of functions though, so this wouldn't work:
+
+```python
+load("shellout", "exec")
+a = exec(
+    name               = "explicitly exit 2",
+    cmd                = "sh", 
+    args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
+    expected_exit_code = 2,
+)
+
+if a.success == True:
+    print("party!")
+else:
+    print("no party :(")
+```
+
+But we can easily reorganize it into a function. See [examples/if_statements.star](examples/if_statements.star).
+
+```python
+load("shellout", "exec")
+a = exec(
+    name               = "explicitly exit 2",
+    cmd                = "sh", 
+    args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
+    expected_exit_code = 2,
+)
+def party_if_success(fn):
+    if fn.success == True:
+        print("party!")
+    else:
+        print("no party :(")
+
+print(a)
+party_if_success(a)
+```
+
+Running `go run main.go --root_file examples/if_statements.star` results in
+
+```shell
+INFO: 2024/05/30 12:15:08 starting starcm...
+INFO: 2024/05/30 12:15:08 [explicitly exit 2]: Starting...
+result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
+party!
+```
+
+This is an example of how we can utilize the result struct for conditional behavior. We can also implement this same conditional behavior with a starcm construct called `only_if`.
+
+</details>
+</body>
+
+<body>
+<details>
+<summary><h3 style="display:inline-block">only_if</h3></summary>
+
+See [examples/only_if.star](examples/only_if.star)
 
 </details>
 </body>
