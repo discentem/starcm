@@ -91,6 +91,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	}
 
 	resultChan := make(chan *base.Result, 1)
+	logging.Log(moduleName, deck.V(2), "info", "len(posters): %v", len(posters))
 
 	go func() {
 		err := ex.Stream(posters...)
