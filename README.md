@@ -7,16 +7,15 @@
 
 ## Shelling out
 
-Let's look at an example starcm configuration file that uses the `exec` function: [examples/echo.star](examples/echo.star)
+Let's look at a simple starcm file that uses the `exec` function: [examples/echo.star](examples/echo.star)
 
 ```python
 % cat examples/echo.star
 load("shellout", "exec")
 exec(
-    name               = "ping google a few times",
+    name               = "hello_from_starcm",
     cmd                = "echo", 
-    args               = ["hello from starcm!"],
-    timeout            = "3s",
+    args               = ["hello from echo.star!"],
     live_output        = True
 )
 ```
@@ -27,13 +26,20 @@ We can execute it with
 go run main.go --root_file examples/echo.star
 ```
 
-[ping_apple.star](examples/ping_apple.star)
+which outputs
+
+```shell
+% go run main.go --root_file examples/echo.star
+INFO: 2024/06/01 23:46:17 starting starcm...
+INFO: 2024/06/01 23:46:17 [hello_from_starcm]: Starting...
+hello from echo.star!
+```
 
 <details>
-    <summary><h3 style="display:inline-block">Long running commands</h3></summary>
+    <summary><h3 style="display:inline-block">long running commands with live output</h3></summary>
 <body>
 
-This configuration will simply shell out to ping and ping [apple.com](apple.com).
+This configuration will simply shell out to ping and ping [apple.com](apple.com). See [ping_apple.star](examples/ping_apple.star)
 
 ```python
 % cat examples/ping_apple.star 
@@ -43,7 +49,7 @@ a = exec(
     cmd                = "ping", 
     args               = ["-n", "google.com"],
     timeout            = "3s",
-    live_output        = True
+    live_output        = True # causes stdout to appear live
 )
 print(a)
 ```
@@ -100,9 +106,9 @@ go run main.go --root_file examples/ping_google_with_timeout.star
 result(changed = False, diff = "", error = "context deadline exceeded", name = "ping google a few times", output = "PING apple.com (17.253.144.10): 56 data bytes\n64 bytes from 17.253.144.10: icmp_seq=0 ttl=56 time=16.329 ms\n64 bytes from 17.253.144.10: icmp_seq=1 ttl=56 time=21.740 ms\n64 bytes from 17.253.144.10: icmp_seq=2 ttl=56 time=22.659 ms\n64 bytes from 17.253.144.10: icmp_seq=3 ttl=56 time=20.311 ms\n64 bytes from 17.253.144.10: icmp_seq=4 ttl=56 time=20.397 ms\n64 bytes from 17.253.144.10: icmp_seq=5 ttl=56 time=20.845 ms\n", success = False)
 ```
 
-Now we get a `result` struct! Generally all starcm functions return this result struct, which we can use for dynamic/conditional behavior. This will be explored in a future section. 
+Because the command actually finished and we are printing `a` with `print(a)` we get a `result` struct! Generally all starcm functions return this result struct. We'll explore this in further detail later.
 
-For now, we'll see how we can deal with expected non-zero exit codes.
+For now, we'll see how we can deal with non-zero exit codes.
 
 </details>
 </body>
@@ -156,7 +162,7 @@ result(changed = True, diff = "", error = "exit status 2", name = "explicitly ex
 <details>
 <summary><h3 style="display:inline-block">if statements</h3></summary>
 
-Starlark, and by extension starcm, supports `if` statements. Starlark requires if statements to be inside of functions though, so this wouldn't work:
+Starlark, and by extension starcm, supports `if` statements. Take [examples/if_statements.star](examples/if_statements.star) for example:
 
 ```python
 load("shellout", "exec")
@@ -166,43 +172,22 @@ a = exec(
     args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
     expected_exit_code = 2,
 )
-
 if a.success == True:
     print("party!")
 else:
     print("no party :(")
 ```
 
-But we can easily reorganize it into a function. See [examples/if_statements.star](examples/if_statements.star).
-
-```python
-load("shellout", "exec")
-a = exec(
-    name               = "explicitly exit 2",
-    cmd                = "sh", 
-    args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
-    expected_exit_code = 2,
-)
-def party_if_success(fn):
-    if fn.success == True:
-        print("party!")
-    else:
-        print("no party :(")
-
-print(a)
-party_if_success(a)
-```
-
 Running `go run main.go --root_file examples/if_statements.star` results in
 
 ```shell
-INFO: 2024/05/30 12:15:08 starting starcm...
-INFO: 2024/05/30 12:15:08 [explicitly exit 2]: Starting...
-result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
+% go run main.go --root_file examples/if_statements.star 
+INFO: 2024/06/01 23:52:56 starting starcm...
+INFO: 2024/06/01 23:52:56 [explicitly exit 2]: Starting...
 party!
 ```
 
-This is an example of how we can utilize the result struct for conditional behavior. We can also implement this same conditional behavior with a starcm construct called `only_if`.
+We can also implement this same conditional behavior with a starcm construct called `only_if`.
 
 </details>
 </body>
