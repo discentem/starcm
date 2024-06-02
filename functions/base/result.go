@@ -25,7 +25,9 @@ func StarlarkResult(r Result) (starlark.Value, error) {
 
 	var soutput starlark.String
 	if r.Output != nil {
-		soutput = starlark.String(*r.Output)
+		out := *r.Output
+		// soutput = starlark.String(strings.TrimSuffix(out, "\n"))
+		soutput = starlark.String(out)
 	} else {
 		soutput = starlark.String("")
 	}
