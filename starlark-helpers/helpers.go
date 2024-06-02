@@ -11,6 +11,8 @@ import (
 
 type Function func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error)
 
+type LoaderFunc func(_ *starlark.Thread, module string) (starlark.StringDict, error)
+
 const (
 	IndexNotFound int = -1
 )

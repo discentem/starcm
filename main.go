@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	starcmshell "github.com/discentem/starcm/functions/shell"
+	"github.com/discentem/starcm/internal/loading"
 	"github.com/discentem/starcm/libraries/logging"
+	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"github.com/google/deck/backends/logger"
 	"go.starlark.net/starlark"
@@ -18,9 +20,7 @@ import (
 	"go.starlark.net/syntax"
 )
 
-type loaderFunc func(_ *starlark.Thread, module string) (starlark.StringDict, error)
-
-func LoadFromFile(ctx context.Context, fpath string, src interface{}, load loaderFunc) error {
+func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starlarkhelpers.LoaderFunc) error {
 	logging.Log("LoadFromFile", deck.V(2), "info", "loading file %q", fpath)
 	thread := &starlark.Thread{
 		Load:  load,
@@ -29,7 +29,7 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load loade
 	}
 
 	var currentDir string
-	if len(thread.CallStack()) > 1 {
+	if len(thread.CallStack()) > 0 {
 		currentDir = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
 	} else {
 		// Fallback if there are no call frames, assuming the initial script directory
@@ -104,7 +104,7 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 
 				// if we hit a load statement in a .star file
 				//  load the next module relative to the current module
-				if len(thread.CallStack()) > 1 {
+				if len(thread.CallStack()) > 0 {
 					modulepath = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
 					modulepath = path.Join(modulepath, module)
 				}
@@ -170,6 +170,10 @@ func main() {
 			case "struct":
 				return starlark.StringDict{
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
+				}, nil
+			case "loading":
+				return starlark.StringDict{
+					"load_dynamic": starlark.NewBuiltin("load_dynamic", loading.DynamicLoadfunc()),
 				}, nil
 			default:
 				// set both to nil to allow the loader to load a .star file from a path.

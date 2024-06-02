@@ -109,13 +109,16 @@ func (m Module) Function() starlarkhelpers.Function {
 			}
 			ctx, cancel := context.WithTimeout(m.Ctx, dur)
 			defer cancel()
-			r, _ := m.Action.Run(ctx, name, args, kwargs)
+			r, err := m.Action.Run(ctx, name, args, kwargs)
+			if r == nil && err != nil {
+				return starlark.None, err
+			}
 			return StarlarkResult(*r)
 		}
 
 		// Run the module-specific behavior
 		result, err := m.Action.Run(m.Ctx, name, args, kwargs)
-		if err != nil {
+		if result == nil && err != nil {
 			return starlark.None, err
 		}
 		// Convert Result struct to starlark.Value
