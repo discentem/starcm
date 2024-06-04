@@ -4,11 +4,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/afero"
+
+	starcmdownload "github.com/discentem/starcm/functions/download"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	"github.com/discentem/starcm/internal/loading"
@@ -37,7 +41,7 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starl
 		currentDir = fpath
 	}
 
-	logging.Log("LoadFromFile", deck.V(2), "info", "current starlark execution dir %q", currentDir)
+	logging.Log("LoadFromFile", deck.V(3), "info", "current starlark execution dir %q", currentDir)
 	if currentDir != fpath {
 		fpath = filepath.Join(currentDir, fpath)
 	}
@@ -173,6 +177,17 @@ func main() {
 					"exec": starlark.NewBuiltin(
 						"exec",
 						starcmshell.New(ctx).Function(),
+					),
+				}, nil
+			case "download":
+				return starlark.StringDict{
+					"download": starlark.NewBuiltin(
+						"download",
+						starcmdownload.New(
+							ctx,
+							*http.DefaultClient,
+							afero.NewOsFs(),
+						).Function(),
 					),
 				}, nil
 			case "struct":
