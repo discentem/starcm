@@ -90,9 +90,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		if err != nil {
 			return nil, err
 		}
-		if idx != starlarkhelpers.IndexNotFound {
-			logging.Log(name, deck.V(2), "info", "only_if was: %q", kwargs[idx][1].String())
-		} else {
+		if idx == starlarkhelpers.IndexNotFound {
 			onlyIf = starlark.True
 		}
 
