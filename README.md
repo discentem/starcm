@@ -35,6 +35,8 @@ INFO: 2024/06/01 23:46:17 [hello_from_starcm]: Starting...
 hello from echo.star!
 ```
 
+We can also run long running commands and get live output.
+
 <details>
     <summary><h3 style="display:inline-block">long running commands with live output</h3></summary>
 <body>
@@ -48,7 +50,6 @@ a = exec(
     name               = "ping google a few times",
     cmd                = "ping", 
     args               = ["-n", "google.com"],
-    timeout            = "3s",
     live_output        = True # causes stdout to appear live
 )
 print(a)
@@ -106,7 +107,7 @@ go run main.go --root_file examples/ping_google_with_timeout.star
 result(changed = False, diff = "", error = "context deadline exceeded", name = "ping google a few times", output = "PING apple.com (17.253.144.10): 56 data bytes\n64 bytes from 17.253.144.10: icmp_seq=0 ttl=56 time=16.329 ms\n64 bytes from 17.253.144.10: icmp_seq=1 ttl=56 time=21.740 ms\n64 bytes from 17.253.144.10: icmp_seq=2 ttl=56 time=22.659 ms\n64 bytes from 17.253.144.10: icmp_seq=3 ttl=56 time=20.311 ms\n64 bytes from 17.253.144.10: icmp_seq=4 ttl=56 time=20.397 ms\n64 bytes from 17.253.144.10: icmp_seq=5 ttl=56 time=20.845 ms\n", success = False)
 ```
 
-Because the command actually finished and we are printing `a` with `print(a)` we get a `result` struct! Generally all starcm functions return this result struct. We'll explore this in further detail later.
+Because the command actually finished and we are printing `a` with `print(a)` we get a `result` struct! Generally all starcm functions return this result struct. We'll explore `result` in further detail later.
 
 For now, we'll see how we can deal with non-zero exit codes.
 
@@ -117,7 +118,9 @@ For now, we'll see how we can deal with non-zero exit codes.
 <details>
 <summary><h3 style="display:inline-block">handling non-zero exit codes</h3></summary>
 
-See [examples/expect_exit_code_non_zero.star](examples/expect_exit_code_non_zero.star)
+See [examples/expect_exit_code_non_zero.star](examples/expect_exit_code_non_zero.star). 
+
+If exec exits non-zero but we don't provide `expected_exit_code`
 
 ```python
 load("shellout", "exec")
@@ -136,7 +139,7 @@ INFO: 2024/05/29 22:49:07 [explicitly exit 2]: Starting...
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = False)
 ```
 
-This would fail because the default `expected_error_code` is `0`. But if we set it to `2` then this succeeds!
+there will be a failure (`result(..., success=False)`) because the default `expected_error_code` is `0`. But if we set it to `2` then this succeeds!
 
 ```python
 load("shellout", "exec")
@@ -162,7 +165,7 @@ result(changed = True, diff = "", error = "exit status 2", name = "explicitly ex
 <details>
 <summary><h3 style="display:inline-block">if statements</h3></summary>
 
-Starlark, and by extension starcm, supports `if` statements. Take [examples/if_statements.star](examples/if_statements.star) for example:
+Starlark, and by extension starcm, supports `if` statements. Take [examples/if_statements.star](examples/if_statements.star) for example. If the `exec()` succeeds, we print `party!`. 
 
 ```python
 load("shellout", "exec")
@@ -187,7 +190,7 @@ INFO: 2024/06/01 23:52:56 [explicitly exit 2]: Starting...
 party!
 ```
 
-We can also implement this same conditional behavior with a starcm construct called `only_if`.
+We can also implement this same conditional behavior with a starcm-specific construct called `only_if`.
 
 </details>
 </body>

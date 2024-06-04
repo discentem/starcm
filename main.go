@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	starcmshell "github.com/discentem/starcm/functions/shell"
+	starcmwrite "github.com/discentem/starcm/functions/write"
 	"github.com/discentem/starcm/internal/loading"
 	"github.com/discentem/starcm/libraries/logging"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
@@ -160,6 +161,13 @@ func main() {
 		WorkspacePath: filepath.Dir(*f),
 		Predeclared: func(module string) (starlark.StringDict, error) {
 			switch module {
+			case "write":
+				return starlark.StringDict{
+					"write": starlark.NewBuiltin(
+						"write",
+						starcmwrite.New(ctx, os.Stdout).Function(),
+					),
+				}, nil
 			case "shellout":
 				return starlark.StringDict{
 					"exec": starlark.NewBuiltin(
