@@ -79,7 +79,11 @@ func (m Module) Function() starlarkhelpers.Function {
 		// skip module if not_if is true
 		if notIf.Truth() {
 			logging.Log(name, nil, "info", "skipping module %q because not_if was true", name)
-			return starlark.None, nil
+			sr, err := StarlarkResult(Result{})
+			if err != nil {
+				return nil, err
+			}
+			return sr, nil
 		}
 
 		idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "only_if")
@@ -94,13 +98,17 @@ func (m Module) Function() starlarkhelpers.Function {
 
 		if onlyIf.Truth() == starlark.False {
 			logging.Log(name, nil, "info", "skipping module %q because only_if was false", name)
-			return starlark.None, nil
+			sr, err := StarlarkResult(Result{})
+			if err != nil {
+				return nil, err
+			}
+			return sr, nil
 		}
 
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
-		deck.Infof("[%s]: Starting...\n", name)
+		deck.Infof("[%s]: Executing...\n", name)
 
 		if !(timeout == "") {
 			dur, err := time.ParseDuration(timeout)
