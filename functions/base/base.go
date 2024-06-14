@@ -23,6 +23,7 @@ type Runnable interface {
 }
 
 type Module struct {
+	Type   string
 	Args   []ArgPair
 	Action Runnable
 	Ctx    context.Context
@@ -78,7 +79,7 @@ func (m Module) Function() starlarkhelpers.Function {
 
 		// skip module if not_if is true
 		if notIf.Truth() {
-			logging.Log(name, nil, "info", "skipping module %q because not_if was true", name)
+			logging.Log(name, nil, "info", "skipping %s(name=%q) because not_if was true", m.Type, name)
 			sr, err := StarlarkResult(Result{})
 			if err != nil {
 				return nil, err
@@ -95,7 +96,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		if onlyIf.Truth() == starlark.False {
-			logging.Log(name, nil, "info", "skipping module %q because only_if was false", name)
+			logging.Log(name, nil, "info", "skipping %s(name=%q) because only_if was false", m.Type, name)
 			sr, err := StarlarkResult(Result{})
 			if err != nil {
 				return nil, err
@@ -133,8 +134,9 @@ func (m Module) Function() starlarkhelpers.Function {
 
 }
 
-func NewModule(ctx context.Context, name string, args []ArgPair, action Runnable) *Module {
+func NewModule(ctx context.Context, fnType string, args []ArgPair, action Runnable) *Module {
 	m := &Module{
+		Type:   fnType,
 		Args:   args,
 		Action: action,
 		Ctx:    ctx,
