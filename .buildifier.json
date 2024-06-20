@@ -1,0 +1,9 @@
+{
+    "exclude": [
+        "**"
+    ],
+    "lint": {
+        "disable": ["warnings", "info"],
+        "enable": ["syntax"]
+    }       
+}

@@ -77,7 +77,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		cmdArgsGo = append(cmdArgsGo, v.(starlark.String).GoString())
 	}
 
-	ex := shelllib.RealExecutor{}
+	ex := &shelllib.RealExecutor{}
 	ex.Command(c, cmdArgsGo...)
 
 	buff := bytes.NewBuffer(nil)
@@ -89,6 +89,8 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	if liveOutput.Truth() {
 		posters = append(posters, os.Stdout)
 	}
+
+	logging.Log(moduleName, deck.V(2), "info", "number of io.WriteClosers: %v", posters)
 
 	resultChan := make(chan *base.Result, 1)
 

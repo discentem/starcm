@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -153,9 +154,16 @@ func main() {
 		"",
 		"path to the first starlark file to run",
 	)
+	timestamps := flag.Bool("timestamps", true, "include timestamps in logs")
 	verbosity := flag.Int("v", 1, "verbosity level")
 	flag.Parse()
-	deck.Add(logger.Init(os.Stdout, 0))
+
+	l := log.Default()
+	if !*timestamps {
+		l.SetFlags(log.LUTC)
+	}
+	deck.Add(logger.Init(l.Writer(), l.Flags()))
+
 	deck.Info("starting starcm...")
 	deck.SetVerbosity(*verbosity)
 
