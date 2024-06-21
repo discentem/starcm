@@ -1,0 +1,7 @@
+INFO: starting starcm...
+INFO: [hello_from_starcm]: Executing...
+hello from echo.star!
+hello from a.star
+hello from b.star
+hello from c.star
+hello from d.star
