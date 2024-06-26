@@ -67,7 +67,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		); err != nil {
 			return starlark.None, err
 		}
-		idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "not_if")
+		idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "not_if")
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +87,7 @@ func (m Module) Function() starlarkhelpers.Function {
 			return sr, nil
 		}
 
-		idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "only_if")
+		idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "only_if")
 		if err != nil {
 			return nil, err
 		}

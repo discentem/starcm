@@ -1,6 +1,7 @@
 package starlarkhelpers
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -17,13 +18,48 @@ const (
 	IndexNotFound int = -1
 )
 
-func FindValueOfKeyInKwargs(kwargs []starlark.Tuple, value string) (int, error) {
+var (
+	ErrIndexNotFound = errors.New("index not found")
+)
+
+func FindIndexOfValueInKwargs(kwargs []starlark.Tuple, value string) (int, error) {
 	for i, v := range kwargs {
 		if v[0].String() == fmt.Sprintf("\"%s\"", value) {
 			return i, nil
 		}
 	}
 	return -1, nil // Return -1 if the value is not found
+}
+
+func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, error) {
+	if index == IndexNotFound {
+		return nil, ErrIndexNotFound
+	}
+	s := kwargs[index][1].String()
+	unquoted, _, _, err := Unquote(s)
+	if err != nil {
+		return nil, err
+	}
+	return &unquoted, nil
+}
+
+func FindValueinKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
+	idx, err := FindIndexOfValueInKwargs(kwargs, value)
+	if err != nil {
+		return nil, err
+	}
+	return FindValueFromIndexInKwargs(kwargs, idx)
+}
+
+func FindValueInKwargsWithDefault(kwargs []starlark.Tuple, value string, defaultValue string) (*string, error) {
+	idx, err := FindIndexOfValueInKwargs(kwargs, value)
+	if err != nil {
+		return nil, err
+	}
+	if idx == IndexNotFound {
+		return &defaultValue, nil
+	}
+	return FindValueFromIndexInKwargs(kwargs, idx)
 }
 
 // Copied from https://github.com/google/starlark-go/blob/f457c4c2b267186711d0fadc15024e46b98186c5/syntax/quote.go

@@ -18,7 +18,7 @@ import (
 type action struct{}
 
 func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "cmd")
+	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +31,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		return nil, err
 	}
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "args")
+	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "args")
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	}
 	cargs := (kwargs[idx][1]).(*starlark.List)
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "expected_exit_code")
+	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "expected_exit_code")
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		}()
 	}
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "live_output")
+	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "live_output")
 	if err != nil {
 		return nil, err
 	}

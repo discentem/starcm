@@ -8,7 +8,7 @@ import (
 	"io"
 
 	"github.com/discentem/starcm/functions/base"
-	"github.com/discentem/starcm/starlark-helpers"
+	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
 )
 
@@ -17,36 +17,22 @@ type action struct {
 }
 
 func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "str")
+	s, err := starlarkhelpers.FindValueinKwargs(kwargs, "str")
 	if err != nil {
 		return nil, err
 	}
-	if idx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("'str' was not found in kwargs")
+	if s == nil {
+		return nil, fmt.Errorf("str is required in write() module")
 	}
 
-	s, _, _, err := starlarkhelpers.Unquote(kwargs[idx][1].String())
+	e, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "end", "\n")
 	if err != nil {
 		return nil, err
 	}
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "end")
-	if err != nil {
-		return nil, err
-	}
-	var e string
-	if idx == starlarkhelpers.IndexNotFound {
-		e = "\n"
-	} else {
-		e, _, _, err = starlarkhelpers.Unquote(kwargs[idx][1].String())
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	fmt.Fprintf(a.w, "%s%s", s, e)
+	fmt.Fprintf(a.w, "%s%s", *s, *e)
 	return &base.Result{
-		Output:  &s,
+		Output:  s,
 		Success: true,
 		Changed: false,
 	}, nil

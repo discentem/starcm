@@ -10,13 +10,13 @@ import (
 	"net/http"
 
 	"github.com/discentem/starcm/functions/base"
-	"github.com/discentem/starcm/starlark-helpers"
+	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
 )
 
 type action struct {
-	httpClient http.Client
+	httpClient *http.Client
 	fsys       afero.Fs
 }
 
@@ -25,31 +25,22 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		return nil, fmt.Errorf("fsys must be provided to download module")
 	}
 
-	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "url")
+	s, err := starlarkhelpers.FindValueinKwargs(kwargs, "url")
 	if err != nil {
 		return nil, err
 	}
-	if idx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("'url' was not found in kwargs")
+	if s == nil {
+		return nil, fmt.Errorf("url must be provided to download module, cannot be nil")
 	}
 
-	s, _, _, err := starlarkhelpers.Unquote(kwargs[idx][1].String())
+	savePath, err := starlarkhelpers.FindValueinKwargs(kwargs, "save_to")
 	if err != nil {
 		return nil, err
 	}
-
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "save_to")
-	if err != nil {
-		return nil, err
+	if savePath == nil {
+		return nil, fmt.Errorf("save_to must be provided to download module, cannot be nil")
 	}
-	if idx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("'save_to' was not found in kwargs")
-	}
-	savePath, _, _, err := starlarkhelpers.Unquote(kwargs[idx][1].String())
-	if err != nil {
-		return nil, err
-	}
-	resp, err := a.httpClient.Get(s)
+	resp, err := a.httpClient.Get(*s)
 	if err != nil {
 		return nil, err
 	}
@@ -61,14 +52,14 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	if err != nil {
 		return nil, err
 	}
-	err = afero.WriteFile(a.fsys, savePath, b, 0644)
+	err = afero.WriteFile(a.fsys, *savePath, b, 0644)
 	if err != nil {
 		return nil, err
 	}
 
 	return &base.Result{
 		Output: func() *string {
-			s := fmt.Sprintf("downloaded file to %s", savePath)
+			s := fmt.Sprintf("downloaded file to %s", *savePath)
 			return &s
 		}(),
 		Success: true,
@@ -90,7 +81,7 @@ func New(ctx context.Context, httpClient http.Client, fsys afero.Fs) *base.Modul
 			{Key: "save_to", Type: &savePath},
 		},
 		&action{
-			httpClient: httpClient,
+			httpClient: &httpClient,
 			fsys:       fsys,
 		},
 	)
