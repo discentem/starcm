@@ -156,6 +156,7 @@ func main() {
 	)
 	timestamps := flag.Bool("timestamps", true, "include timestamps in logs")
 	verbosity := flag.Int("v", 1, "verbosity level")
+	inmemDownloads := flag.Bool("inmem_downloads", false, "use in-memory downloads")
 	flag.Parse()
 
 	l := log.Default()
@@ -188,13 +189,19 @@ func main() {
 					),
 				}, nil
 			case "download":
+				fsys := afero.Fs(nil)
+				if *inmemDownloads {
+					fsys = afero.NewMemMapFs()
+				} else {
+					fsys = afero.NewOsFs()
+				}
 				return starlark.StringDict{
 					"download": starlark.NewBuiltin(
 						"download",
 						starcmdownload.New(
 							ctx,
 							*http.DefaultClient,
-							afero.NewOsFs(),
+							fsys,
 						).Function(),
 					),
 				}, nil

@@ -3,13 +3,13 @@
         "*.expect": "shell"
     },
     "[starlark]": {"editor.formatOnSave": true},
-    "go.coverOnSave": true,
-    "go.coverageDecorator": {
-        "type": "highlight",
-        "coveredHighlightColor": "rgba(64,128,128,0.5)",
-        "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
-        "coveredGutterStyle": "blockgreen",
-        "uncoveredGutterStyle": "blockred"
-    },
-    "go.coverOnSingleTest": true
+    // "go.coverOnSave": true,
+    // "go.coverageDecorator": {
+    //     "type": "highlight",
+    //     "coveredHighlightColor": "rgba(64,128,128,0.5)",
+    //     "uncoveredHighlightColor": "rgba(128,64,64,0.25)",
+    //     "coveredGutterStyle": "blockgreen",
+    //     "uncoveredGutterStyle": "blockred"
+    // },
+    // "go.coverOnSingleTest": true
 }

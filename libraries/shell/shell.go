@@ -22,6 +22,7 @@ func (b *NopBufferCloser) Close() error {
 
 type Executor interface {
 	Command(path string, args ...string)
+	CombinedOutput() ([]byte, error)
 	Stream(posters ...io.WriteCloser) error
 	ExitCode() (int, error)
 }
@@ -43,6 +44,10 @@ func (e *RealExecutor) ExitCode() (int, error) {
 
 func (e *RealExecutor) Command(bin string, args ...string) {
 	e.Cmd = exec.Command(bin, args...)
+}
+
+func (e *RealExecutor) CombinedOutput() ([]byte, error) {
+	return e.Cmd.CombinedOutput()
 }
 
 func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
