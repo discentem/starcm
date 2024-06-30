@@ -2,7 +2,7 @@
     "files.associations": {
         "*.expect": "shell"
     },
-    "[starlark]": {"editor.formatOnSave": true},
+    // "[starlark]": {"editor.formatOnSave": true},
     // "go.coverOnSave": true,
     // "go.coverageDecorator": {
     //     "type": "highlight",

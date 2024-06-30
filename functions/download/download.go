@@ -21,7 +21,7 @@ type action struct {
 	fsys       afero.Fs
 }
 
-func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	if a.fsys == nil {
 		return nil, fmt.Errorf("fsys must be provided to download module")
 	}
@@ -45,7 +45,6 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Response: ", resp.StatusCode)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("failed to download file: %s", resp.Status)

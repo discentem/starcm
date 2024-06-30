@@ -19,7 +19,13 @@ type ArgPair struct {
 }
 
 type Runnable interface {
-	Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
+	Run(
+		ctx context.Context,
+		workingDirectory string,
+		moduleName string,
+		args starlark.Tuple,
+		kwargs []starlark.Tuple,
+	) (*Result, error)
 }
 
 type Module struct {
@@ -37,10 +43,11 @@ func (m Module) Function() starlarkhelpers.Function {
 		finalArgs = append(finalArgs, arg.Key, arg.Type)
 	}
 	var (
-		name    string
-		notIf   starlark.Bool
-		onlyIf  starlark.Bool
-		timeout string
+		name             string
+		notIf            starlark.Bool
+		onlyIf           starlark.Bool
+		timeout          string
+		workingDirectory string
 	)
 
 	// Common arguments automatically available for all modules
@@ -49,6 +56,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		"only_if?", &onlyIf,
 		"not_if?", &notIf,
 		"timeout?", &timeout,
+		"working_directory?", &workingDirectory,
 	}
 
 	googlogger.SetFlags(log.Lmsgprefix)
@@ -123,10 +131,16 @@ func (m Module) Function() starlarkhelpers.Function {
 			return StarlarkResult(*r)
 		}
 
+		if m.Ctx == nil {
+			return starlark.None, fmt.Errorf("no context defined for module %s", name)
+		}
 		// Run the module-specific behavior
 		result, err := m.Action.Run(m.Ctx, name, args, kwargs)
 		if result == nil && err != nil {
 			return starlark.None, err
+		}
+		if result == nil {
+			return starlark.None, fmt.Errorf("no result returned from module %s", name)
 		}
 		// Convert Result struct to starlark.Value
 		return StarlarkResult(*result)

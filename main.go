@@ -15,6 +15,7 @@ import (
 
 	starcmdownload "github.com/discentem/starcm/functions/download"
 	starcmshell "github.com/discentem/starcm/functions/shell"
+	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	"github.com/discentem/starcm/internal/loading"
 	"github.com/discentem/starcm/libraries/logging"
@@ -156,7 +157,7 @@ func main() {
 	)
 	timestamps := flag.Bool("timestamps", true, "include timestamps in logs")
 	verbosity := flag.Int("v", 1, "verbosity level")
-	inmemDownloads := flag.Bool("inmem_downloads", false, "use in-memory downloads")
+	inmemfs := flag.Bool("inmem_fs", false, "use in-memory filesystem")
 	flag.Parse()
 
 	l := log.Default()
@@ -173,6 +174,13 @@ func main() {
 	loader := Loader{
 		WorkspacePath: filepath.Dir(*f),
 		Predeclared: func(module string) (starlark.StringDict, error) {
+			fsys := afero.Fs(nil)
+			if *inmemfs {
+				fsys = afero.NewMemMapFs()
+			} else {
+				fsys = afero.NewOsFs()
+			}
+
 			switch module {
 			case "write":
 				return starlark.StringDict{
@@ -189,12 +197,6 @@ func main() {
 					),
 				}, nil
 			case "download":
-				fsys := afero.Fs(nil)
-				if *inmemDownloads {
-					fsys = afero.NewMemMapFs()
-				} else {
-					fsys = afero.NewOsFs()
-				}
 				return starlark.StringDict{
 					"download": starlark.NewBuiltin(
 						"download",
@@ -203,6 +205,13 @@ func main() {
 							*http.DefaultClient,
 							fsys,
 						).Function(),
+					),
+				}, nil
+			case "template":
+				return starlark.StringDict{
+					"template": starlark.NewBuiltin(
+						"template",
+						starcmtemplate.New(ctx, fsys).Function(),
 					),
 				}, nil
 			case "struct":

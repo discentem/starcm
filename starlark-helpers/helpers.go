@@ -78,6 +78,40 @@ var unesc = [256]byte{
 	'"':  '"',
 }
 
+func ValueToGo(value starlark.Value) interface{} {
+	switch value := value.(type) {
+	case starlark.String:
+		return string(value)
+	case starlark.Int:
+		i, _ := value.Int64()
+		return i
+	case starlark.Float:
+		return float64(value)
+	case starlark.Bool:
+		return bool(value)
+	case *starlark.List:
+		list := make([]interface{}, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			list[i] = ValueToGo(value.Index(i))
+		}
+		return list
+	case *starlark.Dict:
+		return DictToGoMap(value)
+	default:
+		return value
+	}
+}
+
+func DictToGoMap(dict *starlark.Dict) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, item := range dict.Items() {
+		key := item[0].(starlark.String)
+		value := ValueToGo(item[1])
+		result[string(key)] = value
+	}
+	return result
+}
+
 // unquote unquotes the quoted string, returning the actual
 // string value, whether the original was triple-quoted,
 // whether it was a byte string, and an error describing invalid input.
