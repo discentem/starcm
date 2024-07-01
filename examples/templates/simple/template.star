@@ -6,7 +6,7 @@ render = template(
     template = "example.tpl",
     key_vals = {
         "name": "world",
-        "age": 42
+        "age": 42,
     }
 )
-write(str=render.output)
+write(render.output)

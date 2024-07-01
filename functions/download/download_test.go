@@ -159,7 +159,7 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("Running test %q", tt.name)
-			result, err := tt.action.Run(context.TODO(), tt.moduleName, tt.starlarkArgs, tt.starlarkKwargs)
+			result, err := tt.action.Run(context.TODO(), "", tt.moduleName, tt.starlarkArgs, tt.starlarkKwargs)
 			if tt.expectedError == nil {
 				t.Fatal("tt.expectedError must be provided")
 			}

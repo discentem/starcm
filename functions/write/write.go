@@ -16,13 +16,17 @@ type action struct {
 	w io.Writer
 }
 
-func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	s, err := starlarkhelpers.FindValueinKwargs(kwargs, "str")
 	if err != nil {
-		return nil, err
-	}
-	if s == nil {
-		return nil, fmt.Errorf("str is required in write() module")
+		for _, arg := range args {
+			fmt.Fprintf(a.w, "%s", arg)
+		}
+		return &base.Result{
+			Output:  s,
+			Success: true,
+			Changed: false,
+		}, nil
 	}
 
 	e, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "end", "\n")

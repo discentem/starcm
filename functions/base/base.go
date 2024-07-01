@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/discentem/starcm/libraries/logging"
@@ -47,7 +48,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		notIf            starlark.Bool
 		onlyIf           starlark.Bool
 		timeout          string
-		workingDirectory string
+		workingDirectory starlark.String
 	)
 
 	// Common arguments automatically available for all modules
@@ -112,38 +113,38 @@ func (m Module) Function() starlarkhelpers.Function {
 			return sr, nil
 		}
 
+		var finalWorkingDir string
+		if workingDirectory.Truth() == starlark.False {
+			if len(thread.CallStack()) > 0 {
+				dirName := filepath.Dir(thread.CallStack().At(1).Pos.Filename())
+				finalWorkingDir = filepath.Join(dirName, workingDirectory.GoString())
+			}
+
+		}
+
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
 		deck.Infof("[%s]: Executing...\n", name)
 
+		var ctx context.Context
+		var cancel context.CancelFunc
 		if !(timeout == "") {
 			dur, err := time.ParseDuration(timeout)
 			if err != nil {
 				return starlark.None, fmt.Errorf("error parsing timeout [%s]: %s", timeout, err)
 			}
-			ctx, cancel := context.WithTimeout(m.Ctx, dur)
+			ctx, cancel = context.WithTimeout(m.Ctx, dur)
 			defer cancel()
-			r, err := m.Action.Run(ctx, name, args, kwargs)
-			if r == nil && err != nil {
-				return starlark.None, err
-			}
-			return StarlarkResult(*r)
 		}
-
-		if m.Ctx == nil {
-			return starlark.None, fmt.Errorf("no context defined for module %s", name)
-		}
-		// Run the module-specific behavior
-		result, err := m.Action.Run(m.Ctx, name, args, kwargs)
-		if result == nil && err != nil {
+		r, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
+		if r == nil && err != nil {
 			return starlark.None, err
 		}
-		if result == nil {
+		if r == nil {
 			return starlark.None, fmt.Errorf("no result returned from module %s", name)
 		}
-		// Convert Result struct to starlark.Value
-		return StarlarkResult(*result)
+		return StarlarkResult(*r)
 	}
 
 }

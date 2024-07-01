@@ -18,20 +18,13 @@ type action struct {
 	fsys afero.Fs
 }
 
-func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	template, err := starlarkhelpers.FindValueinKwargs(kwargs, "template")
 	if err != nil {
 		return nil, err
 	}
 	if template == nil {
 		return nil, fmt.Errorf("template is required in template() module")
-	}
-
-	if !absolutePath {
-		if len(thread.CallStack()) > 0 {
-			dirName := filepath.Dir(thread.CallStack().At(1).Pos.Filename())
-			modulepath = filepath.Join(dirName, modulepath)
-		}
 	}
 
 	keyValsIdx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "key_vals")
@@ -44,7 +37,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	keyVals := kwargs[keyValsIdx][1].(*starlark.Dict)
 	gokv := starlarkhelpers.DictToGoMap(keyVals)
 
-	f, err := a.fsys.Open(*template)
+	f, err := a.fsys.Open(filepath.Join(workingDirectory, *template))
 	if err != nil {
 		return nil, err
 	}

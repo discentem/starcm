@@ -17,7 +17,7 @@ import (
 
 type action struct{}
 
-func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
