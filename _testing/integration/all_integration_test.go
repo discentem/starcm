@@ -37,6 +37,7 @@ func TestAll(t *testing.T) {
 					strings.TrimSuffix(path, ".expect"),
 					"--timestamps=false",
 				)
+				// .expect files should be named thing.star.expect so that TrimSuffix removes the .expect
 				t.Log("Running starcm with", strings.TrimSuffix(path, ".expect"))
 				actual, err := cmd.CombinedOutput()
 				assert.NoError(t, err)
