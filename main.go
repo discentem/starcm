@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/afero"
 
 	starcmdownload "github.com/discentem/starcm/functions/download"
+	starcmshard "github.com/discentem/starcm/functions/shard"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmwrite "github.com/discentem/starcm/functions/write"
@@ -212,6 +213,13 @@ func main() {
 					"template": starlark.NewBuiltin(
 						"template",
 						starcmtemplate.New(ctx, fsys).Function(),
+					),
+				}, nil
+			case "shard":
+				return starlark.StringDict{
+					"shard": starlark.NewBuiltin(
+						"shard",
+						starcmshard.New(ctx).Function(),
 					),
 				}, nil
 			case "struct":

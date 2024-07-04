@@ -136,6 +136,8 @@ func (m Module) Function() starlarkhelpers.Function {
 			}
 			ctx, cancel = context.WithTimeout(m.Ctx, dur)
 			defer cancel()
+		} else {
+			ctx = m.Ctx
 		}
 		r, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
 		if r == nil && err != nil {

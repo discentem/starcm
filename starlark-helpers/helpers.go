@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/discentem/starcm/libraries/logging"
+	"github.com/google/deck"
 	"go.starlark.net/starlark"
 )
 
@@ -36,10 +38,12 @@ func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, er
 		return nil, ErrIndexNotFound
 	}
 	s := kwargs[index][1].String()
+	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(4), "s", s)
 	unquoted, _, _, err := Unquote(s)
 	if err != nil {
 		return nil, err
 	}
+	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(4), "unquoted", unquoted)
 	return &unquoted, nil
 }
 

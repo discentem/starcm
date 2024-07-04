@@ -7,7 +7,9 @@ import (
 	"fmt"
 
 	"github.com/discentem/starcm/functions/base"
+	"github.com/discentem/starcm/libraries/logging"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
+	"github.com/google/deck"
 	"github.com/noirbizarre/gonja"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
@@ -29,6 +31,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 
 	keyValsIdx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "key_vals")
 	if err != nil {
+		logging.Log("template", deck.V(3), "error", "failed to find index of key_vals in kwargs", err)
 		return nil, err
 	}
 	if keyValsIdx == starlarkhelpers.IndexNotFound {
@@ -48,9 +51,14 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 	}
 	tmpl, err := gonja.FromBytes(b)
 	if err != nil {
+		logging.Log("template", deck.V(3), "error", "failed to parse template", err)
 		return nil, err
 	}
 	renderedTemplate, err := tmpl.Execute(gokv)
+	if err != nil {
+		logging.Log("template", deck.V(3), "error", "failed to render template", err)
+		return nil, err
+	}
 
 	return &base.Result{
 		Output: func() *string {
