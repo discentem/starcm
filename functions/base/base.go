@@ -51,7 +51,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		workingDirectory starlark.String
 	)
 
-	// Common arguments automatically available for all modules
+	// Common arguments automatically available for all Starcm functions
 	commonArgs := []any{
 		"name", &name,
 		"only_if?", &onlyIf,
@@ -114,12 +114,15 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		var finalWorkingDir string
+		// If working directory is not set, use the parent directory of the file that called the module
 		if workingDirectory.Truth() == starlark.False {
 			if len(thread.CallStack()) > 0 {
 				dirName := filepath.Dir(thread.CallStack().At(1).Pos.Filename())
 				finalWorkingDir = filepath.Join(dirName, workingDirectory.GoString())
 			}
 
+		} else {
+			finalWorkingDir = workingDirectory.GoString()
 		}
 
 		if m.Action == nil {

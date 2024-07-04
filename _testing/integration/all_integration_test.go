@@ -20,6 +20,7 @@ var (
 func TestMain(m *testing.M) {
 	testDir = flag.String("test_dir", "../../examples", "Path to the directory containing the test files")
 	starcm = flag.String("path_to_starcm_main.go", "../../main.go", "Path to the main.go file of the StarCM project")
+
 	flag.Parse()
 	os.Exit(m.Run())
 }
@@ -36,10 +37,9 @@ func TestAll(t *testing.T) {
 					strings.TrimSuffix(path, ".expect"),
 					"--timestamps=false",
 				)
-				t.Log("Running starcm with", path)
+				t.Log("Running starcm with", strings.TrimSuffix(path, ".expect"))
 				actual, err := cmd.CombinedOutput()
 				assert.NoError(t, err)
-
 				expected, err := ioutil.ReadFile(path)
 				assert.NoError(t, err)
 
