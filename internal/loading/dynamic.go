@@ -1,10 +1,11 @@
 package loading
 
 import (
-	"fmt"
 	"path/filepath"
 
+	"github.com/discentem/starcm/libraries/logging"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
+	"github.com/google/deck"
 	"go.starlark.net/starlark"
 )
 
@@ -27,7 +28,7 @@ func DynamicLoadfunc() starlarkhelpers.Function {
 				modulepath = filepath.Join(dirName, modulepath)
 			}
 		}
-		fmt.Println("Loading module from path: ", modulepath)
+		logging.Log(builtin.Name(), deck.V(3), "info", "Loading module from path: %q", modulepath)
 		module, err := thread.Load(thread, modulepath)
 		if err != nil {
 			return nil, err

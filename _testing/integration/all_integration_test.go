@@ -12,10 +12,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAll(t *testing.T) {
-	testDir := flag.String("test_dir", "../../examples", "Path to the directory containing the test files")
-	starcm := flag.String("path_to_starcm_main.go", "../../main.go", "Path to the main.go file of the StarCM project")
+var (
+	testDir *string
+	starcm  *string
+)
 
+func TestMain(m *testing.M) {
+	testDir = flag.String("test_dir", "../../examples", "Path to the directory containing the test files")
+	starcm = flag.String("path_to_starcm_main.go", "../../main.go", "Path to the main.go file of the StarCM project")
+	flag.Parse()
+	os.Exit(m.Run())
+}
+
+func TestAll(t *testing.T) {
 	err := filepath.Walk(*testDir, func(path string, info os.FileInfo, err error) error {
 		if strings.HasSuffix(path, ".expect") {
 			t.Run(path, func(t *testing.T) {
