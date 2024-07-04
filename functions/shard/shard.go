@@ -47,7 +47,6 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 		logging.Log("shard", deck.V(3), "error", "failed to find identifier in kwargs")
 		return nil, err
 	}
-	logging.Log("kwargs", deck.V(3), "kwargs", fmt.Sprintf("%v", kwargs))
 
 	shardSizeIdx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "shard_size")
 	if err != nil {
@@ -72,9 +71,10 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 		logging.Log("shard", deck.V(3), "error", "failed to calculate shard")
 		return nil, fmt.Errorf("failed to calculate shard: %w", err)
 	}
-	logging.Log("shard", deck.V(3), "shard", fmt.Sprintf("%d", shard))
+	logging.Log(moduleName, deck.V(3), "shard", fmt.Sprintf("%d", shard))
 
 	return &base.Result{
+		Name: &moduleName,
 		Output: func() *string {
 			s := fmt.Sprintf("%d", shard)
 			return &s

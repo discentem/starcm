@@ -23,6 +23,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 			fmt.Fprintf(a.w, "%s", arg)
 		}
 		return &base.Result{
+			Name:    &moduleName,
 			Output:  s,
 			Success: true,
 			Changed: false,
@@ -36,6 +37,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 
 	fmt.Fprintf(a.w, "%s%s", *s, *e)
 	return &base.Result{
+		Name:    &moduleName,
 		Output:  s,
 		Success: true,
 		Changed: false,

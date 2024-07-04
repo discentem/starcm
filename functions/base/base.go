@@ -76,6 +76,11 @@ func (m Module) Function() starlarkhelpers.Function {
 		); err != nil {
 			return starlark.None, err
 		}
+		_, err := starlarkhelpers.FindValueinKwargs(kwargs, "name")
+		if err != nil {
+			return starlark.None, fmt.Errorf("%v for %q argument", err, "name")
+		}
+
 		idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "not_if")
 		if err != nil {
 			return nil, err
@@ -142,6 +147,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		} else {
 			ctx = m.Ctx
 		}
+		logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, moduleName=%q, args, kwargs)", finalWorkingDir, name)
 		r, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
 		if r == nil && err != nil {
 			return starlark.None, err

@@ -77,6 +77,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 	}
 
 	return &base.Result{
+		Name: &moduleName,
 		Output: func() *string {
 			s := fmt.Sprintf("downloaded file to %s", *savePath)
 			return &s

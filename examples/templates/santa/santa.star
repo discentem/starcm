@@ -10,22 +10,25 @@ def choose_env(shard):
     else:
         return "prod"
 
+# query = osquery("SELECT serial FROM machines WHERE major_version = 15")'")
 
-for serial in ["abc", "def"]:
+for serial in ["abc", "def"]: # for each serial in query
     sa = shard(
         name="santa shard for " + serial, 
         identifier=serial, 
         shard_size=10, 
         seed="santashard"
     )
-    chosen_env = choose_env(int(sa.output))
+    shardNum = sa.output
+
+    chosen_env = choose_env(int(shardNum))
 
     url = "https://santa-{}.acme.com".format(chosen_env)
     render = template(
-        name = 'generating santa mobile config', 
+        name = "generating santa mobile config for serial '%s'" % serial, 
         template = 'santa.tmpl', 
         key_vals = {
            'SERVER_URL' : url
         }
     )
-    write(render.output)
+    write(render.output, name=("rendering output for serial choose_env(%s)" % shardNum))

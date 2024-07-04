@@ -51,6 +51,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 	}
 	tmpl, err := gonja.FromBytes(b)
 	if err != nil {
+		// If it fails here, it's like a problem with the .tmpl file itself such as unexpected symbols
 		logging.Log("template", deck.V(3), "error", "failed to parse template", err)
 		return nil, err
 	}
@@ -61,6 +62,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 	}
 
 	return &base.Result{
+		Name: &moduleName,
 		Output: func() *string {
 			s := fmt.Sprint(renderedTemplate)
 			return &s
