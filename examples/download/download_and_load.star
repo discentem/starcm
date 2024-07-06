@@ -1,6 +1,6 @@
-load("loading", "load_dynamic")
-load("download", "download")
-load("write", "write")
+load("starcm", "load_dynamic")
+load("starcm", "download")
+load("starcm", "write")
 
 f = "z.star"
 

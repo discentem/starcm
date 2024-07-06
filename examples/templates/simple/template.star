@@ -1,5 +1,5 @@
-load("template", "template")
-load("write", "write")
+load("starcm", "template")
+load("starcm", "write")
 
 render = template(
     name = "example template",

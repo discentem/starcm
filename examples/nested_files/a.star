@@ -1,4 +1,4 @@
-load("loading", "load_dynamic")
+load("starcm", "load_dynamic")
 print('hello from a.star')
 
 bstar = "subfolder/b.star"

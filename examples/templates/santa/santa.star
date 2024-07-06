@@ -1,6 +1,6 @@
-load("template", "template")
-load("write", "write")
-load("shard", "shard")
+load("starcm", "template")
+load("starcm", "write")
+load("starcm", "shard")
 
 def choose_env(shard):
     if shard < 4:

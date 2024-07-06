@@ -183,21 +183,7 @@ func main() {
 			}
 
 			switch module {
-			case "write":
-				return starlark.StringDict{
-					"write": starlark.NewBuiltin(
-						"write",
-						starcmwrite.New(ctx, os.Stdout).Function(),
-					),
-				}, nil
-			case "shellout":
-				return starlark.StringDict{
-					"exec": starlark.NewBuiltin(
-						"exec",
-						starcmshell.New(ctx).Function(),
-					),
-				}, nil
-			case "download":
+			case "starcm":
 				return starlark.StringDict{
 					"download": starlark.NewBuiltin(
 						"download",
@@ -207,28 +193,27 @@ func main() {
 							fsys,
 						).Function(),
 					),
-				}, nil
-			case "template":
-				return starlark.StringDict{
+					"write": starlark.NewBuiltin(
+						"write",
+						starcmwrite.New(ctx, os.Stdout).Function(),
+					),
+					"exec": starlark.NewBuiltin(
+						"exec",
+						starcmshell.New(ctx).Function(),
+					),
 					"template": starlark.NewBuiltin(
 						"template",
 						starcmtemplate.New(ctx, fsys).Function(),
 					),
-				}, nil
-			case "shard":
-				return starlark.StringDict{
 					"shard": starlark.NewBuiltin(
 						"shard",
 						starcmshard.New(ctx).Function(),
 					),
+					"load_dynamic": starlark.NewBuiltin("load_dynamic", loading.DynamicLoadfunc()),
 				}, nil
-			case "struct":
+			case "starlarkstdlib":
 				return starlark.StringDict{
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
-				}, nil
-			case "loading":
-				return starlark.StringDict{
-					"load_dynamic": starlark.NewBuiltin("load_dynamic", loading.DynamicLoadfunc()),
 				}, nil
 			default:
 				// set both to nil to allow the loader to load a .star file from a path.

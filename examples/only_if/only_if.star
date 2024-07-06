@@ -1,5 +1,5 @@
-load("shellout", "exec")
-load("write", "write")
+load("starcm", "exec")
+load("starcm", "write")
 
 a = exec(
     name               = "explicitly exit 2",

@@ -1,4 +1,4 @@
-load("shellout", "exec")
+load("starcm", "exec")
 exec(
     name               = "hello_from_starcm",
     cmd                = "echo", 
