@@ -90,7 +90,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 		posters = append(posters, os.Stdout)
 	}
 
-	logging.Log(moduleName, deck.V(2), "info", "number of io.WriteClosers: %v", posters)
+	logging.Log(moduleName, deck.V(3), "info", "number of io.WriteClosers: %v", posters)
 
 	resultChan := make(chan *base.Result, 1)
 
