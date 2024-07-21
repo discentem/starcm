@@ -13,6 +13,7 @@ import (
 
 func WalkExamples(t *testing.T, starcmBin string, testDir string) error {
 	return filepath.Walk(testDir, func(path string, info os.FileInfo, err error) error {
+		t.Log("Checking", path)
 		if strings.HasSuffix(path, ".expect") {
 			t.Run(path, func(t *testing.T) {
 				cmd := exec.Command(
@@ -32,6 +33,7 @@ func WalkExamples(t *testing.T, starcmBin string, testDir string) error {
 
 				assert.Equal(t, string(expected), string(actual))
 			})
+			assert.NoError(t, err)
 		}
 		return nil
 	})
