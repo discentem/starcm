@@ -73,6 +73,9 @@ type Loader struct {
 
 	// WorkspacePath specifies the path to the source directory.
 	WorkspacePath string
+
+	// Fsys is the filesystem to use for loading modules.
+	Fsys afero.Fs
 }
 
 // Sequential implements sequential module loading.
@@ -117,7 +120,7 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 					modulepath = path.Join(modulepath, module)
 				}
 
-				data, err := os.ReadFile(modulepath)
+				data, err := afero.ReadFile(l.Fsys, modulepath)
 				if err != nil {
 					return nil, fmt.Errorf("loading module %q: %s", modulepath, err)
 				}
@@ -150,38 +153,40 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 	return load
 }
 
-func main() {
-	f := flag.String(
-		"root_file",
-		"",
-		"path to the first starlark file to run",
-	)
-	timestamps := flag.Bool("timestamps", true, "include timestamps in logs")
-	verbosity := flag.Int("v", 1, "verbosity level")
-	inmemfs := flag.Bool("inmem_fs", false, "use in-memory filesystem")
-	flag.Parse()
+type LoaderOption func(*Loader)
 
-	l := log.Default()
-	if !*timestamps {
-		l.SetFlags(log.LUTC)
+func WithWorkspacePath(workspacePath string) LoaderOption {
+	return func(l *Loader) {
+		l.WorkspacePath = workspacePath
 	}
-	deck.Add(logger.Init(l.Writer(), l.Flags()))
+}
 
-	deck.Info("starting starcm...")
-	deck.SetVerbosity(*verbosity)
+func WithPredeclared(predeclared func(module string) (starlark.StringDict, error)) LoaderOption {
+	return func(l *Loader) {
+		l.Predeclared = predeclared
+	}
+}
 
-	ctx := context.Background()
+func WithFsys(fsys afero.Fs) LoaderOption {
+	return func(l *Loader) {
+		l.Fsys = fsys
+	}
+}
 
-	loader := Loader{
-		WorkspacePath: filepath.Dir(*f),
-		Predeclared: func(module string) (starlark.StringDict, error) {
-			fsys := afero.Fs(nil)
-			if *inmemfs {
-				fsys = afero.NewMemMapFs()
-			} else {
-				fsys = afero.NewOsFs()
-			}
+func NewLoader(ctx context.Context, opts ...LoaderOption) Loader {
+	l := Loader{}
+	for _, opt := range opts {
+		opt(&l)
+	}
+	return l
+}
 
+func defaultLoader(ctx context.Context, fsys afero.Fs, workspacePath string) Loader {
+	l := NewLoader(
+		ctx,
+		WithWorkspacePath(workspacePath),
+		WithFsys(fsys),
+		WithPredeclared(func(module string) (starlark.StringDict, error) {
 			switch module {
 			case "starcm":
 				return starlark.StringDict{
@@ -219,17 +224,56 @@ func main() {
 				// set both to nil to allow the loader to load a .star file from a path.
 				return nil, nil
 			}
-		},
+		}),
+	)
+	return l
+}
+
+func main() {
+	f := flag.String(
+		"root_file",
+		"",
+		"path to the first starlark file to run",
+	)
+	timestamps := flag.Bool("timestamps", true, "include timestamps in logs")
+	verbosity := flag.Int("v", 1, "verbosity level")
+	inmemfs := flag.Bool("inmem_fs", false, "use in-memory filesystem")
+	flag.Parse()
+
+	l := log.Default()
+	if !*timestamps {
+		l.SetFlags(log.LUTC)
+	}
+	deck.Add(logger.Init(l.Writer(), l.Flags()))
+
+	deck.Info("starting starcm...")
+	deck.SetVerbosity(*verbosity)
+
+	ctx := context.Background()
+
+	fsys := afero.Fs(nil)
+
+	if *inmemfs {
+		fsys = afero.NewMemMapFs()
+	} else {
+		fsys = afero.NewOsFs()
 	}
 
-	err := LoadFromFile(
+	loader := defaultLoader(ctx, fsys, filepath.Dir(*f))
+
+	b, err := afero.ReadFile(fsys, *f)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = LoadFromFile(
 		context.Background(),
 		*f,
-		nil,
+		b,
 		loader.Sequential(context.Background()),
 	)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 }
