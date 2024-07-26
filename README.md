@@ -6,7 +6,7 @@
 
 # Goal
 
-Starcm is intended to become a viable alternative for tools like [https://github.com/macadmins/installapplications](macadmins/installapplications), [https://github.com/facebookincubator/go2chef](facebookincubator/go2chef), and [https://github.com/google/glazier](google/glazier).
+Starcm is intended to become a viable alternative for tools like [macadmins/installapplications](https://github.com/macadmins/installapplications), [facebookincubator/go2chef](https://github.com/facebookincubator/go2chef), and [google/glazier](https://github.com/google/glazier).
 
 # Introduction to starcm language
 
