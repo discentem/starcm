@@ -1,8 +1,12 @@
 # starcm
 "star-cm"
 
-- A rudimentary configuration management language that utilizes Starlark, for configuration instead of json or yaml. Why Starlark? It provides variables, functions, loops, and lots more "for free" inside of the configuration files!
-- Starcm is not full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()`, for shelling out, `template()` for rendering files from templates, `load_dynamic()` for loading additional starcm config files, and much more!
+- A rudimentary configuration management language that utilizes Starlark instead of json or yaml. Why Starlark? It provides variables, functions, loops, and lots more "for free" inside of the configuration files!
+- Starcm is not full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()` for calling binaries, `template()` for rendering templated files, `load_dynamic()` for loading additional starcm config files dynamically, and much more!
+
+# Goal
+
+Starcm is intended to become a viable alternative for tools like [https://github.com/macadmins/installapplications](macadmins/installapplications), [https://github.com/facebookincubator/go2chef](facebookincubator/go2chef), and [https://github.com/google/glazier](google/glazier).
 
 # Introduction to starcm language
 
