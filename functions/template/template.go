@@ -16,11 +16,11 @@ import (
 	// TODO (discentem): consider replacing with a different template engine
 )
 
-type action struct {
+type templateAction struct {
 	fsys afero.Fs
 }
 
-func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *templateAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	template, err := starlarkhelpers.FindValueinKwargs(kwargs, "template")
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 			{Key: "template", Type: &str},
 			{Key: "key_vals", Type: &keyVals},
 		},
-		&action{
+		&templateAction{
 			fsys: fsys,
 		},
 	)
