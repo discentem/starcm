@@ -13,8 +13,6 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type action struct{}
-
 func getSeededFlexibleShard(identifier string, shardSize int, seed string) (int, error) {
 	if shardSize < 10 {
 		return 0, fmt.Errorf("shard_size must be at least 10")
@@ -41,7 +39,9 @@ func getSeededFlexibleShard(identifier string, shardSize int, seed string) (int,
 	return intValue % shardSize, nil
 }
 
-func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+type shardAction struct{}
+
+func (a *shardAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	id, err := starlarkhelpers.FindValueinKwargs(kwargs, "identifier")
 	if err != nil {
 		logging.Log("shard", deck.V(3), "error", "failed to find identifier in kwargs")
@@ -100,6 +100,6 @@ func New(ctx context.Context) *base.Module {
 			{Key: "shard_size", Type: &shardSize},
 			{Key: "seed", Type: &seed},
 		},
-		&action{},
+		&shardAction{},
 	)
 }

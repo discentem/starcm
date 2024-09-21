@@ -12,11 +12,11 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type action struct {
+type writeAction struct {
 	w io.Writer
 }
 
-func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	s, err := starlarkhelpers.FindValueinKwargs(kwargs, "str")
 	if err != nil {
 		for _, arg := range args {
@@ -57,7 +57,7 @@ func New(ctx context.Context, w io.Writer) *base.Module {
 			{Key: "str", Type: &str},
 			{Key: "end??", Type: &end},
 		},
-		&action{
+		&writeAction{
 			w: w,
 		},
 	)

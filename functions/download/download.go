@@ -16,12 +16,12 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type action struct {
+type downloadAction struct {
 	httpClient *http.Client
 	fsys       afero.Fs
 }
 
-func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *downloadAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	if a.fsys == nil {
 		return nil, fmt.Errorf("fsys must be provided to download module")
 	}
@@ -102,7 +102,7 @@ func New(ctx context.Context, httpClient http.Client, fsys afero.Fs) *base.Modul
 			{Key: "save_to", Type: &savePath},
 			{Key: "sha256", Type: &sha256},
 		},
-		&action{
+		&downloadAction{
 			httpClient: &httpClient,
 			fsys:       fsys,
 		},

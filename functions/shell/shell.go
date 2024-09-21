@@ -15,9 +15,12 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type action struct{}
+type shellAction struct {
+	executor shelllib.Executor
+}
 
-func (a *action) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+
 	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
@@ -146,7 +149,7 @@ func (a *action) Run(ctx context.Context, workingDirectory string, moduleName st
 	}
 }
 
-func New(ctx context.Context) *base.Module {
+func New(ctx context.Context, executor shelllib.Executor) *base.Module {
 	var (
 		str        string
 		args       *starlark.List
@@ -163,6 +166,8 @@ func New(ctx context.Context) *base.Module {
 			{Key: "expected_exit_code??", Type: &exitCode},
 			{Key: "live_output??", Type: &liveOutput},
 		},
-		&action{},
+		&shellAction{
+			executor: executor,
+		},
 	)
 }
