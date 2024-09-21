@@ -25,7 +25,7 @@ func TestRun(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		action         *action
+		action         *downloadAction
 		moduleName     string
 		starlarkArgs   starlark.Tuple
 		starlarkKwargs []starlark.Tuple
@@ -34,7 +34,7 @@ func TestRun(t *testing.T) {
 	}{
 		{
 			name: "Test download with nil fsys",
-			action: &action{
+			action: &downloadAction{
 				httpClient: &http.Client{},
 				fsys:       nil,
 			},
@@ -48,7 +48,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test downloading succeeds",
-			action: &action{
+			action: &downloadAction{
 				httpClient: func() *http.Client {
 					client := &http.Client{}
 					client.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -82,7 +82,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test download with missing url",
-			action: &action{
+			action: &downloadAction{
 				httpClient: http.DefaultClient,
 				fsys:       afero.NewMemMapFs(),
 			},
@@ -103,7 +103,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test download with missing save_to",
-			action: &action{
+			action: &downloadAction{
 				httpClient: http.DefaultClient,
 				fsys:       afero.NewMemMapFs(),
 			},
@@ -124,7 +124,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test non-200 status code",
-			action: &action{
+			action: &downloadAction{
 				httpClient: func() *http.Client {
 					client := &http.Client{}
 					client.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {

@@ -36,7 +36,8 @@ type Module struct {
 	Ctx    context.Context
 }
 
-// Function produces a starlark Function that has common behavior that useful for all modules like only_if, not_if, and after
+// Function produces a starlark Function that has common behavior which is useful for all modules like
+// only_if, not_if, timeout, working_directory
 func (m Module) Function() starlarkhelpers.Function {
 	finalArgs := make([]any, 0)
 	// Add arguments that are specific to this module

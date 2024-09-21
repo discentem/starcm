@@ -20,6 +20,7 @@ import (
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	"github.com/discentem/starcm/internal/loading"
 	"github.com/discentem/starcm/libraries/logging"
+	starcmshelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"github.com/google/deck/backends/logger"
@@ -181,7 +182,7 @@ func NewLoader(ctx context.Context, opts ...LoaderOption) Loader {
 	return l
 }
 
-func defaultLoader(ctx context.Context, fsys afero.Fs, workspacePath string) Loader {
+func defaultLoader(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, workspacePath string) Loader {
 	l := NewLoader(
 		ctx,
 		WithWorkspacePath(workspacePath),
@@ -204,7 +205,10 @@ func defaultLoader(ctx context.Context, fsys afero.Fs, workspacePath string) Loa
 					),
 					"exec": starlark.NewBuiltin(
 						"exec",
-						starcmshell.New(ctx).Function(),
+						starcmshell.New(
+							ctx,
+							ex,
+						).Function(),
 					),
 					"template": starlark.NewBuiltin(
 						"template",
@@ -258,8 +262,9 @@ func main() {
 	} else {
 		fsys = afero.NewOsFs()
 	}
+	ei := starcmshelllib.Executor(&starcmshelllib.RealExecutor{})
 
-	loader := defaultLoader(ctx, fsys, filepath.Dir(*f))
+	loader := defaultLoader(ctx, fsys, ei, filepath.Dir(*f))
 
 	b, err := afero.ReadFile(fsys, *f)
 	if err != nil {
@@ -269,6 +274,9 @@ func main() {
 	err = LoadFromFile(
 		context.Background(),
 		*f,
+		// If src is bytes, starlark-go will just execute it directly
+		// without any additional processing.
+		// https://github.com/google/starlark-go/blob/42030a7cedcee8b1fe3dc9309d4f545f6104715d/syntax/scan.go#L282
 		b,
 		loader.Sequential(context.Background()),
 	)
