@@ -2,6 +2,7 @@ package shell
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -14,7 +15,7 @@ func TestRealExecutor(t *testing.T) {
 	tests := []struct {
 		name           string
 		exec           *RealExecutor
-		getWriteCloser func(buf bytes.Buffer) io.WriteCloser
+		getWriteCloser func(buf *bytes.Buffer) io.WriteCloser
 		expectedErr    error
 		expected       string
 	}{
@@ -23,16 +24,16 @@ func TestRealExecutor(t *testing.T) {
 			exec: &RealExecutor{
 				Cmd: exec.Command("bash", "test/artifacts/long_running.sh"),
 			},
-			getWriteCloser: func(buf bytes.Buffer) io.WriteCloser {
-				return &NopBufferCloser{Buffer: &buf}
+			getWriteCloser: func(buf *bytes.Buffer) io.WriteCloser {
+				return &NopBufferCloser{Buffer: buf}
 			},
 			expectedErr: nil,
 			expected:    "1 \n2 \n3 \n",
 		},
 		{
 			name: "RealExecutor initialized with call to .Command()",
-			getWriteCloser: func(buf bytes.Buffer) io.WriteCloser {
-				return &NopBufferCloser{Buffer: &buf}
+			getWriteCloser: func(buf *bytes.Buffer) io.WriteCloser {
+				return &NopBufferCloser{Buffer: buf}
 			},
 			exec: func() *RealExecutor {
 				re := &RealExecutor{}
@@ -46,13 +47,14 @@ func TestRealExecutor(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			out := bytes.Buffer{}
+			out := &bytes.Buffer{}
 			if test.getWriteCloser == nil {
 				t.Error("test.getWriteCloser must not be nil")
 				t.Fail()
 			}
 			wc := test.getWriteCloser(out)
 			err := test.exec.Stream(wc)
+			fmt.Println(out.String())
 			assert.Equal(t, test.expectedErr, err)
 			assert.Equal(t, test.expected, out.String())
 		})

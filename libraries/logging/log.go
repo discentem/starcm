@@ -6,6 +6,10 @@ import (
 	"github.com/google/deck"
 )
 
+func Infof(format string, v ...any) {
+	Log("Infof", nil, "info", format, v...)
+}
+
 func Log(prefix string, attribute deck.Attrib, level string, format string, v ...any) {
 	m := message{
 		Prefix: prefix,

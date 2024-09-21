@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "*.expect": "shell"
+    },
+    "editor.formatOnSave": true,
+    "[go]": {
+        "editor.insertSpaces": false,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "always"
+        },
+    },
+    "go.testFlags": [
+        "-count=1"
+    ]
+}

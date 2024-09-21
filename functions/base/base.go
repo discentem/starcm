@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"time"
 
 	"github.com/discentem/starcm/libraries/logging"
@@ -19,16 +20,24 @@ type ArgPair struct {
 }
 
 type Runnable interface {
-	Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*Result, error)
+	Run(
+		ctx context.Context,
+		workingDirectory string,
+		moduleName string,
+		args starlark.Tuple,
+		kwargs []starlark.Tuple,
+	) (*Result, error)
 }
 
 type Module struct {
+	Type   string
 	Args   []ArgPair
 	Action Runnable
 	Ctx    context.Context
 }
 
-// Function produces a starlark Function that has common behavior that useful for all modules like only_if, not_if, and after
+// Function produces a starlark Function that has common behavior that useful for all modules like
+// only_if, not_if, timeout, working_directory
 func (m Module) Function() starlarkhelpers.Function {
 	finalArgs := make([]any, 0)
 	// Add arguments that are specific to this module
@@ -36,18 +45,20 @@ func (m Module) Function() starlarkhelpers.Function {
 		finalArgs = append(finalArgs, arg.Key, arg.Type)
 	}
 	var (
-		name    string
-		notIf   starlark.Bool
-		onlyIf  starlark.Bool
-		timeout string
+		name             string
+		notIf            starlark.Bool
+		onlyIf           starlark.Bool
+		timeout          string
+		workingDirectory starlark.String
 	)
 
-	// Common arguments automatically available for all modules
+	// Common arguments automatically available for all Starcm functions
 	commonArgs := []any{
 		"name", &name,
 		"only_if?", &onlyIf,
 		"not_if?", &notIf,
 		"timeout?", &timeout,
+		"working_directory?", &workingDirectory,
 	}
 
 	googlogger.SetFlags(log.Lmsgprefix)
@@ -66,7 +77,12 @@ func (m Module) Function() starlarkhelpers.Function {
 		); err != nil {
 			return starlark.None, err
 		}
-		idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "not_if")
+		_, err := starlarkhelpers.FindValueinKwargs(kwargs, "name")
+		if err != nil {
+			return starlark.None, fmt.Errorf("%v for %q argument", err, "name")
+		}
+
+		idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "not_if")
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +94,7 @@ func (m Module) Function() starlarkhelpers.Function {
 
 		// skip module if not_if is true
 		if notIf.Truth() {
-			logging.Log(name, nil, "info", "skipping module %q because not_if was true", name)
+			logging.Log(name, nil, "info", "skipping %s(name=%q) because not_if was true", m.Type, name)
 			sr, err := StarlarkResult(Result{})
 			if err != nil {
 				return nil, err
@@ -86,7 +102,7 @@ func (m Module) Function() starlarkhelpers.Function {
 			return sr, nil
 		}
 
-		idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "only_if")
+		idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "only_if")
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +111,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		if onlyIf.Truth() == starlark.False {
-			logging.Log(name, nil, "info", "skipping module %q because only_if was false", name)
+			logging.Log(name, nil, "info", "skipping %s(name=%q) because only_if was false", m.Type, name)
 			sr, err := StarlarkResult(Result{})
 			if err != nil {
 				return nil, err
@@ -103,38 +119,51 @@ func (m Module) Function() starlarkhelpers.Function {
 			return sr, nil
 		}
 
+		var finalWorkingDir string
+		// If working directory is not set, use the parent directory of the file that called the module
+		if workingDirectory.Truth() == starlark.False {
+			if len(thread.CallStack()) > 0 {
+				dirName := filepath.Dir(thread.CallStack().At(1).Pos.Filename())
+				finalWorkingDir = filepath.Join(dirName, workingDirectory.GoString())
+			}
+
+		} else {
+			finalWorkingDir = workingDirectory.GoString()
+		}
+
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
-		deck.Infof("[%s]: Executing...\n", name)
+		logging.Log(name, nil, "info", "Executing...")
 
+		var ctx context.Context
+		var cancel context.CancelFunc
 		if !(timeout == "") {
 			dur, err := time.ParseDuration(timeout)
 			if err != nil {
 				return starlark.None, fmt.Errorf("error parsing timeout [%s]: %s", timeout, err)
 			}
-			ctx, cancel := context.WithTimeout(m.Ctx, dur)
+			ctx, cancel = context.WithTimeout(m.Ctx, dur)
 			defer cancel()
-			r, err := m.Action.Run(ctx, name, args, kwargs)
-			if r == nil && err != nil {
-				return starlark.None, err
-			}
-			return StarlarkResult(*r)
+		} else {
+			ctx = m.Ctx
 		}
-
-		// Run the module-specific behavior
-		result, err := m.Action.Run(m.Ctx, name, args, kwargs)
-		if result == nil && err != nil {
+		logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, moduleName=%q, args, kwargs)", finalWorkingDir, name)
+		r, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
+		if r == nil && err != nil {
 			return starlark.None, err
 		}
-		// Convert Result struct to starlark.Value
-		return StarlarkResult(*result)
+		if r == nil {
+			return starlark.None, fmt.Errorf("no result returned from module %s", name)
+		}
+		return StarlarkResult(*r)
 	}
 
 }
 
-func NewModule(ctx context.Context, name string, args []ArgPair, action Runnable) *Module {
+func NewModule(ctx context.Context, fnType string, args []ArgPair, action Runnable) *Module {
 	m := &Module{
+		Type:   fnType,
 		Args:   args,
 		Action: action,
 		Ctx:    ctx,

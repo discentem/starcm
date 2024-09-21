@@ -1,11 +1,14 @@
 package starlarkhelpers
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
 
+	"github.com/discentem/starcm/libraries/logging"
+	"github.com/google/deck"
 	"go.starlark.net/starlark"
 )
 
@@ -17,13 +20,50 @@ const (
 	IndexNotFound int = -1
 )
 
-func FindValueOfKeyInKwargs(kwargs []starlark.Tuple, value string) (int, error) {
+var (
+	ErrIndexNotFound = errors.New("index not found")
+)
+
+func FindIndexOfValueInKwargs(kwargs []starlark.Tuple, value string) (int, error) {
 	for i, v := range kwargs {
 		if v[0].String() == fmt.Sprintf("\"%s\"", value) {
 			return i, nil
 		}
 	}
 	return -1, nil // Return -1 if the value is not found
+}
+
+func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, error) {
+	if index == IndexNotFound {
+		return nil, ErrIndexNotFound
+	}
+	s := kwargs[index][1].String()
+	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(4), "s", s)
+	unquoted, _, _, err := Unquote(s)
+	if err != nil {
+		return nil, err
+	}
+	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(4), "unquoted", unquoted)
+	return &unquoted, nil
+}
+
+func FindValueinKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
+	idx, err := FindIndexOfValueInKwargs(kwargs, value)
+	if err != nil {
+		return nil, err
+	}
+	return FindValueFromIndexInKwargs(kwargs, idx)
+}
+
+func FindValueInKwargsWithDefault(kwargs []starlark.Tuple, value string, defaultValue string) (*string, error) {
+	idx, err := FindIndexOfValueInKwargs(kwargs, value)
+	if err != nil {
+		return nil, err
+	}
+	if idx == IndexNotFound {
+		return &defaultValue, nil
+	}
+	return FindValueFromIndexInKwargs(kwargs, idx)
 }
 
 // Copied from https://github.com/google/starlark-go/blob/f457c4c2b267186711d0fadc15024e46b98186c5/syntax/quote.go
@@ -40,6 +80,40 @@ var unesc = [256]byte{
 	'\\': '\\',
 	'\'': '\'',
 	'"':  '"',
+}
+
+func ValueToGo(value starlark.Value) interface{} {
+	switch value := value.(type) {
+	case starlark.String:
+		return string(value)
+	case starlark.Int:
+		i, _ := value.Int64()
+		return i
+	case starlark.Float:
+		return float64(value)
+	case starlark.Bool:
+		return bool(value)
+	case *starlark.List:
+		list := make([]interface{}, value.Len())
+		for i := 0; i < value.Len(); i++ {
+			list[i] = ValueToGo(value.Index(i))
+		}
+		return list
+	case *starlark.Dict:
+		return DictToGoMap(value)
+	default:
+		return value
+	}
+}
+
+func DictToGoMap(dict *starlark.Dict) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, item := range dict.Items() {
+		key := item[0].(starlark.String)
+		value := ValueToGo(item[1])
+		result[string(key)] = value
+	}
+	return result
 }
 
 // unquote unquotes the quoted string, returning the actual

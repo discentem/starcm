@@ -15,10 +15,13 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type action struct{}
+type shellAction struct {
+	executor shelllib.Executor
+}
 
-func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	idx, err := starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "cmd")
+func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+
+	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +34,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		return nil, err
 	}
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "args")
+	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "args")
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +43,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	}
 	cargs := (kwargs[idx][1]).(*starlark.List)
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "expected_exit_code")
+	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "expected_exit_code")
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +61,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		}()
 	}
 
-	idx, err = starlarkhelpers.FindValueOfKeyInKwargs(kwargs, "live_output")
+	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "live_output")
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +80,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 		cmdArgsGo = append(cmdArgsGo, v.(starlark.String).GoString())
 	}
 
-	ex := shelllib.RealExecutor{}
+	ex := &shelllib.RealExecutor{}
 	ex.Command(c, cmdArgsGo...)
 
 	buff := bytes.NewBuffer(nil)
@@ -89,6 +92,8 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	if liveOutput.Truth() {
 		posters = append(posters, os.Stdout)
 	}
+
+	logging.Log(moduleName, deck.V(3), "info", "number of io.WriteClosers: %v", posters)
 
 	resultChan := make(chan *base.Result, 1)
 
@@ -144,7 +149,7 @@ func (a *action) Run(ctx context.Context, moduleName string, args starlark.Tuple
 	}
 }
 
-func New(ctx context.Context) *base.Module {
+func New(ctx context.Context, executor shelllib.Executor) *base.Module {
 	var (
 		str        string
 		args       *starlark.List
@@ -161,6 +166,8 @@ func New(ctx context.Context) *base.Module {
 			{Key: "expected_exit_code??", Type: &exitCode},
 			{Key: "live_output??", Type: &liveOutput},
 		},
-		&action{},
+		&shellAction{
+			executor: executor,
+		},
 	)
 }

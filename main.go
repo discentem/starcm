@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -13,10 +14,13 @@ import (
 	"github.com/spf13/afero"
 
 	starcmdownload "github.com/discentem/starcm/functions/download"
+	starcmshard "github.com/discentem/starcm/functions/shard"
 	starcmshell "github.com/discentem/starcm/functions/shell"
+	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	"github.com/discentem/starcm/internal/loading"
 	"github.com/discentem/starcm/libraries/logging"
+	starcmshelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"github.com/google/deck/backends/logger"
@@ -70,6 +74,9 @@ type Loader struct {
 
 	// WorkspacePath specifies the path to the source directory.
 	WorkspacePath string
+
+	// Fsys is the filesystem to use for loading modules.
+	Fsys afero.Fs
 }
 
 // Sequential implements sequential module loading.
@@ -114,7 +121,7 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 					modulepath = path.Join(modulepath, module)
 				}
 
-				data, err := os.ReadFile(modulepath)
+				data, err := afero.ReadFile(l.Fsys, modulepath)
 				if err != nil {
 					return nil, fmt.Errorf("loading module %q: %s", modulepath, err)
 				}
@@ -147,72 +154,134 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 	return load
 }
 
-func main() {
-	f := flag.String(
-		"root_file",
-		"",
-		"path to the first starlark file to run",
-	)
-	verbosity := flag.Int("v", 1, "verbosity level")
-	flag.Parse()
-	deck.Add(logger.Init(os.Stdout, 0))
-	deck.Info("starting starcm...")
-	deck.SetVerbosity(*verbosity)
+type LoaderOption func(*Loader)
 
-	ctx := context.Background()
+func WithWorkspacePath(workspacePath string) LoaderOption {
+	return func(l *Loader) {
+		l.WorkspacePath = workspacePath
+	}
+}
 
-	loader := Loader{
-		WorkspacePath: filepath.Dir(*f),
-		Predeclared: func(module string) (starlark.StringDict, error) {
+func WithPredeclared(predeclared func(module string) (starlark.StringDict, error)) LoaderOption {
+	return func(l *Loader) {
+		l.Predeclared = predeclared
+	}
+}
+
+func WithFsys(fsys afero.Fs) LoaderOption {
+	return func(l *Loader) {
+		l.Fsys = fsys
+	}
+}
+
+func NewLoader(ctx context.Context, opts ...LoaderOption) Loader {
+	l := Loader{}
+	for _, opt := range opts {
+		opt(&l)
+	}
+	return l
+}
+
+func defaultLoader(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, workspacePath string) Loader {
+	l := NewLoader(
+		ctx,
+		WithWorkspacePath(workspacePath),
+		WithFsys(fsys),
+		WithPredeclared(func(module string) (starlark.StringDict, error) {
 			switch module {
-			case "write":
-				return starlark.StringDict{
-					"write": starlark.NewBuiltin(
-						"write",
-						starcmwrite.New(ctx, os.Stdout).Function(),
-					),
-				}, nil
-			case "shellout":
-				return starlark.StringDict{
-					"exec": starlark.NewBuiltin(
-						"exec",
-						starcmshell.New(ctx).Function(),
-					),
-				}, nil
-			case "download":
+			case "starcm":
 				return starlark.StringDict{
 					"download": starlark.NewBuiltin(
 						"download",
 						starcmdownload.New(
 							ctx,
 							*http.DefaultClient,
-							afero.NewOsFs(),
+							fsys,
 						).Function(),
 					),
+					"write": starlark.NewBuiltin(
+						"write",
+						starcmwrite.New(ctx, os.Stdout).Function(),
+					),
+					"exec": starlark.NewBuiltin(
+						"exec",
+						starcmshell.New(
+							ctx,
+							ex,
+						).Function(),
+					),
+					"template": starlark.NewBuiltin(
+						"template",
+						starcmtemplate.New(ctx, fsys).Function(),
+					),
+					"shard": starlark.NewBuiltin(
+						"shard",
+						starcmshard.New(ctx).Function(),
+					),
+					"load_dynamic": starlark.NewBuiltin("load_dynamic", loading.DynamicLoadfunc()),
 				}, nil
-			case "struct":
+			case "starlarkstdlib":
 				return starlark.StringDict{
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
-				}, nil
-			case "loading":
-				return starlark.StringDict{
-					"load_dynamic": starlark.NewBuiltin("load_dynamic", loading.DynamicLoadfunc()),
 				}, nil
 			default:
 				// set both to nil to allow the loader to load a .star file from a path.
 				return nil, nil
 			}
-		},
+		}),
+	)
+	return l
+}
+
+func main() {
+	f := flag.String(
+		"root_file",
+		"",
+		"path to the first starlark file to run",
+	)
+	timestamps := flag.Bool("timestamps", true, "include timestamps in logs")
+	verbosity := flag.Int("v", 1, "verbosity level")
+	inmemfs := flag.Bool("inmem_fs", false, "use in-memory filesystem")
+	flag.Parse()
+
+	l := log.Default()
+	if !*timestamps {
+		l.SetFlags(log.LUTC)
+	}
+	deck.Add(logger.Init(l.Writer(), l.Flags()))
+
+	deck.Info("starting starcm...")
+	deck.SetVerbosity(*verbosity)
+
+	ctx := context.Background()
+
+	fsys := afero.Fs(nil)
+
+	if *inmemfs {
+		fsys = afero.NewMemMapFs()
+	} else {
+		fsys = afero.NewOsFs()
+	}
+	ei := starcmshelllib.Executor(&starcmshelllib.RealExecutor{})
+
+	loader := defaultLoader(ctx, fsys, ei, filepath.Dir(*f))
+
+	b, err := afero.ReadFile(fsys, *f)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	err := LoadFromFile(
+	err = LoadFromFile(
 		context.Background(),
 		*f,
-		nil,
+		// If src is bytes, starlark-go will just execute it directly
+		// without any additional processing.
+		// https://github.com/google/starlark-go/blob/42030a7cedcee8b1fe3dc9309d4f545f6104715d/syntax/scan.go#L282
+		b,
 		loader.Sequential(context.Background()),
 	)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 }
