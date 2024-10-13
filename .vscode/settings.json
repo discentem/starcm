@@ -11,6 +11,7 @@
         },
     },
     "go.testFlags": [
+        // Sometimes the Vscode built-in test runner caches results even if we add more .expect files
         "-count=1"
     ]
 }

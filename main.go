@@ -262,9 +262,13 @@ func main() {
 	} else {
 		fsys = afero.NewOsFs()
 	}
-	ei := starcmshelllib.Executor(&starcmshelllib.RealExecutor{})
 
-	loader := defaultLoader(ctx, fsys, ei, filepath.Dir(*f))
+	loader := defaultLoader(
+		ctx,
+		fsys,
+		&starcmshelllib.RealExecutor{},
+		filepath.Dir(*f),
+	)
 
 	b, err := afero.ReadFile(fsys, *f)
 	if err != nil {

@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logging",
+    srcs = ["log.go"],
+    importpath = "github.com/discentem/starcm/libraries/logging",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_deck//:go_default_library"],
+)

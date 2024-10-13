@@ -1,0 +1,34 @@
+load("@gazelle//:def.bzl", "gazelle")
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+gazelle(name = "gazelle")
+
+go_library(
+    name = "starcm_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/discentem/starcm",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//functions/download",
+        "//functions/shard",
+        "//functions/shell",
+        "//functions/template",
+        "//functions/write",
+        "//internal/loading",
+        "//libraries/logging",
+        "//libraries/shell",
+        "//starlark-helpers",
+        "@com_github_google_deck//:go_default_library",
+        "@com_github_google_deck//backends/logger:go_default_library",
+        "@com_github_spf13_afero//:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+        "@net_starlark_go//starlarkstruct:go_default_library",
+        "@net_starlark_go//syntax:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "starcm",
+    embed = [":starcm_lib"],
+    visibility = ["//visibility:public"],
+)

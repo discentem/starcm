@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "write",
+    srcs = ["write.go"],
+    importpath = "github.com/discentem/starcm/functions/write",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//starlark-helpers",
+        "@net_starlark_go//starlark:go_default_library",
+    ],
+)

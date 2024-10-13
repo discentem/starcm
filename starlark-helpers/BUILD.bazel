@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "starlark-helpers",
+    srcs = ["helpers.go"],
+    importpath = "github.com/discentem/starcm/starlark-helpers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/logging",
+        "@com_github_google_deck//:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+    ],
+)
