@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "download",
+    srcs = ["download.go"],
+    importpath = "github.com/discentem/starcm/functions/download",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//libraries/sha256",
+        "//starlark-helpers",
+        "@com_github_spf13_afero//:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+    ],
+)
+
+go_test(
+    name = "download_test",
+    srcs = ["download_test.go"],
+    embed = [":download"],
+    deps = [
+        "//functions/base",
+        "@com_github_spf13_afero//:go_default_library",
+        "@com_github_stretchr_testify//assert:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+    ],
+)

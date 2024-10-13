@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "shell",
+    srcs = [
+        "multiwriter.go",
+        "shell.go",
+    ],
+    importpath = "github.com/discentem/starcm/libraries/shell",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/logging",
+        "@com_github_google_deck//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "shell_test",
+    srcs = ["shell_test.go"],
+    embed = [":shell"],
+    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+)

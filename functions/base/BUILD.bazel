@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "base",
+    srcs = [
+        "base.go",
+        "result.go",
+    ],
+    importpath = "github.com/discentem/starcm/functions/base",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/logging",
+        "//starlark-helpers",
+        "@com_github_google_deck//:go_default_library",
+        "@com_github_google_logger//:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+        "@net_starlark_go//starlarkstruct:go_default_library",
+    ],
+)

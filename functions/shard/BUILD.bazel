@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "shard",
+    srcs = ["shard.go"],
+    importpath = "github.com/discentem/starcm/functions/shard",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//libraries/logging",
+        "//starlark-helpers",
+        "@com_github_google_deck//:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+    ],
+)

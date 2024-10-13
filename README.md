@@ -1,8 +1,11 @@
+![Static Badge](https://img.shields.io/badge/under%20development%2C%20not%20production%20ready-red?labelColor=yellow)
+
 # starcm
 "star-cm"
 
-- A rudimentary configuration management language that utilizes Starlark instead of json or yaml. Why Starlark? It provides variables, functions, loops, and lots more "for free" inside of the configuration files!
-- Starcm is not full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()` for calling binaries, `template()` for rendering templated files, `load_dynamic()` for loading additional starcm config files dynamically, and much more!
+- A rudimentary configuration management language that utilizes Starlark instead of json or yaml.
+- Why Starlark? It provides variables, functions, loops, and lots more "for free" inside of the configuration files!
+- Starcm is not intended to be a full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()` for calling binaries, `template()` for rendering templated files, `load_dynamic()` for loading additional starcm config files dynamically, and much more!
 
 # Goal
 
