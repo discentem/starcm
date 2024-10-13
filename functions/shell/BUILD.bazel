@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "shell",
+    srcs = ["shell.go"],
+    importpath = "github.com/discentem/starcm/functions/shell",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//libraries/logging",
+        "//libraries/shell",
+        "//starlark-helpers",
+        "@com_github_google_deck//:go_default_library",
+        "@net_starlark_go//starlark:go_default_library",
+    ],
+)
