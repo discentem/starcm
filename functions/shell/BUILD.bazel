@@ -10,7 +10,7 @@ go_library(
         "//libraries/logging",
         "//libraries/shell",
         "//starlark-helpers",
-        "@com_github_google_deck//:go_default_library",
-        "@net_starlark_go//starlark:go_default_library",
+        "@com_github_google_deck//:deck",
+        "@net_starlark_go//starlark",
     ],
 )
