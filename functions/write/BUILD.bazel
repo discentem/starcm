@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//functions/base",
         "//starlark-helpers",
-        "@net_starlark_go//starlark:go_default_library",
+        "@net_starlark_go//starlark",
     ],
 )
