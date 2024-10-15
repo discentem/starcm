@@ -11,9 +11,9 @@ go_library(
     deps = [
         "//libraries/logging",
         "//starlark-helpers",
-        "@com_github_google_deck//:go_default_library",
-        "@com_github_google_logger//:go_default_library",
-        "@net_starlark_go//starlark:go_default_library",
-        "@net_starlark_go//starlarkstruct:go_default_library",
+        "@com_github_google_deck//:deck",
+        "@com_github_google_logger//:logger",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
     ],
 )

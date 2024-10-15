@@ -9,8 +9,8 @@ go_library(
         "//functions/base",
         "//libraries/sha256",
         "//starlark-helpers",
-        "@com_github_spf13_afero//:go_default_library",
-        "@net_starlark_go//starlark:go_default_library",
+        "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
     ],
 )
 
@@ -20,8 +20,8 @@ go_test(
     embed = [":download"],
     deps = [
         "//functions/base",
-        "@com_github_spf13_afero//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@net_starlark_go//starlark:go_default_library",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@net_starlark_go//starlark",
     ],
 )
