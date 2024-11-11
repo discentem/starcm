@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/deck"
 	"github.com/google/deck/backends/logger"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,10 +23,11 @@ func WalkExamples(t *testing.T, testDir string) error {
 				l := log.Default()
 				l.SetFlags(log.LUTC)
 				w := bytes.Buffer{}
+				fsys := afero.NewOsFs()
 				// .expect files should be named thing.star.expect so that TrimSuffix removes the .expect
-				err := run(strings.TrimSuffix(path, ".expect"), 1, false, false, []deck.Backend{logger.Init(&w, l.Flags())})
+				err := run(strings.TrimSuffix(path, ".expect"), 1, false, fsys, []deck.Backend{logger.Init(&w, l.Flags())})
 				assert.NoError(t, err)
-				expected, err := os.ReadFile(path)
+				expected, err := afero.ReadFile(fsys, path)
 				assert.NoError(t, err)
 
 				assert.Equal(t, string(expected), w.String())
