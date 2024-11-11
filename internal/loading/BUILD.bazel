@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "dynamic.go",
         "loading.go",
+        "sequential.go",
     ],
     importpath = "github.com/discentem/starcm/internal/loading",
     visibility = ["//:__subpackages__"],
