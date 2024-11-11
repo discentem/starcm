@@ -1,0 +1,5 @@
+filegroup(
+    name = "examples",
+    srcs = glob(["*.star"]),
+    visibility = ["//visibility:public"],
+)
