@@ -14,7 +14,13 @@ import (
 	"github.com/google/deck/backends/logger"
 )
 
-func run(rootFile string, verbosity int, timestamps bool, inmemory bool, loggers []deck.Backend) error {
+func run(rootFile string, verbosity int, timestamps bool, fsys afero.Fs, loggers []deck.Backend) error {
+
+	l := log.Default()
+	if timestamps {
+		l.SetFlags(log.LUTC)
+	}
+	deck.Add(logger.Init(l.Writer(), l.Flags()))
 
 	for _, l := range loggers {
 		deck.Add(l)
@@ -25,14 +31,6 @@ func run(rootFile string, verbosity int, timestamps bool, inmemory bool, loggers
 
 	ctx := context.Background()
 
-	fsys := afero.Fs(nil)
-
-	if inmemory {
-		fsys = afero.NewMemMapFs()
-	} else {
-		fsys = afero.NewOsFs()
-	}
-
 	loader := load.DefaultLoader(
 		ctx,
 		fsys,
@@ -42,7 +40,7 @@ func run(rootFile string, verbosity int, timestamps bool, inmemory bool, loggers
 
 	b, err := afero.ReadFile(fsys, rootFile)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	return load.FromFile(
@@ -71,8 +69,14 @@ func main() {
 	if !*timestamps {
 		l.SetFlags(log.LUTC)
 	}
+	fsys := afero.Fs(nil)
+	if *inmemfs {
+		fsys = afero.NewMemMapFs()
+	} else {
+		fsys = afero.NewOsFs()
+	}
 
-	err := run(*f, *verbosity, *timestamps, *inmemfs, []deck.Backend{logger.Init(l.Writer(), l.Flags())})
+	err := run(*f, *verbosity, *timestamps, fsys, []deck.Backend{logger.Init(l.Writer(), l.Flags())})
 	if err != nil {
 		log.Fatal(err)
 	}

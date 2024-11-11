@@ -19,14 +19,18 @@ go_library(
 
 go_binary(
     name = "starcm",
+    data = ["//examples"],
     embed = [":starcm_lib"],
     visibility = ["//visibility:public"],
-    data = ["//examples:examples"]
 )
 
 go_test(
     name = "starcm_test",
     srcs = ["main_test.go"],
     embed = [":starcm_lib"],
-    deps = ["@com_github_stretchr_testify//assert"],
+    deps = [
+        "@com_github_google_deck//:deck",
+        "@com_github_google_deck//backends/logger",
+        "@com_github_stretchr_testify//assert",
+    ],
 )
