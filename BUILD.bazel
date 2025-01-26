@@ -30,5 +30,6 @@ go_library(
 go_binary(
     name = "starcm",
     embed = [":starcm_lib"],
+    data = ["examples"],
     visibility = ["//visibility:public"],
 )
