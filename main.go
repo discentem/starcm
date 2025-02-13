@@ -245,6 +245,7 @@ func main() {
 	flag.Parse()
 
 	l := log.Default()
+	l.SetOutput(os.Stdout)
 	if !*timestamps {
 		l.SetFlags(log.LUTC)
 	}
