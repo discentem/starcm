@@ -17,6 +17,8 @@ Starcm is intended to become a viable alternative for tools like [macadmins/inst
 
 Let's look at a simple starcm file that calls out to `echo`: [examples/echo.star](examples/echo.star)
 
+https://github.com/discentem/starcm/blob/6d679d49b26b63cef277a33c0cd96861e131fb9e/examples/echo/echo.star
+
 When we run this, we see the string we passed to `args` get printed out:
 
 ```scrut
