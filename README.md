@@ -11,13 +11,15 @@
 
 Starcm is intended to become a viable alternative for tools like [macadmins/installapplications](https://github.com/macadmins/installapplications), [facebookincubator/go2chef](https://github.com/facebookincubator/go2chef), and [google/glazier](https://github.com/google/glazier).
 
-# Introduction to the starcm language (functions)
+# Introduction to the starcm functions
 
 ## exec
 
-Let's look at a simple starcm file that calls out to `echo`: [examples/echo.star](examples/echo.star)
+Let's look at a simple starcm file that calls out to `echo`: 
 
-https://github.com/discentem/starcm/blob/6d679d49b26b63cef277a33c0cd96861e131fb9e/examples/echo/echo.star
+<!-- Github Markdown engine will render this link as a code snippet. -->
+
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/echo/echo.star#L1-L7
 
 When we run this, we see the string we passed to `args` get printed out:
 
@@ -38,6 +40,8 @@ Starcm's `exec` can also handle non-zero exit codes.
 
 See [examples/exec/exit_codes/unexpected.star](examples/exec/exit_codes/unexpected.star). 
 
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/unexpected.star#L1-L8
+
 If `exec` exits with a non-zero exit code there will be a failure returned (`result(..., success=False)`) because the default `expected_error_code` is `0`.
 
 ```scrut
@@ -49,6 +53,9 @@ result(changed = True, diff = "", error = "exit status 2", name = "explicitly ex
 ```
 
 But if we set `expected_exit_code` to `2` then this succeeds!
+
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/expected.star#L1-L9
+
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/expected.star --timestamps=false
