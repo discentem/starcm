@@ -1,21 +1,27 @@
 ![Static Badge](https://img.shields.io/badge/under%20development%2C%20not%20production%20ready-red?labelColor=yellow)
 
 # starcm
-"star-cm"
+"star-cm" ⭐
 
-- A rudimentary configuration management language that utilizes Starlark instead of json or yaml.
-- Why Starlark? It provides variables, functions, loops, and lots more "for free" inside of the configuration files!
-- Starcm is not intended to be a full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()` for calling binaries, `template()` for rendering templated files, `load_dynamic()` for loading additional starcm config files dynamically, and much more!
+- A rudimentary configuration management language that utilizes Starlark instead of Ruby, json, or yaml.
+- Why Starlark? Starlark provides variables, functions, loops, and lots more "for free" inside of the configuration files!
+- Starcm is not intended to be a full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()`, for calling binaries, `template()` for rendering templated files, `load_dynamic()` for chaining Starcm files dynamically, and much more!
 
 # Goal
 
 Starcm is intended to become a viable alternative for tools like [macadmins/installapplications](https://github.com/macadmins/installapplications), [facebookincubator/go2chef](https://github.com/facebookincubator/go2chef), and [google/glazier](https://github.com/google/glazier).
 
-# Introduction to the starcm functions
+# Prerequisites
 
-## exec
+In order to test out the Starcm examples described this repository, the Starcm authors recommend that you install [Bazelisk](https://github.com/bazelbuild/bazelisk) and alias it to `bazel`. 
 
-Let's look at a simple starcm file that calls out to `echo`: 
+> You should be able to use `go run` directly but the documented examples use `bazel` only.
+
+# What's possible with Starcm?
+
+## shelling out
+
+Let's look at a simple starcm file that calls out to the `echo` binary using a Starcm function called `exec`. This is similar to Chef's `exec` resource.
 
 <!-- Github Markdown engine will render this link as a code snippet. -->
 
@@ -32,7 +38,7 @@ hello from echo.star!
 
 This is a very trivial example of what Starcm can do. Let's make it a bit more complicated...
 
-Starcm's `exec` can also handle non-zero exit codes.
+For instance, Starcm's `exec` can also handle non-zero exit codes.
 
 <body>
 <details>
@@ -40,9 +46,13 @@ Starcm's `exec` can also handle non-zero exit codes.
 
 See [examples/exec/exit_codes/unexpected.star](examples/exec/exit_codes/unexpected.star). 
 
+<!-- Github Markdown engine will render this link as a code snippet. -->
+
 https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/unexpected.star#L1-L8
 
-If `exec` exits with a non-zero exit code there will be a failure returned (`result(..., success=False)`) because the default `expected_error_code` is `0`.
+If `exec` exits with a non-zero exit code there will be a starcm `result` returned that indicates things were not successful (`result(..., success=False)`). 
+
+This is because the default `expected_error_code` is `0`.
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/unexpected.star --timestamps=false
@@ -52,7 +62,11 @@ we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = False)
 ```
 
-But if we set `expected_exit_code` to `2` then this succeeds!
+>💡 What is `result()`? `result()` is a struct that is returned by most Starcm functions to signal whether a function achieved the expected result. Later we will see how Starcm code can consume the `result` struct to make conditional decisions.
+
+If we set `expected_exit_code` to `2` then this succeeds!
+
+<!-- Github Markdown engine will render this link as a code snippet. -->
 
 https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/expected.star#L1-L9
 
@@ -65,18 +79,49 @@ we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
 ```
 
-Nearly all starcm functions return this `result()` struct which we can combine with conditionals to create powerful and flexible workflows. 
-
-For example, the starcm function `template` also returns a result struct.
-
 </details>
 </body>
 
-## template
+## rendering templates
 
-## Common Functionality
+Another thing Starcm can do is render template files via `template`. This is similar to the `template` resource in Chef. 
 
-All starcm functions generally return a `result` struct.
+See [examples/templates/](examples/templates/) for examples.
+
+## Common functionality
+
+All Starcm functions share some common functionality.
+
+### `result`
+
+All Starcm functions return a `result` struct. 
+
+In Go this represented as such:
+
+```go
+type Result struct {
+	Name    *string
+	Output  *string
+	Error   error
+	Success bool
+	Changed bool
+	Diff    *string
+	Comment string
+}
+```
+
+If printed out or inspected directly in Starlark, a `result` may look something like this: 
+
+```python
+result(
+    changed = True, 
+    diff = "", 
+    error = "exit status 2", 
+    name = "explicitly exit 2", 
+    output = "we expect to exit 2\n",   
+    success = True
+)
+```
 
 ### Conditionals
 
@@ -86,32 +131,16 @@ All starcm functions generally return a `result` struct.
 
 Starlark, and by extension starcm, supports `if` statements. Take [examples/if_statements/if_statements.star](examples/if_statements/if_statements.star) for example. If the `exec()` succeeds, we print `party!`. 
 
-```python
-load("starcm", "exec")
-a = exec(
-    name               = "explicitly exit 2",
-    cmd                = "sh", 
-    args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
-    expected_exit_code = 2,
-)
-if a.success == True:
-    print("party!")
-else:
-    print("no party :(")
-```
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/if_statements/if_statements.star
 
-Running `go run main.go --root_file examples/if_statements/if_statements.star` results in
-
-```shell
-% go run main.go --root_file examples/if_statements.star 
-INFO: 2024/06/01 23:52:56 starting starcm...
-INFO: 2024/06/01 23:52:56 [explicitly exit 2]: Starting...
+```scrut
+$ bazel run :starcm -- --root_file examples/if_statements/if_statements.star --timestamps=false
+INFO: starting starcm...
+INFO: [explicitly exit 2]: Executing...
 party!
 ```
 
-We can also implement this same conditional behavior with a starcm-specific construct called `only_if`.
-
-### only_if
+We can also implement this same conditional behavior with a starcm-specific construct called `only_if`. This feature is not built into native Starlark.
 
 </details>
 </body>
