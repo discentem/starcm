@@ -40,19 +40,13 @@ This is a very trivial example of what Starcm can do. Let's make it a bit more c
 
 For instance, Starcm's `exec` can also handle non-zero exit codes.
 
-<body>
-<details>
-<summary><h3 style="display:inline-block">handling non-zero exit codes</h3></summary>
+### handling non-zero exit codes
 
 See [examples/exec/exit_codes/unexpected.star](examples/exec/exit_codes/unexpected.star). 
 
 <!-- Github Markdown engine will render this link as a code snippet. -->
 
 https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/unexpected.star#L1-L8
-
-If `exec` exits with a non-zero exit code there will be a starcm `result` returned that indicates things were not successful (`result(..., success=False)`). 
-
-This is because the default `expected_error_code` is `0`.
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/unexpected.star --timestamps=false
@@ -61,6 +55,10 @@ INFO: [explicitly exit 2]: Executing...
 we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = False)
 ```
+
+`exec` exited with a non-zero exit code thus `result` indicates things were not successful (`result(..., success=False)`). 
+
+This is because the default `expected_error_code`, if not specified, is `0`.
 
 >💡 What is `result()`? `result()` is a struct that is returned by most Starcm functions to signal whether a function achieved the expected result. Later we will see how Starcm code can consume the `result` struct to make conditional decisions.
 
@@ -78,9 +76,6 @@ INFO: [explicitly exit 2]: Executing...
 we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
 ```
-
-</details>
-</body>
 
 ## rendering templates
 
@@ -131,7 +126,7 @@ result(
 
 Starlark, and by extension starcm, supports `if` statements. Take [examples/if_statements/if_statements.star](examples/if_statements/if_statements.star) for example. If the `exec()` succeeds, we print `party!`. 
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/if_statements/if_statements.star
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/if_statements/if_statements.star#L1-L11
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/if_statements/if_statements.star --timestamps=false
