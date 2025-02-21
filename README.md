@@ -84,7 +84,7 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 
 The template that is referenced in `template.star` is [examples/templates/simple/hello_world.tpl](examples/templates/simple/hello_world.tpl): 
 
-https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/templates/simple/hello_world.tpl#L1-L2
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/templates/simple/hello_world.tpl#L1-L1
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/templates/simple/template.star --timestamps=false -v 2
