@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -33,7 +34,7 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starl
 	logging.Log("LoadFromFile", deck.V(2), "info", "loading file %q", fpath)
 	thread := &starlark.Thread{
 		Load:  load,
-		Name:  "my_program_main_thread",
+		Name:  "starcm",
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 	}
 
@@ -60,7 +61,7 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starl
 		src, nil,
 	); err != nil {
 		if evalErr, ok := err.(*starlark.EvalError); ok {
-			return fmt.Errorf(evalErr.Backtrace())
+			return errors.New(evalErr.Backtrace())
 		}
 		return fmt.Errorf("load at path: %q: %s", fpath, err)
 	}
@@ -251,7 +252,6 @@ func main() {
 	}
 	deck.Add(logger.Init(l.Writer(), l.Flags()))
 
-	deck.Info("starting starcm...")
 	deck.SetVerbosity(*verbosity)
 
 	ctx := context.Background()

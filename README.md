@@ -31,7 +31,6 @@ When we run this, we see the string we passed to `args` get printed out:
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/echo/echo.star --timestamps=false
-INFO: starting starcm...
 hello from echo.star!
 ```
 
@@ -49,7 +48,6 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/unexpected.star --timestamps=false
-INFO: starting starcm...
 we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = False)
 ```
@@ -69,7 +67,6 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/expected.star --timestamps=false
-INFO: starting starcm...
 we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
 ```
@@ -88,7 +85,6 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/templates/simple/template.star --timestamps=false -v 2
-INFO: starting starcm...
 INFO: [LoadFromFile]: loading file "examples/templates/simple/template.star"
 INFO: [hello world template]: hello_world.tpl before rendering: Hello {{ name | capitalize }}, you are {{ age }} years old.
 INFO: [hello world template]: data: map[age:42 name:world]
@@ -143,7 +139,6 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/if_statements/if_statements.star --timestamps=false
-INFO: starting starcm...
 party!
 ```
 
@@ -156,32 +151,9 @@ We can also implement this same conditional behavior with a starcm-specific cons
 <details>
 <summary><h3 style="display:inline-block">only_if</h3></summary>
 
-See [examples/only_if/only_if.star](examples/only_if/only_if.star):
+See [examples/only_if/only_if.star](examples/only_if/only_if.star).
 
-```python
-load("shellout", "exec")
-load("write", "write")
-
-a = exec(
-    name               = "explicitly exit 2",
-    cmd                = "sh", 
-    args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
-    expected_exit_code = 2,
-    live_output        = True,
-)
-
-if not(a.success):
-    write(
-        name = "print_not_success_#1",
-        str = "a.success: %s #1" % (a.success),
-    )
-
-write(
-    name = "print_not_success_#2",
-    str = "a.success: %s #2" % (a.success),
-    only_if = a.success == False
-)
-```
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/only_if/only_if.star#L1-L22
 
 In this example
 
@@ -205,18 +177,16 @@ write(
 
 with one key difference: `only_if` produces a log message indicating that `write(name=print_not_success, ...)` was skipped due to the `only_if` condition being false. This is can be useful for debugging.
 
-```bash
-% go run main.go -v 2 --root_file examples/only_if.star
-INFO: 2024/06/04 23:04:00 starting starcm...
-INFO: 2024/06/04 23:04:00 [LoadFromFile]: loading file "examples/only_if.star"
-INFO: 2024/06/04 23:04:00 [explicitly exit 2]: Executing...
+```scrut
+$ bazel run :starcm -- --root_file examples/only_if/only_if.star --timestamps=false -v 2 
+INFO: [LoadFromFile]: loading file "examples/only_if/only_if.star"
 we expect to exit 2
-INFO: 2024/06/04 23:04:00 [explicitly exit 2]: expectedExitCode: 2
-INFO: 2024/06/04 23:04:00 [explicitly exit 2]: actualExitCode: 2
-INFO: 2024/06/04 23:04:00 [print_not_success_#2]: skipping write(name="print_not_success_#2") because only_if was false
+INFO: [explicitly exit 2]: expectedExitCode: 2
+INFO: [explicitly exit 2]: actualExitCode: 2
+INFO: [print_not_success_#2]: skipping write(name="print_not_success_#2") because only_if was false
 ```
 
-> Notice that there is no log message regarding `print_not_success_#1`. Normal `if` statements are not executed at all if the condition is false, whereas `only_if` logs that `print_not_success_#2` was skipped.
+> Notice that there is no log message regarding `print_not_success_#1`. Normal `if` statements are not executed at all if the condition is false, whereas `only_if` logs that something was skipped.
 
 </details>
 </body>
@@ -229,6 +199,6 @@ See the [examples](examples/) folder for more examples of what starcm can do. Th
 
 ## Ensure README.md examples work
 
-```
+```shell
 $ scrut test --work-directory . README.md
 ```
