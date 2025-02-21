@@ -1,12 +1,11 @@
-load("starcm", "template")
-load("starcm", "write")
+load("starcm", "template", "write")
 
 render = template(
-    name = "example template",
-    template = "example.tpl",
-    key_vals = {
+    name = "hello world template",
+    template = "hello_world.tpl",
+    data = {
         "name": "world",
         "age": 42,
     }
 )
-write(render.output)
+write(name="render hello_world.tpl", str=render.output)

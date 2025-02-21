@@ -32,7 +32,6 @@ When we run this, we see the string we passed to `args` get printed out:
 ```scrut
 $ bazel run :starcm -- --root_file examples/echo/echo.star --timestamps=false
 INFO: starting starcm...
-INFO: [hello_from_echo_dot_star]: Executing...
 hello from echo.star!
 ```
 
@@ -51,7 +50,6 @@ https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be97
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/unexpected.star --timestamps=false
 INFO: starting starcm...
-INFO: [explicitly exit 2]: Executing...
 we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = False)
 ```
@@ -72,7 +70,6 @@ https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be97
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/expected.star --timestamps=false
 INFO: starting starcm...
-INFO: [explicitly exit 2]: Executing...
 we expect to exit 2
 result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
 ```
@@ -81,7 +78,23 @@ result(changed = True, diff = "", error = "exit status 2", name = "explicitly ex
 
 Another thing Starcm can do is render template files via `template`. This is similar to the `template` resource in Chef. 
 
-See [examples/templates/](examples/templates/) for examples.
+As an example let's take a look at [examples/templates/simple/template.star](examples/templates/simple/template.star).
+
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/templates/simple/template.star#L1-L11
+
+The template that is referenced in `template.star` is [examples/templates/simple/hello_world.tpl](examples/templates/simple/hello_world.tpl): 
+
+https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/templates/simple/hello_world.tpl#L1-L2
+
+```scrut
+$ bazel run :starcm -- --root_file examples/templates/simple/template.star --timestamps=false -v 2
+INFO: starting starcm...
+INFO: [LoadFromFile]: loading file "examples/templates/simple/template.star"
+INFO: [hello world template]: hello_world.tpl before rendering: Hello {{ name | capitalize }}, you are {{ age }} years old.
+INFO: [hello world template]: data: map[age:42 name:world]
+Hello World, you are 42 years old.
+```
+
 
 ## Common functionality
 
@@ -131,7 +144,6 @@ https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be97
 ```scrut
 $ bazel run :starcm -- --root_file examples/if_statements/if_statements.star --timestamps=false
 INFO: starting starcm...
-INFO: [explicitly exit 2]: Executing...
 party!
 ```
 
@@ -212,3 +224,11 @@ INFO: 2024/06/04 23:04:00 [print_not_success_#2]: skipping write(name="print_not
 # Advanced functionality
 
 See the [examples](examples/) folder for more examples of what starcm can do. There's lots it can do such as downloading files (with hash checking), dynamically loading additional `.star` files, rendering templates, and combining all the cabilities via macros, thanks to Starlark.
+
+# Starcm development
+
+## Ensure README.md examples work
+
+```
+$ scrut test --work-directory . README.md
+```

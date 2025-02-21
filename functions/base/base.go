@@ -134,7 +134,6 @@ func (m Module) Function() starlarkhelpers.Function {
 		if m.Action == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", name)
 		}
-		logging.Log(name, nil, "info", "Executing...")
 
 		var ctx context.Context
 		var cancel context.CancelFunc
