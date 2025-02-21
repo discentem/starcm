@@ -25,7 +25,7 @@ Let's look at a simple starcm file that calls out to the `echo` binary using a S
 
 <!-- Github Markdown engine will render this link as a code snippet. -->
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/echo/echo.star#L1-L7
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/echo/echo.star#L1-L7
 
 When we run this, we see the string we passed to `args` get printed out:
 
@@ -45,7 +45,7 @@ See [examples/exec/exit_codes/unexpected.star](examples/exec/exit_codes/unexpect
 
 <!-- Github Markdown engine will render this link as a code snippet. -->
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/unexpected.star#L1-L8
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/exec/exit_codes/unexpected.star#L1-L8
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/unexpected.star --timestamps=false
@@ -64,7 +64,7 @@ If we set `expected_exit_code` to `2` then this succeeds!
 
 <!-- Github Markdown engine will render this link as a code snippet. -->
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/exec/exit_codes/expected.star#L1-L9
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/exec/exit_codes/expected.star#L1-L9
 
 
 ```scrut
@@ -80,11 +80,11 @@ Another thing Starcm can do is render template files via `template`. This is sim
 
 As an example let's take a look at [examples/templates/simple/template.star](examples/templates/simple/template.star).
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/templates/simple/template.star#L1-L11
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/templates/simple/template.star#L1-L11
 
 The template that is referenced in `template.star` is [examples/templates/simple/hello_world.tpl](examples/templates/simple/hello_world.tpl): 
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/templates/simple/hello_world.tpl#L1-L2
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/templates/simple/hello_world.tpl#L1-L2
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/templates/simple/template.star --timestamps=false -v 2
@@ -139,7 +139,7 @@ result(
 
 Starlark, and by extension starcm, supports `if` statements. Take [examples/if_statements/if_statements.star](examples/if_statements/if_statements.star) for example. If the `exec()` succeeds, we print `party!`. 
 
-https://github.com/discentem/starcm/blob/b3ef2923fba477c4d7569ddfecfdb6cd775be971/examples/if_statements/if_statements.star#L1-L11
+https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e2/examples/if_statements/if_statements.star#L1-L11
 
 ```scrut
 $ bazel run :starcm -- --root_file examples/if_statements/if_statements.star --timestamps=false
