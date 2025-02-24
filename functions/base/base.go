@@ -26,7 +26,7 @@ type Runnable interface {
 		moduleName string,
 		args starlark.Tuple,
 		kwargs []starlark.Tuple,
-	) (*Result, error)
+	) (ActionReturn, error)
 }
 
 type Module struct {
@@ -75,7 +75,7 @@ func (m Module) Function() starlarkhelpers.Function {
 			kwargs,
 			finalArgs...,
 		); err != nil {
-			return starlark.None, err
+			return starlark.None, fmt.Errorf("unpacking arguments for %s: %v", name, err)
 		}
 		_, err := starlarkhelpers.FindValueinKwargs(kwargs, "name")
 		if err != nil {
@@ -83,8 +83,8 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "not_if")
-		if err != nil {
-			return nil, err
+		if err != nil && err != starlarkhelpers.ErrIndexNotFound {
+			return nil, fmt.Errorf("error finding not_if: %s", err)
 		}
 		if idx != starlarkhelpers.IndexNotFound {
 			logging.Log(name, deck.V(2), "info", "not_if was: %q", kwargs[idx][1].String())
@@ -95,7 +95,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		// skip module if not_if is true
 		if notIf.Truth() {
 			logging.Log(name, nil, "info", "skipping %s(name=%q) because not_if was true", m.Type, name)
-			sr, err := StarlarkResult(Result{})
+			sr, err := StarlarkValueFromResult(Result{})
 			if err != nil {
 				return nil, err
 			}
@@ -103,8 +103,8 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "only_if")
-		if err != nil {
-			return nil, err
+		if err != nil && err != starlarkhelpers.ErrIndexNotFound {
+			return nil, fmt.Errorf("error finding only_if: %s", err)
 		}
 		if idx == starlarkhelpers.IndexNotFound {
 			onlyIf = starlark.True
@@ -112,7 +112,7 @@ func (m Module) Function() starlarkhelpers.Function {
 
 		if onlyIf.Truth() == starlark.False {
 			logging.Log(name, nil, "info", "skipping %s(name=%q) because only_if was false", m.Type, name)
-			sr, err := StarlarkResult(Result{})
+			sr, err := StarlarkValueFromResult(Result{})
 			if err != nil {
 				return nil, err
 			}
@@ -148,14 +148,14 @@ func (m Module) Function() starlarkhelpers.Function {
 			ctx = m.Ctx
 		}
 		logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, moduleName=%q, args, kwargs)", finalWorkingDir, name)
-		r, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
-		if r == nil && err != nil {
+		actionReturn, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
+		if actionReturn == nil && err != nil {
 			return starlark.None, err
 		}
-		if r == nil {
+		if actionReturn == nil {
 			return starlark.None, fmt.Errorf("no result returned from module %s", name)
 		}
-		return StarlarkResult(*r)
+		return actionReturn.StarlarkValue()
 	}
 
 }

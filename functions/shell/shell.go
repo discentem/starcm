@@ -19,7 +19,7 @@ type shellAction struct {
 	executor shelllib.Executor
 }
 
-func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (base.ActionReturn, error) {
 
 	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
 	if err != nil {

@@ -41,7 +41,7 @@ func getSeededFlexibleShard(identifier string, shardSize int, seed string) (int,
 
 type shardAction struct{}
 
-func (a *shardAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *shardAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (base.ActionReturn, error) {
 	id, err := starlarkhelpers.FindValueinKwargs(kwargs, "identifier")
 	if err != nil {
 		logging.Log("shard", deck.V(3), "error", "failed to find identifier in kwargs")

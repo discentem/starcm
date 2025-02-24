@@ -5,6 +5,10 @@ import (
 	"go.starlark.net/starlarkstruct"
 )
 
+type ActionReturn interface {
+	StarlarkValue() (starlark.Value, error)
+}
+
 type Result struct {
 	Name    *string
 	Output  *string
@@ -13,9 +17,14 @@ type Result struct {
 	Changed bool
 	Diff    *string
 	Comment string
+	Skipped bool
 }
 
-func StarlarkResult(r Result) (starlark.Value, error) {
+func (r *Result) StarlarkValue() (starlark.Value, error) {
+	return StarlarkValueFromResult(*r)
+}
+
+func StarlarkValueFromResult(r Result) (starlark.Value, error) {
 	var sname starlark.String
 	if r.Name != nil {
 		sname = starlark.String(*r.Name)
@@ -71,6 +80,22 @@ func StarlarkResult(r Result) (starlark.Value, error) {
 				starlark.String("diff"),
 				sdiff,
 			},
+			{
+				starlark.String("comment"),
+				starlark.String(r.Comment),
+			},
+			{
+				starlark.String("skipped"),
+				starlark.Bool(r.Skipped),
+			},
 		},
 	), nil
+}
+
+type RawStarlarkValueReturn struct {
+	Value starlark.Value
+}
+
+func (r *RawStarlarkValueReturn) StarlarkValue() (starlark.Value, error) {
+	return r.Value, nil
 }

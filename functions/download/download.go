@@ -21,7 +21,7 @@ type downloadAction struct {
 	fsys       afero.Fs
 }
 
-func (a *downloadAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *downloadAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (base.ActionReturn, error) {
 	if a.fsys == nil {
 		return nil, fmt.Errorf("fsys must be provided to download module")
 	}

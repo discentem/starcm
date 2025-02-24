@@ -30,14 +30,8 @@ import (
 	"go.starlark.net/syntax"
 )
 
-func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starlarkhelpers.LoaderFunc) error {
+func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starlarkhelpers.LoaderFunc, thread *starlark.Thread) error {
 	logging.Log("LoadFromFile", deck.V(2), "info", "loading file %q", fpath)
-	thread := &starlark.Thread{
-		Load:  load,
-		Name:  "starcm",
-		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
-	}
-
 	var currentDir string
 	if len(thread.CallStack()) > 0 {
 		currentDir = filepath.Dir(thread.CallStack().At(0).Pos.Filename())
@@ -183,12 +177,17 @@ func NewLoader(ctx context.Context, opts ...LoaderOption) Loader {
 	return l
 }
 
-func defaultLoader(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, workspacePath string) Loader {
+func defaultLoader(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, workspacePath string, thread *starlark.Thread) Loader {
 	l := NewLoader(
 		ctx,
 		WithWorkspacePath(workspacePath),
 		WithFsys(fsys),
 		WithPredeclared(func(module string) (starlark.StringDict, error) {
+			loadDynamic, err := loading.New(ctx, thread)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create load_dynamic module: %v", err)
+			}
+
 			switch module {
 			case "starcm":
 				return starlark.StringDict{
@@ -219,7 +218,7 @@ func defaultLoader(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executo
 						"shard",
 						starcmshard.New(ctx).Function(),
 					),
-					"load_dynamic": starlark.NewBuiltin("load_dynamic", loading.DynamicLoadfunc()),
+					"load_dynamic": starlark.NewBuiltin("load_dynamic", loadDynamic.Function()),
 				}, nil
 			case "starlarkstdlib":
 				return starlark.StringDict{

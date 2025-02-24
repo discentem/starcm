@@ -159,14 +159,20 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("Running test %q", tt.name)
-			result, err := tt.action.Run(context.TODO(), "", tt.moduleName, tt.starlarkArgs, tt.starlarkKwargs)
+			resultInterface, err := tt.action.Run(context.TODO(), "", tt.moduleName, tt.starlarkArgs, tt.starlarkKwargs)
 			if tt.expectedError == nil {
 				t.Fatal("tt.expectedError must be provided")
 			}
 			if tt.expectedResult == nil {
 				t.Fatal("tt.expectedResult must be provided")
 			}
-			t.Logf("result: %v", result)
+			t.Logf("result: %v", resultInterface)
+
+			var result *base.Result
+			if resultInterface != nil {
+				result = resultInterface.(*base.Result)
+			}
+
 			assert.Equal(t, true, tt.expectedError(err), "unexpected error")
 			assert.Equal(t, true, tt.expectedResult(result), "unexpected result")
 

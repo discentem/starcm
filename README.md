@@ -49,7 +49,7 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/unexpected.star --timestamps=false
 we expect to exit 2
-result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = False)
+result(changed = True, comment = "", diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", skipped = False, success = False)
 ```
 
 `exec` exited with a non-zero exit code thus `result` indicates things were not successful (`result(..., success=False)`). 
@@ -68,7 +68,7 @@ https://github.com/discentem/starcm/blob/2911aea91ad6c978b94b1c237fe4fb38e69b32e
 ```scrut
 $ bazel run :starcm -- --root_file examples/exec/exit_codes/expected.star --timestamps=false
 we expect to exit 2
-result(changed = True, diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", success = True)
+result(changed = True, comment = "", diff = "", error = "exit status 2", name = "explicitly exit 2", output = "we expect to exit 2\n", skipped = False, success = True)
 ```
 
 ## rendering templates

@@ -30,20 +30,39 @@ func FindIndexOfValueInKwargs(kwargs []starlark.Tuple, value string) (int, error
 			return i, nil
 		}
 	}
-	return -1, nil // Return -1 if the value is not found
+	return -1, ErrIndexNotFound // Return -1 if the value is not found
 }
 
-func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, error) {
+func FindBoolValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*bool, error) {
 	if index == IndexNotFound {
 		return nil, ErrIndexNotFound
 	}
 	s := kwargs[index][1].String()
-	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(4), "s", s)
+	logging.Log("starlarkhelpers FindBoolValueFromIndexInKwargs", deck.V(4), "s", s)
 	unquoted, _, _, err := Unquote(s)
 	if err != nil {
 		return nil, err
 	}
-	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(4), "unquoted", unquoted)
+	logging.Log("starlarkhelpers FindBoolValueFromIndexInKwargs", deck.V(4), "unquoted", unquoted)
+	b, err := strconv.ParseBool(unquoted)
+	if err != nil {
+		return nil, err
+	}
+	return &b, nil
+
+}
+
+func FindStringValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, error) {
+	if index == IndexNotFound {
+		return nil, ErrIndexNotFound
+	}
+	s := kwargs[index][1].String()
+	logging.Log("starlarkhelpers FindStringValueFromIndexInKwargs", deck.V(4), "s", s)
+	unquoted, _, _, err := Unquote(s)
+	if err != nil {
+		return nil, err
+	}
+	logging.Log("starlarkhelpers FindStringValueFromIndexInKwargs", deck.V(4), "unquoted", unquoted)
 	return &unquoted, nil
 }
 
@@ -52,7 +71,7 @@ func FindValueinKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return FindValueFromIndexInKwargs(kwargs, idx)
+	return FindStringValueFromIndexInKwargs(kwargs, idx)
 }
 
 func FindValueInKwargsWithDefault(kwargs []starlark.Tuple, value string, defaultValue string) (*string, error) {
@@ -63,7 +82,7 @@ func FindValueInKwargsWithDefault(kwargs []starlark.Tuple, value string, default
 	if idx == IndexNotFound {
 		return &defaultValue, nil
 	}
-	return FindValueFromIndexInKwargs(kwargs, idx)
+	return FindStringValueFromIndexInKwargs(kwargs, idx)
 }
 
 // Copied from https://github.com/google/starlark-go/blob/f457c4c2b267186711d0fadc15024e46b98186c5/syntax/quote.go

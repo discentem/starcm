@@ -21,11 +21,14 @@ type templateAction struct {
 	fsys afero.Fs
 }
 
-func (a *templateAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *templateAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (base.ActionReturn, error) {
 	template, err := starlarkhelpers.FindValueinKwargs(kwargs, "template")
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO (discentem): add argument for output file
+
 	if template == nil {
 		return nil, fmt.Errorf("template is required in template() module")
 	}
