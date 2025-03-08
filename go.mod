@@ -6,6 +6,7 @@ require (
 	github.com/google/deck v1.1.0
 	github.com/google/logger v1.1.1
 	github.com/noirbizarre/gonja v0.0.0-20200629003239-4d051fd0be61
+	github.com/sergi/go-diff v1.3.1
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0
 	go.starlark.net v0.0.0-20240925182052-1207426daebd

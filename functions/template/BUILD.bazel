@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "template",
@@ -7,11 +7,28 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
+        "//libraries/fileutils",
         "//libraries/logging",
         "//starlark-helpers",
-        "@com_github_google_deck//:go_default_library",
-        "@com_github_noirbizarre_gonja//:go_default_library",
-        "@com_github_spf13_afero//:go_default_library",
-        "@net_starlark_go//starlark:go_default_library",
+        "@com_github_google_deck//:deck",
+        "@com_github_noirbizarre_gonja//:gonja",
+        "@com_github_sergi_go_diff//diffmatchpatch",
+        "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
+    ],
+)
+
+go_test(
+    name = "template_test",
+    srcs = ["template_test.go"],
+    embed = [":template"],
+    deps = [
+        "//starlark-helpers",
+        "//testhelpers/aferohelpers",
+        "@com_github_noirbizarre_gonja//:gonja",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
     ],
 )

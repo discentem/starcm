@@ -30,7 +30,7 @@ func FindIndexOfValueInKwargs(kwargs []starlark.Tuple, value string) (int, error
 			return i, nil
 		}
 	}
-	return -1, nil // Return -1 if the value is not found
+	return -1, ErrIndexNotFound // Return -1 if the value is not found
 }
 
 func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, error) {
@@ -57,10 +57,10 @@ func FindValueinKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
 
 func FindValueInKwargsWithDefault(kwargs []starlark.Tuple, value string, defaultValue string) (*string, error) {
 	idx, err := FindIndexOfValueInKwargs(kwargs, value)
-	if err != nil {
+	if err != nil && err != ErrIndexNotFound {
 		return nil, err
 	}
-	if idx == IndexNotFound {
+	if idx == IndexNotFound || err == ErrIndexNotFound {
 		return &defaultValue, nil
 	}
 	return FindValueFromIndexInKwargs(kwargs, idx)

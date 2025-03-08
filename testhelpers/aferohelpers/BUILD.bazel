@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "aferohelpers",
+    srcs = ["mockafero.go"],
+    importpath = "github.com/discentem/starcm/testhelpers/aferohelpers",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_spf13_afero//:afero"],
+)
