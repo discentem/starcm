@@ -29,20 +29,20 @@ func TestTemplateAction_parseArgs(t *testing.T) {
 			name: "valid args",
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("path/to/template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"key": "value"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
 				{starlark.String("destination"), starlark.String("path/to/output.txt")},
 			},
 			wantErr: false,
 			expected: &parsedArgs{
 				templatePath: "path/to/template.tmpl",
-				data:         map[string]interface{}{"key": "value"},
+				data:         map[string]any{"key": "value"},
 				destination:  "path/to/output.txt",
 			},
 		},
 		{
 			name: "missing template",
 			kwargs: []starlark.Tuple{
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"key": "value"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
 				{starlark.String("destination"), starlark.String("path/to/output.txt")},
 			},
 			wantErr: true,
@@ -59,7 +59,7 @@ func TestTemplateAction_parseArgs(t *testing.T) {
 			name: "missing destination",
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("path/to/template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"key": "value"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
 			},
 			wantErr: true,
 		},
@@ -91,7 +91,7 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 	tests := []struct {
 		name            string
 		destinationPath string
-		content         []byte
+		finalContent    []byte
 		setupFs         func() afero.Fs
 		wantErr         bool
 		assertFs        func(t *testing.T, fs afero.Fs, path string, content []byte)
@@ -99,7 +99,7 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 		{
 			name:            "write to new file",
 			destinationPath: "output.txt",
-			content:         []byte("rendered content"),
+			finalContent:    []byte("rendered content"),
 			setupFs:         func() afero.Fs { return afero.NewMemMapFs() },
 			wantErr:         false,
 			assertFs: func(t *testing.T, fs afero.Fs, path string, content []byte) {
@@ -115,7 +115,7 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 		{
 			name:            "write to nested directory",
 			destinationPath: "path/to/nested/output.txt",
-			content:         []byte("rendered content"),
+			finalContent:    []byte("rendered content"),
 			setupFs:         func() afero.Fs { return afero.NewMemMapFs() },
 			wantErr:         false,
 			assertFs: func(t *testing.T, fs afero.Fs, path string, content []byte) {
@@ -131,7 +131,7 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 		{
 			name:            "overwrite existing file",
 			destinationPath: "existing.txt",
-			content:         []byte("new content"),
+			finalContent:    []byte("new content"),
 			setupFs: func() afero.Fs {
 				return aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
@@ -157,7 +157,7 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := tt.setupFs()
 			action := &templateAction{fsys: fs}
-			err := action.writeTemplate(tt.destinationPath, tt.content)
+			err := action.writeTemplate(tt.destinationPath, tt.finalContent)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -165,7 +165,7 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			tt.assertFs(t, fs, tt.destinationPath, tt.content)
+			tt.assertFs(t, fs, tt.destinationPath, tt.finalContent)
 		})
 	}
 }
@@ -197,7 +197,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			},
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"name": "World"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
 				{starlark.String("destination"), starlark.String("output.txt")},
 			},
 			expectedSuccess:   true,
@@ -224,7 +224,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			},
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"name": "World"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
 				{starlark.String("destination"), starlark.String("output.txt")},
 			},
 			expectedSuccess:   true,
@@ -241,7 +241,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			},
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("nonexistent.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"name": "World"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
 				{starlark.String("destination"), starlark.String("output.txt")},
 			},
 			expectedSuccess: false,
@@ -265,12 +265,13 @@ func TestTemplateAction_Run(t *testing.T) {
 			},
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"name": "World"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
 				{starlark.String("destination"), starlark.String("output.txt")},
 			},
 			expectedSuccess:   true,
 			expectedChanged:   true,
 			expectedOutput:    "Hello World!",
+			expectedDiff:      "  []string{\n- \t\"Different content\",\n+ \t\"Hello World!\",\n  }\n",
 			expectOutputEqual: true,
 			wantErr:           false,
 		},
@@ -326,26 +327,26 @@ func TestTemplateAction_TemplateErrors(t *testing.T) {
 	tests := []struct {
 		name            string
 		templateContent string
-		data            map[string]interface{}
+		data            map[string]any
 		wantErr         bool
 		errContains     string
 	}{
 		{
 			name:            "invalid template syntax",
 			templateContent: "Hello {{ name }", // Missing closing brace
-			data:            map[string]interface{}{"name": "World"},
+			data:            map[string]any{"name": "World"},
 			wantErr:         true,
 		},
 		{
 			name:            "undefined variable",
 			templateContent: "Hello {{ undefined_var }}!",
-			data:            map[string]interface{}{"name": "World"},
+			data:            map[string]any{"name": "World"},
 			wantErr:         false, // gonja doesn't error on undefined vars, just renders empty
 		},
 		{
 			name:            "valid complex template",
 			templateContent: "{% if name %}Hello {{ name }}!{% else %}Hello anonymous!{% endif %}",
-			data:            map[string]interface{}{"name": "World"},
+			data:            map[string]any{"name": "World"},
 			wantErr:         false,
 		},
 	}
@@ -464,7 +465,7 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 
 			kwargs := []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]interface{}{"key": "value"})},
+				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
 				{starlark.String("destination"), starlark.String(tt.destination)},
 			}
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/discentem/starcm/functions/base"
+	"github.com/discentem/starcm/libraries/diffutils"
 	starcmfileutils "github.com/discentem/starcm/libraries/fileutils"
 	"github.com/discentem/starcm/libraries/logging"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
@@ -15,7 +16,6 @@ import (
 
 	// TODO (discentem): consider replacing with a different template engine
 	"github.com/noirbizarre/gonja"
-	"github.com/sergi/go-diff/diffmatchpatch"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
 )
@@ -210,17 +210,18 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		}, err
 	}
 
-	diff := diffmatchpatch.New().DiffMain(string(destinationBefore), renderedTemplate, false)
+	diff := diffutils.GitDiff(string(destinationBefore), renderedTemplate)
 	logging.Log(moduleName, deck.V(2), "info", "diff: %v", diff)
 
 	renderedStr := fmt.Sprint(renderedTemplate)
+
 	return &base.Result{
 		Name:    &moduleName,
 		Output:  &renderedStr,
 		Success: true,
 		Changed: true,
 		Error:   nil,
-		Diff:    &diff[0].Text,
+		Diff:    &diff,
 	}, nil
 }
 

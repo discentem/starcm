@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "diffutils",
+    srcs = ["diff.go"],
+    importpath = "github.com/discentem/starcm/libraries/diffutils",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_google_go_cmp//cmp"],
+)
