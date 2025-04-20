@@ -157,7 +157,12 @@ func TestTemplateAction_writeTemplate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := tt.setupFs()
 			action := &templateAction{fsys: fs}
-			err := action.writeTemplate(tt.destinationPath, tt.finalContent)
+			err := action.writeTemplate(
+				tt.destinationPath,
+				tt.finalContent,
+				writeTemplateOptions{
+					persist: true,
+				})
 
 			if tt.wantErr {
 				assert.Error(t, err)

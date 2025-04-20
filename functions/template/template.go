@@ -24,7 +24,16 @@ type templateAction struct {
 	fsys afero.Fs
 }
 
-func (a *templateAction) writeTemplate(path string, data []byte) error {
+type writeTemplateOptions struct {
+	persist bool
+}
+
+func (a *templateAction) writeTemplate(path string, data []byte, opts writeTemplateOptions) error {
+	if !opts.persist {
+		logging.Log("template", deck.V(2), "info", "skipping write to disk because persist is false")
+		return nil
+	}
+
 	// Ensure parent directories exist
 	dir := filepath.Dir(path)
 	if err := a.fsys.MkdirAll(dir, 0755); err != nil {
@@ -61,6 +70,7 @@ type parsedArgs struct {
 	templatePath string
 	data         map[string]any
 	destination  string
+	whatIf       bool
 }
 
 func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*parsedArgs, error) {
@@ -84,18 +94,27 @@ func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*
 	keyVals := kwargs[keyValsIdx][1].(*starlark.Dict)
 	gokv := starlarkhelpers.DictToGoMap(keyVals)
 
-	destination, err := starlarkhelpers.FindValueinKwargs(kwargs, "destination")
+	whatIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "what_if", false)
 	if err != nil {
+		logging.Log("template", deck.V(3), "error", "failed to find what_if in kwargs: %v", err)
 		return nil, err
 	}
-	if destination == nil {
-		return nil, fmt.Errorf("destination is required in template() module")
+
+	destination, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "destination", "not_provided")
+	if err != nil {
+		logging.Log("template", deck.V(3), "error", "failed to find destination in kwargs: %v", err)
+		return nil, err
+	}
+
+	if *destination == "not_provided" && !whatIf {
+		return nil, fmt.Errorf("destination is required in template() module if what_if is false")
 	}
 
 	return &parsedArgs{
 		templatePath: *template,
 		data:         gokv,
 		destination:  *destination,
+		whatIf:       whatIf,
 	}, nil
 }
 
@@ -107,6 +126,7 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	template := parsedArgs.templatePath
 	gokv := parsedArgs.data
 	destination := parsedArgs.destination
+	whatIf := parsedArgs.whatIf
 
 	isDir, err := starcmfileutils.IsDir(a.fsys, destination)
 	if err != nil && !os.IsNotExist(err) {
@@ -159,7 +179,13 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	// Handle case where file doesn't exist
 	if !destinationExists {
 		// Create file with rendered template
-		if err := a.writeTemplate(destinationPath, []byte(renderedTemplate)); err != nil {
+		if err := a.writeTemplate(
+			destinationPath,
+			[]byte(renderedTemplate),
+			writeTemplateOptions{
+				persist: !whatIf,
+			},
+		); err != nil {
 			return &base.Result{
 				Name:    &moduleName,
 				Output:  nil,
@@ -200,7 +226,13 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		}, nil
 	}
 
-	if err := a.writeTemplate(destinationPath, []byte(renderedTemplate)); err != nil {
+	if err := a.writeTemplate(
+		destinationPath,
+		[]byte(renderedTemplate),
+		writeTemplateOptions{
+			persist: !whatIf,
+		},
+	); err != nil {
 		return &base.Result{
 			Name:    &moduleName,
 			Output:  nil,
@@ -227,8 +259,9 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 
 func New(ctx context.Context, fsys afero.Fs) *base.Module {
 	var (
-		str  string
-		data *starlark.Dict
+		str         string
+		data        *starlark.Dict
+		destination string
 	)
 
 	return base.NewModule(
@@ -237,7 +270,7 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 		[]base.ArgPair{
 			{Key: "template", Type: &str},
 			{Key: "data", Type: &data},
-			{Key: "destination", Type: &str},
+			{Key: "destination?", Type: &destination},
 		},
 		&templateAction{
 			fsys: fsys,
