@@ -50,6 +50,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		onlyIf           starlark.Bool
 		timeout          string
 		workingDirectory starlark.String
+		whatIf           starlark.Bool
 	)
 
 	// Common arguments automatically available for all Starcm functions
@@ -59,6 +60,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		"not_if?", &notIf,
 		"timeout?", &timeout,
 		"working_directory?", &workingDirectory,
+		"what_if?", &whatIf,
 	}
 
 	googlogger.SetFlags(log.Lmsgprefix)
@@ -82,18 +84,13 @@ func (m Module) Function() starlarkhelpers.Function {
 			return starlark.None, fmt.Errorf("%v for %q argument", err, "name")
 		}
 
-		idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "not_if")
+		notIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "not_if", false)
 		if err != nil {
-			return nil, err
-		}
-		if idx != starlarkhelpers.IndexNotFound {
-			logging.Log(name, deck.V(2), "info", "not_if was: %q", kwargs[idx][1].String())
-		} else {
-			notIf = starlark.False
+			return starlark.None, fmt.Errorf("%v for %q argument", err, "not_if")
 		}
 
 		// skip module if not_if is true
-		if notIf.Truth() {
+		if notIf {
 			logging.Log(name, nil, "info", "skipping %s(name=%q) because not_if was true", m.Type, name)
 			sr, err := StarlarkResult(Result{})
 			if err != nil {
@@ -102,15 +99,12 @@ func (m Module) Function() starlarkhelpers.Function {
 			return sr, nil
 		}
 
-		idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "only_if")
+		onlyIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "only_if", true)
 		if err != nil {
-			return nil, err
-		}
-		if idx == starlarkhelpers.IndexNotFound {
-			onlyIf = starlark.True
+			return starlark.None, fmt.Errorf("%v for %q argument", err, "only_if")
 		}
 
-		if onlyIf.Truth() == starlark.False {
+		if !onlyIf {
 			logging.Log(name, nil, "info", "skipping %s(name=%q) because only_if was false", m.Type, name)
 			sr, err := StarlarkResult(Result{})
 			if err != nil {
