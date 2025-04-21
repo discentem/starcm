@@ -166,7 +166,9 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	info, err := a.fsys.Stat(destinationPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logging.Log(moduleName, deck.V(2), "info", "destination file does not exist, will create it")
+			if !whatIf {
+				logging.Log(moduleName, deck.V(2), "info", "destination file does not exist, will create it")
+			}
 			destinationExists = false
 		} else {
 			// If error is not "file doesn't exist", return the error

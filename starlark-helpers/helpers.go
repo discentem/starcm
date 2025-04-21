@@ -25,7 +25,7 @@ var (
 )
 
 func FindIndexOfValueInKwargs(kwargs []starlark.Tuple, value string) (int, error) {
-	logging.Log("starlarkhelpers FindIndexOfValueInKwargs", deck.V(2), "info", "value: %s", value)
+	logging.Log("starlarkhelpers FindIndexOfValueInKwargs", deck.V(3), "info", "value: %s", value)
 	for i, v := range kwargs {
 		if v[0].String() == fmt.Sprintf("\"%s\"", value) {
 			return i, nil
@@ -35,12 +35,12 @@ func FindIndexOfValueInKwargs(kwargs []starlark.Tuple, value string) (int, error
 }
 
 func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, error) {
-	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(2), "info", "index: %d", index)
+	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(3), "info", "index: %d", index)
 	if index == IndexNotFound {
 		return nil, ErrIndexNotFound
 	}
 	s := kwargs[index][1].String()
-	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(2), "info", "index: %s", s)
+	logging.Log("starlarkhelpers FindValueFromIndexInKwargs", deck.V(3), "info", "index: %s", s)
 	unquoted, _, _, err := Unquote(s)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func FindValueFromIndexInKwargs(kwargs []starlark.Tuple, index int) (*string, er
 }
 
 func FindValueinKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
-	logging.Log("starlarkhelpers FindValueinKwargs", deck.V(2), "info", "value: %s", value)
+	logging.Log("starlarkhelpers FindValueinKwargs", deck.V(3), "info", "value: %s", value)
 	idx, err := FindIndexOfValueInKwargs(kwargs, value)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func FindValueinKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
 }
 
 func FindRawValueInKwargs(kwargs []starlark.Tuple, value string) (starlark.Value, error) {
-	logging.Log("starlarkhelpers FindRawValueInKwargs", deck.V(2), "info", "arg: %s", value)
+	logging.Log("starlarkhelpers FindRawValueInKwargs", deck.V(3), "info", "arg: %s", value)
 	idx, err := FindIndexOfValueInKwargs(kwargs, value)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func FindRawValueInKwargs(kwargs []starlark.Tuple, value string) (starlark.Value
 }
 
 func FindBoolInKwargs(kwargs []starlark.Tuple, value string, defaultValue bool) (bool, error) {
-	logging.Log("starlarkhelpers FindBoolInKwargs", deck.V(2), "info", "value: %s", value)
+	logging.Log("starlarkhelpers FindBoolInKwargs", deck.V(3), "info", "value: %s", value)
 	v, err := FindRawValueInKwargs(kwargs, value)
 	if err != nil {
 		if errors.Is(err, ErrIndexNotFound) {
@@ -83,6 +83,25 @@ func FindBoolInKwargs(kwargs []starlark.Tuple, value string, defaultValue bool) 
 		return defaultValue, nil
 	}
 	return bool(v.Truth()), nil
+}
+
+func FindIntInKwargs(kwargs []starlark.Tuple, value string, defaultValue int64) (int64, error) {
+	logging.Log("starlarkhelpers FindIntInKwargs", deck.V(3), "info", "value: %s", value)
+	v, err := FindRawValueInKwargs(kwargs, value)
+	if err != nil {
+		if errors.Is(err, ErrIndexNotFound) {
+			return defaultValue, nil
+		}
+		return defaultValue, err
+	}
+	if v == nil {
+		return defaultValue, nil
+	}
+	var i int64
+	if err := starlark.AsInt(v, &i); err != nil {
+		return defaultValue, fmt.Errorf("error converting %s to int: %w", v.String(), err)
+	}
+	return i, nil
 }
 
 func FindValueInKwargsWithDefault(kwargs []starlark.Tuple, value string, defaultValue string) (*string, error) {
