@@ -43,33 +43,14 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	}
 	cargs := (kwargs[idx][1]).(*starlark.List)
 
-	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "expected_exit_code")
+	expectedExitCode, err := starlarkhelpers.FindIntInKwargs(kwargs, "expected_exit_code", 0)
 	if err != nil {
 		return nil, err
-	}
-	var expectedExitCode *starlark.Int
-	if idx == starlarkhelpers.IndexNotFound {
-		// If no expected code is provided, assume 0
-		expectedExitCode = func() *starlark.Int {
-			i := starlark.MakeInt(0)
-			return &i
-		}()
-	} else {
-		expectedExitCode = func() *starlark.Int {
-			i := (kwargs[idx][1]).(starlark.Int)
-			return &i
-		}()
 	}
 
-	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "live_output")
+	liveOutput, err := starlarkhelpers.FindBoolInKwargs(kwargs, "live_output", false)
 	if err != nil {
 		return nil, err
-	}
-	var liveOutput starlark.Bool
-	if idx == starlarkhelpers.IndexNotFound {
-		liveOutput = starlark.Bool(false)
-	} else {
-		liveOutput = (kwargs[idx][1]).(starlark.Bool)
 	}
 
 	iter := cargs.Iterate()
@@ -89,7 +70,7 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	}
 
 	posters := []io.WriteCloser{&wc}
-	if liveOutput.Truth() {
+	if liveOutput {
 		posters = append(posters, os.Stdout)
 	}
 
@@ -107,11 +88,6 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 			}(),
 			Error: err,
 			Success: func() bool {
-				expectedExitCode, ok := expectedExitCode.Int64()
-				if !ok {
-					logging.Log(moduleName, nil, "error", "expectedExitCode.Int64() conversion failed: %v", err)
-					return false
-				}
 				logging.Log(moduleName, deck.V(2), "info", "expectedExitCode: %v", expectedExitCode)
 
 				actualExitCode, err := ex.ExitCode()
