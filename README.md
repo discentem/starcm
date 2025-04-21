@@ -88,6 +88,7 @@ $ bazel run :starcm -- --root_file examples/templates/simple/template.star --tim
 INFO: [LoadFromFile]: loading file "examples/templates/simple/template.star"
 INFO: [hello world template]: hello_world.tpl before rendering: Hello {{ name | capitalize }}, you are {{ age }} years old.
 INFO: [hello world template]: data: map[age:42 name:world]
+INFO: [template]: skipping write to disk because persist is false
 Hello World, you are 42 years old.
 ```
 
