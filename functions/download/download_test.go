@@ -72,6 +72,10 @@ func TestRun(t *testing.T) {
 					starlark.String("save_to"),
 					starlark.String("file.txt"),
 				},
+				{
+					starlark.String("sha256"),
+					starlark.String("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+				},
 			},
 			expectedResult: func(result *base.Result) bool {
 				return result != nil
@@ -167,6 +171,7 @@ func TestRun(t *testing.T) {
 				t.Fatal("tt.expectedResult must be provided")
 			}
 			t.Logf("result: %v", result)
+			t.Logf("err: %v", err)
 			assert.Equal(t, true, tt.expectedError(err), "unexpected error")
 			assert.Equal(t, true, tt.expectedResult(result), "unexpected result")
 
