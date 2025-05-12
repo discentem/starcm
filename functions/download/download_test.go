@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/discentem/starcm/functions/base"
+	"github.com/discentem/starcm/libraries/logging"
+	"github.com/google/deck"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"go.starlark.net/starlark"
@@ -78,9 +80,11 @@ func TestRun(t *testing.T) {
 				},
 			},
 			expectedResult: func(result *base.Result) bool {
+				logging.Log("result", deck.V(1), "result", "result: %v", result)
 				return result != nil
 			},
 			expectedError: func(err error) bool {
+				logging.Log("result", deck.V(1), "error", "error: %v", err)
 				return err == nil
 			},
 		},
