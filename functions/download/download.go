@@ -62,9 +62,9 @@ func (a *downloadAction) Run(ctx context.Context, workingDirectory string, modul
 		return nil, err
 	}
 
-	expectedHash, err := starlarkhelpers.FindValueinKwargs(kwargs, "sha256")
+	expectedHash, err := starlarkhelpers.FindStringInKwargs(kwargs, "sha256")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find sha256 in kwargs: %v", err)
 	}
 
 	if expectedHash != nil && *expectedHash != actualHash {

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/discentem/starcm/functions/base"
+	"github.com/discentem/starcm/libraries/logging"
+	"github.com/google/deck"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"go.starlark.net/starlark"
@@ -72,11 +74,17 @@ func TestRun(t *testing.T) {
 					starlark.String("save_to"),
 					starlark.String("file.txt"),
 				},
+				{
+					starlark.String("sha256"),
+					starlark.String("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+				},
 			},
 			expectedResult: func(result *base.Result) bool {
+				logging.Log("result", deck.V(1), "result", "result: %v", result)
 				return result != nil
 			},
 			expectedError: func(err error) bool {
+				logging.Log("result", deck.V(1), "error", "error: %v", err)
 				return err == nil
 			},
 		},
@@ -167,6 +175,7 @@ func TestRun(t *testing.T) {
 				t.Fatal("tt.expectedResult must be provided")
 			}
 			t.Logf("result: %v", result)
+			t.Logf("err: %v", err)
 			assert.Equal(t, true, tt.expectedError(err), "unexpected error")
 			assert.Equal(t, true, tt.expectedResult(result), "unexpected result")
 

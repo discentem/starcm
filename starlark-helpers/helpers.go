@@ -85,6 +85,21 @@ func FindBoolInKwargs(kwargs []starlark.Tuple, value string, defaultValue bool) 
 	return bool(v.Truth()), nil
 }
 
+func FindStringInKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
+	logging.Log("starlarkhelpers FindStringInKwargs", deck.V(3), "info", "value: %s", value)
+	v, err := FindRawValueInKwargs(kwargs, value)
+	if err != nil || v == nil {
+		return nil, fmt.Errorf("error finding value %s in kwargs: %w", value, err)
+	}
+	// unquote the string
+	s, _, _, err := Unquote(v.String())
+	if err != nil {
+		return nil, fmt.Errorf("error unquoting value %s: %w", v.String(), err)
+	}
+	logging.Log("starlarkhelpers FindStringInKwargs", deck.V(4), "unquoted", s)
+	return &s, nil
+}
+
 func FindIntInKwargs(kwargs []starlark.Tuple, value string, defaultValue int64) (int64, error) {
 	logging.Log("starlarkhelpers FindIntInKwargs", deck.V(3), "info", "value: %s", value)
 	v, err := FindRawValueInKwargs(kwargs, value)
