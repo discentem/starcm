@@ -2,13 +2,7 @@ name: Scrut Examples Test
 
 on:
   push:
-    paths:
-      - 'examples/**'
-      - '.github/workflows/scrut.yml'
   pull_request:
-    paths:
-      - 'examples/**'
-      - '.github/workflows/scrut.yml'
 
 jobs:
   scrut:
@@ -26,8 +20,4 @@ jobs:
       - name: Run scrut tests
         run: |
           set -e
-          if [ -d examples ]; then
-            scrut test --work-directory . examples
-          else
-            echo "examples directory not found"
-          fi
+          /usr/local/bin/scrut test --work-directory . README.md
