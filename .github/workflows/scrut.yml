@@ -1,4 +1,4 @@
-name: Scrut README Test
+name: Run scrut against README.md examples
 
 on:
   push:
