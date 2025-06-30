@@ -29,10 +29,14 @@ jobs:
           bazel build //:starcm
           cp bazel-bin/starcm_/starcm starcm
 
+      - name: Get short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+        
       - name: Create GitHub prerelease
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.sha }}
-          name: starcm-${{ github.sha }}
+          tag_name: ${{ env.short_sha }}
+          name: starcm-${{ env.short_sha }}
           prerelease: true
           files: starcm
