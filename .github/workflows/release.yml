@@ -1,0 +1,32 @@
+name: Bazel Release
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v1
+
+      - name: Build binary
+        run: |
+          bazel build //:starcm
+          cp bazel-bin/starcm_/starcm starcm
+
+      - name: Create GitHub prerelease
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.sha }}
+          name: starcm-${{ github.sha }}
+          prerelease: true
+          files: starcm
