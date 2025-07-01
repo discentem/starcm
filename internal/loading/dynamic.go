@@ -1,7 +1,9 @@
 package loading
 
 import (
+	"fmt"
 	"path/filepath"
+	"regexp/syntax"
 
 	"github.com/discentem/starcm/libraries/logging"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
@@ -31,7 +33,15 @@ func DynamicLoadfunc() starlarkhelpers.Function {
 		logging.Log(builtin.Name(), deck.V(3), "info", "Loading module from path: %q", modulepath)
 		module, err := thread.Load(thread, modulepath)
 		if err != nil {
-			return nil, err
+			switch e := err.(type) {
+			case *starlark.EvalError:
+				return nil, fmt.Errorf("load failed:\n%s", e.Backtrace())
+			case *syntax.Error:
+				// Handle syntax errors (e.g. parse errors in the .star file)
+				return nil, fmt.Errorf("syntax errors:\n%s", e.Error()) // e is a slice of syntax.Error
+			default:
+				return nil, fmt.Errorf("unexpected error during load: %w", err)
+			}
 		}
 
 		dict := starlark.NewDict(len(module))

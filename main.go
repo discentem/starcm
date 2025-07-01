@@ -140,7 +140,14 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 					nil,
 				)
 				if err != nil {
-					return nil, fmt.Errorf("executing module %q: %s", module, err)
+					switch e := err.(type) {
+					case *starlark.EvalError:
+						return nil, fmt.Errorf("load failed:\n%s", e.Backtrace())
+					case *syntax.Error:
+						return nil, fmt.Errorf("syntax error:\n%s", e.Error())
+					default:
+						return nil, fmt.Errorf("unexpected load error: %w", err)
+					}
 				}
 				// Step 2: Extract relevant information from the function
 
@@ -198,6 +205,7 @@ func defaultLoader(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executo
 							ctx,
 							*http.DefaultClient,
 							fsys,
+							os.Stdout,
 						).Function(),
 					),
 					"write": starlark.NewBuiltin(
