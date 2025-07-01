@@ -180,6 +180,19 @@ func DictToGoMap(dict *starlark.Dict) map[string]interface{} {
 	return result
 }
 
+func OptionalKeyword(kw starlark.String) starlark.String {
+	s := kw.GoString()
+	if strings.HasSuffix(s, "?") {
+		s := fmt.Sprintf("%s?", s)
+		return starlark.String(s)
+	}
+	if strings.HasSuffix(s, "??") {
+		return starlark.String(s)
+	}
+	return starlark.String(fmt.Sprintf("%s??", s))
+
+}
+
 // unquote unquotes the quoted string, returning the actual
 // string value, whether the original was triple-quoted,
 // whether it was a byte string, and an error describing invalid input.

@@ -1,0 +1,23 @@
+name: Scrut Examples Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scrut:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install scrut
+        run: |
+          set -e
+          wget -O scrut.tar.gz https://github.com/facebookincubator/scrut/releases/download/v0.4.1/scrut-v0.4.1-linux-x86_64.tar.gz
+          tar -xzf scrut.tar.gz
+          echo "34a234c7609a6d69d91bf9c7956f0cfc54485b7659a2fd327af8296e25cfd874  scrut-linux-x86_64/scrut" | sha256sum -c -
+          sudo mv scrut-linux-x86_64/scrut /usr/local/bin/scrut
+          sudo chmod +x /usr/local/bin/scrut
+      - name: Run scrut tests
+        run: |
+          set -e
+          /usr/local/bin/scrut test --work-directory . README.md

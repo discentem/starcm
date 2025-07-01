@@ -5,19 +5,50 @@
 
 - A rudimentary configuration management language that utilizes Starlark instead of Ruby, json, or yaml.
 - Why Starlark? Starlark provides variables, functions, loops, and lots more "for free" inside of the configuration files!
-- Starcm is not intended to be a full replacement for tools like Chef or Ansible, but starcm can be used to bootstrap these tools and many others through features like `exec()`, for calling binaries, `template()` for rendering templated files, `load_dynamic()` for chaining Starcm files dynamically, and much more!
 
 # Goal
-
 Starcm is intended to become a viable alternative for tools like [macadmins/installapplications](https://github.com/macadmins/installapplications), [facebookincubator/go2chef](https://github.com/facebookincubator/go2chef), and [google/glazier](https://github.com/google/glazier).
 
-# Prerequisites
+# Installation
 
-In order to test out the Starcm examples described this repository, the Starcm authors recommend that you install [Bazelisk](https://github.com/bazelbuild/bazelisk) and alias it to `bazel`. 
+#### Option 1: Download a precompiled release
 
-> You should be able to use `go run` directly but the documented examples use `bazel` only.
+Download starcm from https://github.com/discentem/starcm/releases and install it somewhere in your path, such as `/usr/local/bin/starcm`.
+
+#### Option 2: Compile 
+
+Install [https://github.com/bazelbuild/bazelisk](Bazelisk) and do `make install`.
 
 # What's possible with Starcm?
+
+## Download & install a pkg
+
+We can use Starcm to download and install packages for macOS. We can even store the configuration file (that tells Starcm what package we want to install) on a web server as well.
+
+See [examples/install_go/bootstrap.star](examples/install_go/bootstrap.star) which shows an example of this.
+
+You can run the example like so:
+
+1. Start a web server that serves this repo.
+
+    ```bash
+    $ python3 -m http.server -d .
+    ```
+1. Run starcm with bootstrap.star, which will download additional `.star` files from the webserver and execute them.
+
+    ```scrut
+    $ starcm --root_file examples/install_a_pkg_from_server/bootstrap.star
+    result(changed = True, diff = "", error = None, name = "download examplejson-1.0.pkg", output = "downloaded file to examplejson-1.0.pkg", success = True)
+
+    {
+        "name": "install examplejson-1.0.pkg",
+        "changed": True,
+        "success": True
+    }
+    ```
+
+1. See that `/opt/example.json` now exists.
+
 
 ## shelling out
 
