@@ -27,7 +27,8 @@ func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleNa
 			Output:  s,
 			Success: true,
 			Changed: false,
-		}, nil
+			Error:   err,
+		}, err
 	}
 
 	e, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "end", "\n")

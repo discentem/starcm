@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 
 	"github.com/discentem/starcm/libraries/logging"
 	"github.com/google/deck"
@@ -61,31 +62,37 @@ func (e *RealExecutor) Stream(posters ...io.WriteCloser) error {
 		logging.Log("shelllib", deck.V(1), "error", "error getting stderr pipe: %v", err)
 		return err
 	}
-	inputPipes := []io.ReadCloser{stdout, stderr}
+
+	if posters == nil {
+		posters = []io.WriteCloser{os.Stdout}
+	}
+	writer := NewMultiWriteCloser(posters...)
 
 	if err := e.Start(); err != nil {
 		logging.Log("shelllib", deck.V(1), "error", "error starting command: %v", err)
 		return err
 	}
 
-	if posters == nil {
-		posters = []io.WriteCloser{os.Stdout}
-	}
-
-	writer := NewMultiWriteCloser(posters...)
-
-	for _, pipe := range inputPipes {
-		r := bufio.NewScanner(pipe)
-		for r.Scan() {
-			m := r.Text()
-			writer.Write([]byte(m + "\n"))
+	var wg sync.WaitGroup
+	drain := func(reader io.Reader) {
+		defer wg.Done()
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			writer.Write(append(scanner.Bytes(), '\n'))
 		}
 	}
+
+	wg.Add(2)
+	go drain(stdout)
+	go drain(stderr)
+
+	wg.Wait()
 
 	if err := e.Wait(); err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
 			return exitError
 		}
+		return err
 	}
 	return nil
 }
