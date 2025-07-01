@@ -21,7 +21,7 @@ Install [https://github.com/bazelbuild/bazelisk](Bazelisk) and do `make install`
 
 # What's possible with Starcm?
 
-## Download & install a pkg
+## Download & install a .pkg on macOS
 
 We can use Starcm to download and install packages for macOS. We can even store the configuration file (that tells Starcm what package we want to install) on a web server as well.
 
