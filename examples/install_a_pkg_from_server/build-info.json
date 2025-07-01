@@ -1,0 +1,11 @@
+{
+  "distribution_style": false,
+  "identifier": "com.github.discentem.pkg.examplejson",
+  "install_location": "/",
+  "name": "examplejson-${version}.pkg",
+  "ownership": "recommended",
+  "postinstall_action": "none",
+  "preserve_xattr": false,
+  "suppress_bundle_relocation": true,
+  "version": "1.0"
+}
