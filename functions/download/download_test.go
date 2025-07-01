@@ -74,7 +74,7 @@ func TestRun(t *testing.T) {
 				},
 				{
 					starlark.String("sha256"),
-					starlark.String("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+					starlark.String("b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"),
 				},
 			},
 			expectedResult: func(result *base.Result) bool {
@@ -172,8 +172,11 @@ func TestRun(t *testing.T) {
 			}
 			t.Logf("result: %v", result)
 			t.Logf("err: %v", err)
-			assert.Equal(t, true, tt.expectedError(err), "unexpected error")
-			assert.Equal(t, true, tt.expectedResult(result), "unexpected result")
+
+			assert.Equalf(t, true, tt.expectedError(err),
+				"unexpected error: expectedError: %v, err: %v", tt.expectedError(err), err)
+			assert.Equalf(t, true, tt.expectedResult(result),
+				"unexpected result: expectedResult: %v, result: %v", tt.expectedResult(result), result)
 
 			if result != nil {
 				if result.Success == true {

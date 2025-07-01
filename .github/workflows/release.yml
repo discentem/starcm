@@ -9,7 +9,26 @@ permissions:
   contents: write
 
 jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      go_changes: ${{ steps.changes.outputs.go_changes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for non-test Go file changes
+        id: changes
+        run: |
+          git fetch origin main --depth=2
+          changed=$(git diff --name-only HEAD^ HEAD | grep '\.go$' | grep -v '_test.go' || true)
+          if [[ -n "$changed" ]]; then
+            echo "go_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "go_changes=false" >> $GITHUB_OUTPUT
+          fi
+
   build-and-release:
+    if: needs.detect-changes.outputs.go_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source
