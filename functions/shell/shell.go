@@ -21,27 +21,22 @@ type shellAction struct {
 
 func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 
-	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
-	if err != nil {
-		return nil, err
-	}
-	if idx == starlarkhelpers.IndexNotFound {
+	cmd, err := starlarkhelpers.FindValueinKwargs(kwargs, "cmd")
+	if cmd == nil {
 		return nil, fmt.Errorf("'cmd' was not found in kwargs")
 	}
+	if cmd == nil {
+		return nil, fmt.Errorf("'cmd' was nil")
+	}
 
-	c, _, _, err := starlarkhelpers.Unquote(kwargs[idx][1].String())
+	cargs, err := starlarkhelpers.FindRawValueInKwargs(kwargs, "args")
 	if err != nil {
 		return nil, err
 	}
-
-	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "args")
-	if err != nil {
-		return nil, err
+	cargsList, ok := cargs.(*starlark.List)
+	if !ok {
+		return nil, fmt.Errorf("'args' was not a list")
 	}
-	if idx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("'args' was not found in kwargs")
-	}
-	cargs := (kwargs[idx][1]).(*starlark.List)
 
 	expectedExitCode, err := starlarkhelpers.FindIntInKwargs(kwargs, "expected_exit_code", 0)
 	if err != nil {
@@ -53,7 +48,7 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 		return nil, err
 	}
 
-	iter := cargs.Iterate()
+	iter := cargsList.Iterate()
 	defer iter.Done()
 	var v starlark.Value
 	var cmdArgsGo []string
@@ -62,7 +57,7 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	}
 
 	ex := &shelllib.RealExecutor{}
-	ex.Command(c, cmdArgsGo...)
+	ex.Command(*cmd, cmdArgsGo...)
 
 	buff := bytes.NewBuffer(nil)
 	wc := shelllib.NopBufferCloser{

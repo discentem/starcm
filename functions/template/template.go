@@ -20,16 +20,17 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type templateAction struct {
-	fsys afero.Fs
-}
-
 type writeTemplateOptions struct {
 	persist bool
 }
 
-func (a *templateAction) writeTemplate(path string, data []byte, opts writeTemplateOptions) error {
-	if !opts.persist {
+type templateAction struct {
+	fsys    afero.Fs
+	options writeTemplateOptions
+}
+
+func (a *templateAction) writeTemplate(path string, data []byte) error {
+	if !a.options.persist {
 		logging.Log("template", deck.V(2), "info", "skipping write to disk because persist is false")
 		return nil
 	}
@@ -184,9 +185,6 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		if err := a.writeTemplate(
 			destinationPath,
 			[]byte(renderedTemplate),
-			writeTemplateOptions{
-				persist: !whatIf,
-			},
 		); err != nil {
 			return &base.Result{
 				Name:    &moduleName,
@@ -231,9 +229,6 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	if err := a.writeTemplate(
 		destinationPath,
 		[]byte(renderedTemplate),
-		writeTemplateOptions{
-			persist: !whatIf,
-		},
 	); err != nil {
 		return &base.Result{
 			Name:    &moduleName,
