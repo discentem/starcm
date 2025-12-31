@@ -19,7 +19,9 @@ type shellAction struct {
 	executor shelllib.Executor
 }
 
-func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+var _ base.Runnable = (*shellAction)(nil)
+
+func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 
 	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
 	if err != nil {
@@ -81,10 +83,10 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	go func() {
 		err := ex.Stream(posters...)
 		resultChan <- &base.Result{
-			Name: &moduleName,
-			Output: func() *string {
+			Label: moduleName,
+			Return: func() starlark.Value {
 				s := buff.String()
-				return &s
+				return starlark.String(s)
 			}(),
 			Error: err,
 			Success: func() bool {
@@ -100,8 +102,6 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 				return int64(actualExitCode) == expectedExitCode
 			}(),
 			Changed: true,
-			Diff:    nil,
-			Comment: "",
 		}
 	}()
 
@@ -112,9 +112,9 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 			return res, ctx.Err()
 		default:
 			return &base.Result{
-				Name:  &moduleName,
+				Label: moduleName,
 				Error: ctx.Err(),
-				Output: func() *string {
+				Message: func() *string {
 					s := buff.String()
 					return &s
 				}(),

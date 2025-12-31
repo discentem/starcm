@@ -9,6 +9,7 @@ install: build
 deps: tidy gazelle
 
 tidy:
+	go mod tidy
 	bazel mod tidy
 
 gazelle:

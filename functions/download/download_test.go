@@ -163,7 +163,8 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("Running test %q", tt.name)
-			result, err := tt.action.Run(context.TODO(), "", tt.moduleName, tt.starlarkArgs, tt.starlarkKwargs)
+			thread := starlark.Thread{Name: "test"}
+			result, err := tt.action.Run(context.TODO(), "", tt.moduleName, &thread, tt.starlarkArgs, tt.starlarkKwargs)
 			if tt.expectedError == nil {
 				t.Fatal("tt.expectedError must be provided")
 			}
@@ -180,8 +181,8 @@ func TestRun(t *testing.T) {
 
 			if result != nil {
 				if result.Success == true {
-					t.Logf("result.Output: %q", *result.Output)
-					assert.Equal(t, "downloaded file to file.txt", *result.Output)
+					t.Logf("result.Output: %q", *result.Message)
+					assert.Equal(t, "downloaded file to file.txt", *result.Message)
 					f, err := tt.action.fsys.Open("file.txt")
 					assert.NoError(t, err)
 					b, err := io.ReadAll(f)

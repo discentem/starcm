@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//functions/download",
         "//functions/dynamic_loading",
-        "//functions/shard",
+        "//functions/file",
         "//functions/shell",
         "//functions/template",
         "//functions/write",

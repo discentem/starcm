@@ -3,6 +3,8 @@ package download
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
+	"os"
 	"time"
 
 	"fmt"
@@ -23,46 +25,111 @@ type downloadAction struct {
 	output     io.Writer
 }
 
-func (a *downloadAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+// Ensure downloadAction implements base.Runnable
+var _ base.Runnable = (*downloadAction)(nil)
+
+func (a *downloadAction) Run(
+	ctx context.Context,
+	workingDirectory string,
+	moduleName string,
+	thread *starlark.Thread,
+	args starlark.Tuple,
+	kwargs []starlark.Tuple,
+) (*base.Result, error) {
 	if a.fsys == nil {
 		return nil, fmt.Errorf("fsys must be provided to download module")
 	}
 
-	s, err := starlarkhelpers.FindValueinKwargs(kwargs, "url")
+	url, err := starlarkhelpers.FindValueinKwargs(kwargs, "url")
 	if err != nil {
 		return nil, err
 	}
-	if s == nil {
+	if url == nil {
 		return nil, fmt.Errorf("url must be provided to download module, cannot be nil")
 	}
+
 	savePath, err := starlarkhelpers.FindValueinKwargs(kwargs, "save_to")
 	if err != nil {
 		return nil, err
 	}
 	if savePath == nil {
-		return nil, fmt.Errorf("save_to must be provided to download module, cannot be nil")
+		return nil, fmt.Errorf("save_to must be provided to download(label=%q), cannot be nil", moduleName)
 	}
 
-	resp, err := a.httpClient.Get(*s)
+	expectedHash, err := starlarkhelpers.FindStringInKwargs(kwargs, "sha256")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to find sha256 in kwargs: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download file %q: %s", *s, resp.Status)
+	if expectedHash == nil || *expectedHash == "" {
+		return nil, fmt.Errorf("sha256 must be provided to download(label=%q), cannot be nil/empty", moduleName)
 	}
-
-	totalSize := resp.ContentLength
-	f, err := a.fsys.Create(*savePath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
 
 	liveProgress, err := starlarkhelpers.FindBoolInKwargs(kwargs, "live_progress", false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find live_progress in kwargs: %w", err)
 	}
+
+	fileSHA256 := func(path string) (string, error) {
+		f, err := a.fsys.Open(path)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%x", h.Sum(nil)), nil
+	}
+
+	if _, err := a.fsys.Stat(*savePath); err == nil {
+		existingHash, err := fileSHA256(*savePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash existing file %q: %w", *savePath, err)
+		}
+		if existingHash == *expectedHash {
+			return &base.Result{
+				Label: moduleName,
+				Message: func() *string {
+					s := fmt.Sprintf("%q already present and sha256 verified", *savePath)
+					return &s
+				}(),
+				Success: true,
+				Changed: false,
+				Return:  starlark.None,
+			}, nil
+		}
+
+		// Exists but wrong hash: remove and re-download.
+		if err := a.fsys.Remove(*savePath); err != nil {
+			return nil, fmt.Errorf("existing file %q has wrong sha256; failed to remove: %w", *savePath, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("failed to stat %q: %w", *savePath, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, *url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := a.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download file %q: %s", *url, resp.Status)
+	}
+
+	totalSize := resp.ContentLength
+
+	f, err := a.fsys.Create(*savePath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
 
 	hasher := sha256.New()
 
@@ -71,7 +138,7 @@ func (a *downloadAction) Run(ctx context.Context, workingDirectory string, modul
 		pw := &progressWriter{
 			total: totalSize,
 			out:   a.output,
-			name:  *s,
+			name:  *url,
 		}
 		if pw.out == nil {
 			pw.out = io.Discard
@@ -79,8 +146,9 @@ func (a *downloadAction) Run(ctx context.Context, workingDirectory string, modul
 		dest = io.MultiWriter(f, hasher, pw)
 	}
 
-	_, err = io.Copy(dest, resp.Body)
-	if err != nil {
+	if _, err := io.Copy(dest, resp.Body); err != nil {
+		// Best-effort cleanup of partial download
+		_ = a.fsys.Remove(*savePath)
 		return nil, err
 	}
 	if liveProgress && a.output != nil {
@@ -88,27 +156,20 @@ func (a *downloadAction) Run(ctx context.Context, workingDirectory string, modul
 	}
 
 	actualHash := fmt.Sprintf("%x", hasher.Sum(nil))
-	if err != nil {
-		return nil, err
-	}
-
-	expectedHash, err := starlarkhelpers.FindStringInKwargs(kwargs, "sha256")
-	if err != nil {
-		return nil, fmt.Errorf("failed to find sha256 in kwargs: %v", err)
-	}
-
-	if expectedHash != nil && *expectedHash != actualHash {
+	if *expectedHash != actualHash {
+		_ = a.fsys.Remove(*savePath)
 		return nil, fmt.Errorf("expected sha256 hash %s, got %s", *expectedHash, actualHash)
 	}
 
 	return &base.Result{
-		Name: &moduleName,
-		Output: func() *string {
+		Label: moduleName,
+		Message: func() *string {
 			s := fmt.Sprintf("downloaded file to %s", *savePath)
 			return &s
 		}(),
 		Success: true,
 		Changed: true,
+		Return:  starlark.None,
 	}, nil
 }
 

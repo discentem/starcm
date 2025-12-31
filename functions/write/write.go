@@ -16,18 +16,20 @@ type writeAction struct {
 	w io.Writer
 }
 
-func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	s, err := starlarkhelpers.FindValueinKwargs(kwargs, "str")
+var _ base.Runnable = (*writeAction)(nil)
+
+func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+	s, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "str", "")
 	if err != nil {
 		for _, arg := range args {
 			fmt.Fprintf(a.w, "%s", arg)
 		}
 		return &base.Result{
-			Name:    &moduleName,
-			Output:  s,
+			Label:   moduleName,
 			Success: true,
 			Changed: false,
 			Error:   err,
+			Return:  starlark.String(*s),
 		}, err
 	}
 
@@ -38,8 +40,8 @@ func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleNa
 
 	fmt.Fprintf(a.w, "%s%s", *s, *e)
 	return &base.Result{
-		Name:    &moduleName,
-		Output:  s,
+		Label:   moduleName,
+		Return:  starlark.String(*s),
 		Success: true,
 		Changed: false,
 	}, nil

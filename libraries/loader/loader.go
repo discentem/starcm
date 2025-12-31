@@ -20,7 +20,7 @@ import (
 
 	starcmdownload "github.com/discentem/starcm/functions/download"
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
-	starcmshard "github.com/discentem/starcm/functions/shard"
+	starcmFile "github.com/discentem/starcm/functions/file"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmwrite "github.com/discentem/starcm/functions/write"
@@ -43,7 +43,6 @@ func LoadFromFile(ctx context.Context, fpath string, src interface{}, load starl
 		currentDir = fpath
 	}
 
-	logging.Log("LoadFromFile", deck.V(3), "info", "current starlark execution dir %q", currentDir)
 	if currentDir != fpath {
 		fpath = filepath.Join(currentDir, fpath)
 	}
@@ -124,20 +123,25 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 // resolveModulePath determines the actual filesystem path to the module based on workspace, call stack, or absolute logic.
 func (l *Loader) resolveModulePath(thread *starlark.Thread, module string) string {
 	switch {
-	case filepath.IsAbs(module):
-		return module
-
 	case strings.HasPrefix(module, "//"):
+		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving workspace-relative module path %q with WorkspacePath %q", module, l.WorkspacePath)
 		// Workspace-relative
-		return path.Join(l.WorkspacePath, module[2:]) // strip leading //
-
+		stripped := module[2:]
+		resolved := filepath.Join(l.WorkspacePath, stripped)
+		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "stripped to %q, resolved to %q", stripped, resolved)
+		return resolved
+	case filepath.IsAbs(module):
+		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving absolute module path %q", module)
+		return module
 	case len(thread.CallStack()) > 0:
+		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving caller-relative module path %q", module)
 		// Relative to the caller module
 		caller := thread.CallStack().At(0)
 		callerDir := filepath.Dir(caller.Pos.Filename())
 		return filepath.Join(callerDir, module)
 
 	default:
+		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving default workspace-relative module path %q", module)
 		// Default fallback: relative to workspace
 		return filepath.Join(l.WorkspacePath, module)
 	}
@@ -234,15 +238,18 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							ex,
 						).Function(),
 					),
+					"file": starlark.NewBuiltin(
+						"file",
+						starcmFile.New(ctx, fsys).Function(),
+					),
 					"template": starlark.NewBuiltin(
 						"template",
 						starcmtemplate.New(ctx, fsys).Function(),
 					),
-					"shard": starlark.NewBuiltin(
-						"shard",
-						starcmshard.New(ctx).Function(),
+					"load_dynamic": starlark.NewBuiltin(
+						"load_dynamic",
+						dynamicloading.New(ctx).Function(),
 					),
-					"load_dynamic": starlark.NewBuiltin("load_dynamic", dynamicloading.Load()),
 				}, nil
 			case "starlarkstdlib":
 				return starlark.StringDict{

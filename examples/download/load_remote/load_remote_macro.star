@@ -9,4 +9,4 @@ def load_remote(url, sha256):
         save_to = fname,
         sha256 = sha256
     )
-    load_dynamic(fname, absolute_path=True)
+    load_dynamic(fname)

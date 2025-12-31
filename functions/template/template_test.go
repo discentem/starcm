@@ -285,10 +285,10 @@ func TestTemplateAction_Run(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fs, workDir := tt.setupFs()
-
+			thread := starlark.Thread{Name: "test"}
 			action := &templateAction{fsys: fs}
 			ctx := context.Background()
-			result, err := action.Run(ctx, workDir, "template_test", tt.args, tt.kwargs)
+			result, err := action.Run(ctx, workDir, "template_test", &thread, tt.args, tt.kwargs)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -300,8 +300,8 @@ func TestTemplateAction_Run(t *testing.T) {
 			require.Equal(t, tt.expectedSuccess, result.Success)
 			require.Equal(t, tt.expectedChanged, result.Changed)
 
-			if tt.expectOutputEqual && result.Output != nil {
-				require.Equal(t, tt.expectedOutput, *result.Output)
+			if tt.expectOutputEqual && result.Message != nil {
+				require.Equal(t, tt.expectedOutput, *result.Message)
 			}
 
 			if tt.expectedDiff != "" && result.Diff != nil {
@@ -373,8 +373,9 @@ func TestTemplateAction_TemplateErrors(t *testing.T) {
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(tt.data)},
 				{starlark.String("destination"), starlark.String("output.txt")},
 			}
+			thread := starlark.Thread{Name: "test"}
 
-			result, err := action.Run(ctx, "", "template_test", starlark.Tuple{}, kwargs)
+			result, err := action.Run(ctx, "", "template_test", &thread, starlark.Tuple{}, kwargs)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -474,7 +475,9 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 				{starlark.String("destination"), starlark.String(tt.destination)},
 			}
 
-			result, err := action.Run(ctx, "", "template_test", starlark.Tuple{}, kwargs)
+			thread := starlark.Thread{Name: "test"}
+
+			result, err := action.Run(ctx, "", "template_test", &thread, starlark.Tuple{}, kwargs)
 
 			if tt.wantErr {
 				assert.Error(t, err)

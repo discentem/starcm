@@ -23,7 +23,8 @@ type Runnable interface {
 	Run(
 		ctx context.Context,
 		workingDirectory string,
-		moduleName string,
+		label string,
+		thread *starlark.Thread,
 		args starlark.Tuple,
 		kwargs []starlark.Tuple,
 	) (*Result, error)
@@ -45,7 +46,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		finalArgs = append(finalArgs, arg.Key, arg.Type)
 	}
 	var (
-		name             string
+		label            string
 		notIf            starlark.Bool
 		onlyIf           starlark.Bool
 		timeout          string
@@ -55,7 +56,7 @@ func (m Module) Function() starlarkhelpers.Function {
 
 	// Common arguments automatically available for all Starcm functions
 	commonArgs := []any{
-		"name", &name,
+		"label", &label,
 		"only_if?", &onlyIf,
 		"not_if?", &notIf,
 		"timeout?", &timeout,
@@ -72,16 +73,16 @@ func (m Module) Function() starlarkhelpers.Function {
 
 	return func(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		if err := starlark.UnpackArgs(
-			name,
+			label,
 			args,
 			kwargs,
 			finalArgs...,
 		); err != nil {
 			return starlark.None, err
 		}
-		_, err := starlarkhelpers.FindValueinKwargs(kwargs, "name")
+		_, err := starlarkhelpers.FindValueinKwargs(kwargs, "label")
 		if err != nil {
-			return starlark.None, fmt.Errorf("%v for %q argument", err, "name")
+			return starlark.None, err
 		}
 
 		notIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "not_if", false)
@@ -91,8 +92,8 @@ func (m Module) Function() starlarkhelpers.Function {
 
 		// skip module if not_if is true
 		if notIf {
-			logging.Log(name, nil, "info", "skipping %s(name=%q) because not_if was true", m.Type, name)
-			sr, err := StarlarkResult(Result{})
+			logging.Log(label, nil, "info", "skipping %s(label=%q) because not_if was true", m.Type, label)
+			sr, err := Result{}.ToStarlark()
 			if err != nil {
 				return nil, err
 			}
@@ -105,8 +106,8 @@ func (m Module) Function() starlarkhelpers.Function {
 		}
 
 		if !onlyIf {
-			logging.Log(name, nil, "info", "skipping %s(name=%q) because only_if was false", m.Type, name)
-			sr, err := StarlarkResult(Result{})
+			logging.Log(label, nil, "info", "skipping %s(label=%q) because only_if was false", m.Type, label)
+			sr, err := Result{}.ToStarlark()
 			if err != nil {
 				return nil, err
 			}
@@ -124,9 +125,8 @@ func (m Module) Function() starlarkhelpers.Function {
 		} else {
 			finalWorkingDir = workingDirectory.GoString()
 		}
-
 		if m.Action == nil {
-			return starlark.None, fmt.Errorf("no action defined for module %s", name)
+			return starlark.None, fmt.Errorf("no action defined for module %s", label)
 		}
 
 		var ctx context.Context
@@ -141,15 +141,17 @@ func (m Module) Function() starlarkhelpers.Function {
 		} else {
 			ctx = m.Ctx
 		}
-		logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, moduleName=%q, args, kwargs)", finalWorkingDir, name)
-		r, err := m.Action.Run(ctx, finalWorkingDir, name, args, kwargs)
+		logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, label=%q, args, kwargs)", finalWorkingDir, label)
+		r, err := m.Action.Run(ctx, finalWorkingDir, label, thread, args, kwargs)
 		if r == nil && err != nil {
 			return starlark.None, err
 		}
-		if r == nil {
-			return starlark.None, fmt.Errorf("no result returned from module %s", name)
+		starResult, err := r.ToStarlark()
+		if err != nil {
+			return starlark.None, fmt.Errorf("error converting result to starlark for module %s: %v", label, err)
 		}
-		return StarlarkResult(*r)
+		logging.Log("base.go", deck.V(3), "info", "finished m.Action.Run for label=%q", label)
+		return starResult, nil
 	}
 
 }

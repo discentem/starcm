@@ -118,7 +118,9 @@ func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*
 	}, nil
 }
 
-func (a *templateAction) Run(ctx context.Context, workingDirectory string, moduleName string, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+var _ base.Runnable = (*templateAction)(nil)
+
+func (a *templateAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
 	parsedArgs, err := a.parseArgs(args, kwargs)
 	if err != nil {
 		return nil, err
@@ -189,8 +191,8 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 			},
 		); err != nil {
 			return &base.Result{
-				Name:    &moduleName,
-				Output:  nil,
+				Label:   moduleName,
+				Message: nil,
 				Success: false,
 				Changed: false,
 				Error:   err,
@@ -199,12 +201,11 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 
 		// Return success after creating new file
 		return &base.Result{
-			Name:    &moduleName,
-			Output:  &renderedTemplate,
+			Label:   moduleName,
+			Message: &renderedTemplate,
 			Success: true,
 			Changed: true,
 			Error:   nil,
-			Diff:    &renderedTemplate,
 		}, nil
 	}
 
@@ -216,15 +217,13 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 
 	// If the file exists and the contents are the same, return a success
 	if string(destinationBefore) == renderedTemplate {
-		emptyString := ""
 		renderedStr := fmt.Sprint(renderedTemplate)
 		return &base.Result{
-			Name:    &moduleName,
-			Output:  &renderedStr,
+			Label:   moduleName,
+			Message: &renderedStr,
 			Success: true,
 			Changed: false,
 			Error:   nil,
-			Diff:    &emptyString,
 		}, nil
 	}
 
@@ -236,8 +235,8 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		},
 	); err != nil {
 		return &base.Result{
-			Name:    &moduleName,
-			Output:  nil,
+			Label:   moduleName,
+			Message: nil,
 			Success: false,
 			Changed: false,
 			Error:   err,
@@ -250,12 +249,11 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	renderedStr := fmt.Sprint(renderedTemplate)
 
 	return &base.Result{
-		Name:    &moduleName,
-		Output:  &renderedStr,
+		Label:   moduleName,
+		Message: &renderedStr,
 		Success: true,
 		Changed: true,
 		Error:   nil,
-		Diff:    &diff,
 	}, nil
 }
 
