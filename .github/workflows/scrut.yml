@@ -18,12 +18,27 @@ jobs:
           echo "34a234c7609a6d69d91bf9c7956f0cfc54485b7659a2fd327af8296e25cfd874  scrut-linux-x86_64/scrut" | sha256sum -c -
           sudo mv scrut-linux-x86_64/scrut /usr/local/bin/scrut
           sudo chmod +x /usr/local/bin/scrut
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          # Avoid downloading Bazel every time.
+          bazelisk-cache: true
+          # Store build cache per workflow.
+          disk-cache: ${{ github.workflow }}
+          # Share repository cache between workflows.
+          repository-cache: true
+
+      - name: Build binary
+        run: |
+          bazel build //:starcm
+          cp bazel-bin/starcm_/starcm /usr/local/bin/starcm
+
       - name: Run scrut tests with Python HTTP server
         run: |
           set -e
           python3 -m http.server 8000 --directory . &
-          
           sleep 1
-
           /usr/local/bin/scrut test --work-directory . README.md
 

@@ -6,6 +6,9 @@ build: deps
 install: build
 	sudo cp $(STARCM_BIN) /usr/local/bin/starcm
 
+run: build install
+	sudo starcm $(ARGS)
+
 deps: tidy gazelle
 
 tidy:
