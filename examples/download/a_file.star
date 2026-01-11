@@ -1,10 +1,4 @@
-load("starcm", "file", "download")
-
-print(file(
-    label = "Delete Ghostty-1.2.3.dmg if it exists",
-    action = "delete",
-    path = "Ghostty-1.2.3.dmg",
-))
+load("starcm", "download")
 
 print(download(
     label = "Downloading Ghostty 1.2.3",

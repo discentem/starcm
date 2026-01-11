@@ -251,7 +251,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						dynamicloading.New(ctx).Function(),
 					),
 				}, nil
-			case "starlarkstdlib":
+			case "stdlib":
 				return starlark.StringDict{
 					"struct": starlark.NewBuiltin("struct", starlarkstruct.Make),
 				}, nil
