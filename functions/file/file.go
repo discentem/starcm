@@ -9,6 +9,7 @@ import (
 	"github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/diffutils"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
 )
@@ -61,10 +62,13 @@ func (a *fileAction) runCreate(
 		return nil, fmt.Errorf("path must be provided to file(label=%q), cannot be nil", label)
 	}
 
-	// Resolve path relative to workspace (current working directory)
+	// Expand homedir and resolve path relative to workspace (current working directory)
 	filePath := *path
+	filePath, err = homedir.Expand(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to expand home directory in path %q: %w", *path, err)
+	}
 	if !filepath.IsAbs(filePath) {
-		var err error
 		filePath, err = filepath.Abs(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve path %q: %w", *path, err)
@@ -193,10 +197,13 @@ func (a *fileAction) runDelete(
 		return nil, fmt.Errorf("path must be provided to file(label=%q), cannot be nil", label)
 	}
 
-	// Resolve path relative to workspace (current working directory)
+	// Expand homedir and resolve path relative to workspace (current working directory)
 	filePath := *path
+	filePath, err = homedir.Expand(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to expand home directory in path %q: %w", *path, err)
+	}
 	if !filepath.IsAbs(filePath) {
-		var err error
 		filePath, err = filepath.Abs(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve path %q: %w", *path, err)

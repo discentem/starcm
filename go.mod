@@ -8,6 +8,7 @@ require (
 	github.com/google/deck v1.1.0
 	github.com/google/go-cmp v0.7.0
 	github.com/google/logger v1.1.1
+	github.com/mitchellh/go-homedir v1.1.0
 	github.com/noirbizarre/gonja v0.0.0-20200629003239-4d051fd0be61
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0
