@@ -17,6 +17,7 @@ go_library(
 go_test(
     name = "shell_test",
     srcs = ["shell_test.go"],
+    data = ["test/artifacts/long_running.sh"],
     embed = [":shell"],
     deps = ["@com_github_stretchr_testify//assert"],
 )
