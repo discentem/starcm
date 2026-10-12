@@ -1,4 +1,4 @@
-load("starcm", "template")
+load("starcm", "template", "write")
 
 r = template(
     label    = "preview",
@@ -7,4 +7,6 @@ r = template(
     what_if  = True,
 )
 print("success=%s changed=%s" % (r.success, r.changed))
-print(r.message)
+
+# The rendered text keeps the template's trailing newline, so don't add one.
+write(r.message, label = "show render", end = "")
