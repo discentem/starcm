@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"reflect"
 	"time"
 
 	"github.com/discentem/starcm/libraries/logging"
@@ -40,54 +41,48 @@ type Module struct {
 // Function produces a starlark Function that has common behavior which is useful for all modules like
 // only_if, not_if, timeout, working_directory
 func (m Module) Function() starlarkhelpers.Function {
-	finalArgs := make([]any, 0)
-	// Add arguments that are specific to this module
-	for _, arg := range m.Args {
-		finalArgs = append(finalArgs, arg.Key, arg.Type)
-	}
-	var (
-		label            string
-		notIf            starlark.Bool
-		onlyIf           starlark.Bool
-		timeout          string
-		workingDirectory starlark.String
-		whatIf           starlark.Bool
-	)
-
-	// Common arguments automatically available for all Starcm functions
-	commonArgs := []any{
-		"label", &label,
-		"only_if?", &onlyIf,
-		"not_if?", &notIf,
-		"timeout?", &timeout,
-		"working_directory?", &workingDirectory,
-		"what_if?", &whatIf,
-	}
-
 	googlogger.SetFlags(log.Lmsgprefix)
 
-	finalArgs = append(
-		finalArgs,
-		commonArgs...,
-	)
-
 	return func(thread *starlark.Thread, builtin *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
+		// Unpack targets are per call: UnpackArgs leaves targets for omitted
+		// optional args untouched, so shared targets would leak values (e.g.
+		// timeout, working_directory) from one call into the next.
+		var (
+			label            string
+			notIf            starlark.Bool
+			onlyIf           = starlark.Bool(true)
+			timeout          string
+			workingDirectory starlark.String
+			whatIf           starlark.Bool
+		)
+
+		finalArgs := make([]any, 0, 2*(len(m.Args)+6))
+		// Add arguments that are specific to this module. Actions read these
+		// from kwargs themselves; unpacking here only validates them, into
+		// fresh targets of the declared type.
+		for _, arg := range m.Args {
+			finalArgs = append(finalArgs, arg.Key, reflect.New(reflect.TypeOf(arg.Type).Elem()).Interface())
+		}
+		// Common arguments automatically available for all Starcm functions
+		finalArgs = append(finalArgs,
+			"label", &label,
+			"only_if?", &onlyIf,
+			"not_if?", &notIf,
+			"timeout?", &timeout,
+			"working_directory?", &workingDirectory,
+			"what_if?", &whatIf,
+		)
+
 		if err := starlark.UnpackArgs(
-			label,
+			builtin.Name(),
 			args,
 			kwargs,
 			finalArgs...,
 		); err != nil {
 			return starlark.None, err
 		}
-		_, err := starlarkhelpers.FindValueinKwargs(kwargs, "label")
-		if err != nil {
+		if _, err := starlarkhelpers.FindValueinKwargs(kwargs, "label"); err != nil {
 			return starlark.None, err
-		}
-
-		notIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "not_if", false)
-		if err != nil {
-			return starlark.None, fmt.Errorf("%v for %q argument", err, "not_if")
 		}
 
 		// skip module if not_if is true
@@ -98,11 +93,6 @@ func (m Module) Function() starlarkhelpers.Function {
 				return nil, err
 			}
 			return sr, nil
-		}
-
-		onlyIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "only_if", true)
-		if err != nil {
-			return starlark.None, fmt.Errorf("%v for %q argument", err, "only_if")
 		}
 
 		if !onlyIf {
