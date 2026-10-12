@@ -1,7 +1,9 @@
 load("starcm", "template", "write")
 
+# what_if renders the template without writing a destination file; the
+# rendered text comes back in the result's message.
 render = template(
-    name = "hello world template",
+    label = "hello world template",
     template = "hello_world.tpl",
     data = {
         "name": "world",
@@ -9,4 +11,4 @@ render = template(
     },
     what_if = True
 )
-write(name="render hello_world.tpl", str=render.output)
+write(render.message, label = "render hello_world.tpl")
