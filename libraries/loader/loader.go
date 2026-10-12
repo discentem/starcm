@@ -18,6 +18,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 	"go.starlark.net/syntax"
 
+	starcmdate "github.com/discentem/starcm/functions/date"
 	starcmdownload "github.com/discentem/starcm/functions/download"
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmFile "github.com/discentem/starcm/functions/file"
@@ -245,6 +246,10 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"template": starlark.NewBuiltin(
 						"template",
 						starcmtemplate.New(ctx, fsys).Function(),
+					),
+					"date": starlark.NewBuiltin(
+						"date",
+						starcmdate.New(ctx).Function(),
 					),
 					"load_dynamic": starlark.NewBuiltin(
 						"load_dynamic",

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "date",
+    srcs = ["date.go"],
+    importpath = "github.com/discentem/starcm/functions/date",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//starlark-helpers",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+        "@net_starlark_go//syntax",
+    ],
+)
+
+go_test(
+    name = "date_test",
+    srcs = ["date_test.go"],
+    embed = [":date"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+        "@net_starlark_go//syntax",
+    ],
+)
