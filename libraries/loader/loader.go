@@ -156,8 +156,9 @@ func (l *Loader) execModule(threadName, modulePath string, loadFunc func(*starla
 	}
 
 	thread := &starlark.Thread{
-		Name: threadName,
-		Load: loadFunc,
+		Name:  threadName,
+		Load:  loadFunc,
+		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 	}
 
 	globals, err := starlark.ExecFileOptions(
