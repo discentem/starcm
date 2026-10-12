@@ -92,7 +92,10 @@ func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*
 		return nil, fmt.Errorf("%s is required in template() module", keyWordStr)
 	}
 	keyVals := kwargs[keyValsIdx][1].(*starlark.Dict)
-	gokv := starlarkhelpers.DictToGoMap(keyVals)
+	gokv, err := starlarkhelpers.DictToGoMap(keyVals)
+	if err != nil {
+		return nil, fmt.Errorf("template() data: %w", err)
+	}
 
 	whatIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "what_if", false)
 	if err != nil {

@@ -148,6 +148,23 @@ $ (cd templates/simple && starcm template.star)
 Hello World, you are 42 years old.
 ```
 
+```scrut
+$ (cd templates/nested && starcm nested.star)
+[server]
+host = localhost
+port = 8080
+
+[user.ada]
+groups = admin, dev
+shell = /bin/zsh
+
+[user.bob]
+groups = dev
+
+[build]
+date = \d{4}-\d{2}-\d{2} (re)
+```
+
 ## write
 
 ```scrut
@@ -178,6 +195,7 @@ $ (cd "$TESTDIR/../examples" && find . -name '*.star' | sort)
 ./nested_files/subfolder/subfolder2/c.star
 ./nested_files/subfolder/subfolder2/subfolder3/d.star
 ./only_if/only_if.star
+./templates/nested/nested.star
 ./templates/simple/template.star
 ./write/write.star
 ```

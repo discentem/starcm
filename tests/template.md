@@ -36,3 +36,31 @@ Traceback (most recent call last):
 Error in template: destination is required in template() module if what_if is false
 [1]
 ```
+
+## Nested data
+
+`data` can hold nested dicts, lists, tuples, `None` and structs, including
+results from other starcm functions. Dict loops (`for k, v in d`) run in
+alphabetical key order; use a list when order matters.
+
+```scrut
+$ starcm nested.star
+hello
+dots: ada lives in london
+brackets: ada rex
+list: cat=tom dog=rex 
+dict: ALPHA=2 ZED=1 
+tuple: 3,4
+none: [] unset
+struct: hello success=True
+```
+
+## Dict keys must be strings
+
+```scrut
+$ starcm non_string_key.star 2>&1
+Traceback (most recent call last):
+  non_string_key.star:3:9: in <toplevel>
+Error in template: template() data: "age": dict keys must be strings, got int key 1
+[1]
+```
