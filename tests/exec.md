@@ -35,6 +35,6 @@ unexpected: success=False error=exit status 3
 $ starcm missing_args.star 2>&1
 Traceback (most recent call last):
   missing_args.star:3:5: in <toplevel>
-Error in exec: exec: missing argument for args
+Error in exec: no args: missing argument for args
 [1]
 ```

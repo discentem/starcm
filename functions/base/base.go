@@ -73,8 +73,13 @@ func (m Module) Function() starlarkhelpers.Function {
 			"what_if?", &whatIf,
 		)
 
+		// Name argument errors after this call's label when it has one.
+		fnName := builtin.Name()
+		if l, err := starlarkhelpers.FindValueinKwargs(kwargs, "label"); err == nil && l != nil {
+			fnName = *l
+		}
 		if err := starlark.UnpackArgs(
-			builtin.Name(),
+			fnName,
 			args,
 			kwargs,
 			finalArgs...,
