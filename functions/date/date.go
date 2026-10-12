@@ -101,8 +101,7 @@ func (a *dateAction) Run(ctx context.Context, workingDirectory string, moduleNam
 // works anywhere starcm.exe does (including WinPE) without a shell.
 //
 //	d = date(label = "now", format = "rfc3339", timezone = "UTC")
-//	now = getattr(d, "return")  # "return" is a Starlark keyword
-//	now.formatted, now.year, now.unix, ...
+//	d.value.formatted, d.value.year, d.value.unix, ...
 func New(ctx context.Context) *base.Module {
 	return newWithClock(ctx, time.Now)
 }

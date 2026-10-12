@@ -23,7 +23,7 @@ Starcm is very flexible and can accomplish lots of different tasks. Here are a j
 
 ```scrut
 $ starcm examples/download/a_file.star
-starcm_result(changed = True, error = "<nil>", label = "Downloading Ghostty 1.2.3", message = "downloaded file to Ghostty-1.2.3.dmg", return = None, success = True)
+starcm_result(changed = True, error = "<nil>", label = "Downloading Ghostty 1.2.3", message = "downloaded file to Ghostty-1.2.3.dmg", success = True, value = None)
 ```
 
 ```python

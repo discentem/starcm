@@ -39,7 +39,7 @@ func (r Result) ToStarlark() (*starlarkstruct.Struct, error) {
 		"success": starlark.Bool(r.Success),
 		"message": starlark.String(msg),
 		"error":   starlark.String(fmt.Sprint(r.Error)),
-		"return":  ret,
+		"value":   ret,
 	}
 
 	s := starlarkstruct.FromStringDict(starlark.String("starcm_result"), fields)

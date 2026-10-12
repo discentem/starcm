@@ -106,11 +106,9 @@ func TestDate_Starlark(t *testing.T) {
 	}
 	src := `
 d = date(label = "now", format = "date", timezone = "UTC")
-# "return" is a Starlark keyword, so result.return must be read with getattr.
-ret = getattr(d, "return")
-formatted = ret.formatted
+formatted = d.value.formatted
 success = d.success
-weekday = ret.weekday
+weekday = d.value.weekday
 `
 	globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, &starlark.Thread{}, "test.star", src, predeclared)
 	require.NoError(t, err)
