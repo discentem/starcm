@@ -81,7 +81,7 @@ Error in write: write takes at most one positional argument, got 2
 $ starcm both.star 2>&1
 Traceback (most recent call last):
   both.star:3:6: in <toplevel>
-Error in write: write: got multiple values for keyword argument "str"
+Error in write: both: got multiple values for keyword argument "str"
 [1]
 ```
 

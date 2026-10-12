@@ -58,14 +58,21 @@ fn(label = "f")
 	}, action.calls)
 }
 
-// Argument errors are prefixed with the builtin's name, not the label of
-// whichever call last unpacked successfully.
-func TestFunction_UnpackErrorUsesBuiltinName(t *testing.T) {
+// Argument errors are prefixed with the failing call's own label, not the
+// label of whichever call last unpacked successfully.
+func TestFunction_UnpackErrorUsesCallLabel(t *testing.T) {
 	_, err := exec(t, `
 fn(label = "previous")
 fn(label = "current", name = 42)
 `)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), `fn: for parameter "name": got int, want string`)
+	require.Contains(t, err.Error(), `current: for parameter "name": got int, want string`)
 	require.NotContains(t, err.Error(), "previous")
+}
+
+// Without a label, argument errors fall back to the builtin's name.
+func TestFunction_UnpackErrorWithoutLabelUsesBuiltinName(t *testing.T) {
+	_, err := exec(t, `fn(name = 42)`)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `fn: for parameter "name": got int, want string`)
 }

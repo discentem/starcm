@@ -8,15 +8,15 @@ doesn't pass never keep a value from an earlier call.
 $ cp -R "$TESTDIR/fixtures/common_args/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-## Argument errors name the function
+## Argument errors name the failing call
 
-The error is prefixed with the function's name, not an earlier call's label.
+The error is prefixed with the failing call's label, not an earlier call's.
 
 ```scrut
 $ starcm error_prefix.star 2>&1 | grep -v "^  "
 first call
 Traceback (most recent call last):
-Error in write: write: for parameter "end": got int, want string
+Error in write: current: for parameter "end": got int, want string
 ```
 
 ## timeout applies only to its own call
