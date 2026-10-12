@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
-	"reflect"
 	"time"
 
 	"github.com/discentem/starcm/libraries/logging"
@@ -15,9 +14,19 @@ import (
 	"go.starlark.net/starlark"
 )
 
+// ArgPair declares a function-specific argument. Create one with Arg.
 type ArgPair struct {
-	Key  string
-	Type any
+	Key string
+	// newTarget returns a fresh pointer for starlark.UnpackArgs to write into,
+	// so no call ever sees a value left over from an earlier one.
+	newTarget func() any
+}
+
+// Arg declares a function-specific argument that must unpack into a T (any
+// type starlark.UnpackArgs accepts a pointer to). key uses UnpackArgs syntax:
+// "name", "name?" (optional) or "name??" (optional, None counts as unset).
+func Arg[T any](key string) ArgPair {
+	return ArgPair{Key: key, newTarget: func() any { return new(T) }}
 }
 
 type Runnable interface {
@@ -58,10 +67,9 @@ func (m Module) Function() starlarkhelpers.Function {
 
 		finalArgs := make([]any, 0, 2*(len(m.Args)+6))
 		// Add arguments that are specific to this module. Actions read these
-		// from kwargs themselves; unpacking here only validates them, into
-		// fresh targets of the declared type.
+		// from kwargs themselves; unpacking here only validates them.
 		for _, arg := range m.Args {
-			finalArgs = append(finalArgs, arg.Key, reflect.New(reflect.TypeOf(arg.Type).Elem()).Interface())
+			finalArgs = append(finalArgs, arg.Key, arg.newTarget())
 		}
 		// Common arguments automatically available for all Starcm functions
 		finalArgs = append(finalArgs,

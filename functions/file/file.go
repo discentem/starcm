@@ -239,23 +239,15 @@ func (a *fileAction) runDelete(
 }
 
 func New(ctx context.Context, fsys afero.Fs) *base.Module {
-	var (
-		path       string
-		content    string
-		action     string
-		mode       int64
-		createDirs bool
-	)
-
 	return base.NewModule(
 		ctx,
 		"file",
 		[]base.ArgPair{
-			{Key: "path", Type: &path},
-			{Key: "content?", Type: &content},
-			{Key: "action?", Type: &action},
-			{Key: "mode??", Type: &mode},
-			{Key: "create_dirs??", Type: &createDirs},
+			base.Arg[string]("path"),
+			base.Arg[string]("content?"),
+			base.Arg[string]("action?"),
+			base.Arg[int64]("mode??"),
+			base.Arg[bool]("create_dirs??"),
 		},
 		&fileAction{
 			fsys: fsys,

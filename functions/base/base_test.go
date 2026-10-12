@@ -28,9 +28,8 @@ func (a *recordingAction) Run(ctx context.Context, workingDirectory string, labe
 
 func exec(t *testing.T, src string) (*recordingAction, error) {
 	t.Helper()
-	var name string
 	action := &recordingAction{}
-	m := NewModule(context.Background(), "test_type", []ArgPair{{Key: "name?", Type: &name}}, action)
+	m := NewModule(context.Background(), "test_type", []ArgPair{Arg[string]("name?")}, action)
 	predeclared := starlark.StringDict{
 		"fn": starlark.NewBuiltin("fn", m.Function()),
 	}
@@ -75,4 +74,12 @@ func TestFunction_UnpackErrorWithoutLabelUsesBuiltinName(t *testing.T) {
 	_, err := exec(t, `fn(name = 42)`)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), `fn: for parameter "name": got int, want string`)
+}
+
+// Each call unpacks function-specific arguments into its own target.
+func TestArg_FreshTargetPerCall(t *testing.T) {
+	a := Arg[string]("name?")
+	first, second := a.newTarget(), a.newTarget()
+	require.IsType(t, new(string), first)
+	require.NotSame(t, first, second)
 }

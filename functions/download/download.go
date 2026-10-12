@@ -195,24 +195,14 @@ func (pw *progressWriter) Write(p []byte) (int, error) {
 }
 
 func New(ctx context.Context, httpClient http.Client, fsys afero.Fs, writer io.Writer) *base.Module {
-	var (
-		str          string
-		savePath     string
-		sha256       string
-		liveProgress bool
-	)
-
 	return base.NewModule(
 		ctx,
 		"download",
 		[]base.ArgPair{
-			{Key: "url", Type: &str},
-			{Key: "save_to", Type: &savePath},
-			{Key: "sha256", Type: &sha256},
-			{
-				Key:  string(starlarkhelpers.OptionalKeyword("live_progress")),
-				Type: &liveProgress,
-			},
+			base.Arg[string]("url"),
+			base.Arg[string]("save_to"),
+			base.Arg[string]("sha256"),
+			base.Arg[bool](string(starlarkhelpers.OptionalKeyword("live_progress"))),
 		},
 		&downloadAction{
 			httpClient: &httpClient,
