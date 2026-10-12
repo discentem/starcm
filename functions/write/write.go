@@ -2,6 +2,7 @@ package write
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 
@@ -18,32 +19,33 @@ type writeAction struct {
 
 var _ base.Runnable = (*writeAction)(nil)
 
+// text renders v the way print() does: strings as their raw contents,
+// everything else as its Starlark representation.
+func text(v starlark.Value) string {
+	if s, ok := v.(starlark.String); ok {
+		return s.GoString()
+	}
+	return v.String()
+}
+
 func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	// Print all positional arguments
-	if len(args) > 0 {
-		for _, arg := range args {
-			fmt.Fprint(a.w, arg)
-		}
-		e, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "end", "\n")
-		if err != nil {
+	// The value comes from either the positional argument or str=.
+	// Passing both is rejected by base.Module's argument unpacking.
+	var v starlark.Value
+	switch {
+	case len(args) > 1:
+		return nil, fmt.Errorf("write takes at most one positional argument, got %d", len(args))
+	case len(args) == 1:
+		v = args[0]
+	default:
+		s, err := starlarkhelpers.FindRawValueInKwargs(kwargs, "str")
+		if err != nil && !errors.Is(err, starlarkhelpers.ErrIndexNotFound) {
 			return nil, err
 		}
-		fmt.Fprint(a.w, *e)
-		return &base.Result{
-			Label:   moduleName,
-			Success: true,
-			Changed: false,
-		}, nil
-	}
-
-	// Otherwise, get the str parameter from kwargs
-	s, err := starlarkhelpers.FindRawValueInKwargs(kwargs, "str")
-	if err != nil {
-		return nil, fmt.Errorf("str parameter not found: %w", err)
-	}
-
-	if s == nil {
-		return nil, fmt.Errorf("str parameter cannot be nil")
+		if s == nil {
+			return nil, errors.New("write requires a value, either positionally or as str=")
+		}
+		v = s
 	}
 
 	e, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "end", "\n")
@@ -51,10 +53,10 @@ func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleNa
 		return nil, err
 	}
 
-	fmt.Fprintf(a.w, "%s%s", s.String(), *e)
+	fmt.Fprintf(a.w, "%s%s", text(v), *e)
 	return &base.Result{
 		Label:   moduleName,
-		Return:  s,
+		Return:  v,
 		Success: true,
 		Changed: false,
 	}, nil
@@ -62,6 +64,7 @@ func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleNa
 
 func New(ctx context.Context, w io.Writer) *base.Module {
 	var (
+		str starlark.Value
 		end string
 	)
 
@@ -69,6 +72,10 @@ func New(ctx context.Context, w io.Writer) *base.Module {
 		ctx,
 		"write",
 		[]base.ArgPair{
+			// str is declared first so write("x") binds "x" to str. "??" only
+			// means "optional, None counts as unset"; it is not keyword-only,
+			// so if end came first a positional value would bind to end.
+			{Key: "str?", Type: &str},
 			{Key: "end??", Type: &end},
 		},
 		&writeAction{
