@@ -35,6 +35,9 @@ jobs:
           bazel build //:starcm
           cp bazel-bin/starcm_/starcm /usr/local/bin/starcm
 
+      - name: Run Bazel tests
+        run: bazel test //... --test_output=errors
+
       - name: Run scrut tests with Python HTTP server
         run: |
           set -e
