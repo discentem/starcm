@@ -10,6 +10,7 @@ import (
 	"github.com/discentem/starcm/libraries/logging"
 	"github.com/google/deck"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
 type Function func(*starlark.Thread, *starlark.Builtin, starlark.Tuple, []starlark.Tuple) (starlark.Value, error)
@@ -140,38 +141,78 @@ var unesc = [256]byte{
 	'"':  '"',
 }
 
-func ValueToGo(value starlark.Value) any {
+// ValueToGo converts a Starlark value to plain Go values (string, int64,
+// float64, bool, nil, []any, map[string]any), recursing into containers.
+// Structs, including starcm results, become maps of their fields.
+func ValueToGo(value starlark.Value) (any, error) {
 	switch value := value.(type) {
+	case starlark.NoneType:
+		return nil, nil
 	case starlark.String:
-		return string(value)
+		return string(value), nil
 	case starlark.Int:
-		i, _ := value.Int64()
-		return i
-	case starlark.Float:
-		return float64(value)
-	case starlark.Bool:
-		return bool(value)
-	case *starlark.List:
-		list := make([]interface{}, value.Len())
-		for i := 0; i < value.Len(); i++ {
-			list[i] = ValueToGo(value.Index(i))
+		i, ok := value.Int64()
+		if !ok {
+			return nil, fmt.Errorf("int %s is too large", value)
 		}
-		return list
+		return i, nil
+	case starlark.Float:
+		return float64(value), nil
+	case starlark.Bool:
+		return bool(value), nil
+	case *starlark.List, starlark.Tuple, *starlark.Set:
+		return iterableToGo(value.(starlark.Iterable))
 	case *starlark.Dict:
 		return DictToGoMap(value)
+	case *starlarkstruct.Struct:
+		m := make(map[string]any)
+		for _, name := range value.AttrNames() {
+			attr, err := value.Attr(name)
+			if err != nil {
+				return nil, err
+			}
+			v, err := ValueToGo(attr)
+			if err != nil {
+				return nil, fmt.Errorf("field %q: %w", name, err)
+			}
+			m[name] = v
+		}
+		return m, nil
 	default:
-		return value
+		return nil, fmt.Errorf("unsupported type %s", value.Type())
 	}
 }
 
-func DictToGoMap(dict *starlark.Dict) map[string]interface{} {
-	result := make(map[string]interface{})
+func iterableToGo(value starlark.Iterable) ([]any, error) {
+	list := []any{}
+	iter := value.Iterate()
+	defer iter.Done()
+	var item starlark.Value
+	for iter.Next(&item) {
+		v, err := ValueToGo(item)
+		if err != nil {
+			return nil, fmt.Errorf("[%d]: %w", len(list), err)
+		}
+		list = append(list, v)
+	}
+	return list, nil
+}
+
+// DictToGoMap converts a Starlark dict with string keys using ValueToGo.
+func DictToGoMap(dict *starlark.Dict) (map[string]any, error) {
+	result := make(map[string]any)
 	for _, item := range dict.Items() {
-		key := item[0].(starlark.String)
-		value := ValueToGo(item[1])
+		key, ok := item[0].(starlark.String)
+		if !ok {
+			return nil, fmt.Errorf("dict keys must be strings, got %s key %s", item[0].Type(), item[0])
+		}
+		value, err := ValueToGo(item[1])
+		if err != nil {
+			return nil, fmt.Errorf("%q: %w", string(key), err)
+		}
 		result[string(key)] = value
 	}
-	return result
+	return result, nil
 }
 
 func OptionalKeyword(kw starlark.String) starlark.String {
