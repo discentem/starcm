@@ -80,15 +80,11 @@ func (a *LoadAction) Run(
 }
 
 func New(ctx context.Context) *base.Module {
-	var module string
-
 	return base.NewModule(
 		ctx,
 		"load",
 		[]base.ArgPair{
-			{Key: "module",
-				Type: &module,
-			},
+			base.Arg[string]("module"),
 		},
 		&LoadAction{},
 	)

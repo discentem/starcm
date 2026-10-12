@@ -258,19 +258,13 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 }
 
 func New(ctx context.Context, fsys afero.Fs) *base.Module {
-	var (
-		str         string
-		data        *starlark.Dict
-		destination string
-	)
-
 	return base.NewModule(
 		ctx,
 		"template",
 		[]base.ArgPair{
-			{Key: "template", Type: &str},
-			{Key: "data", Type: &data},
-			{Key: "destination?", Type: &destination},
+			base.Arg[string]("template"),
+			base.Arg[*starlark.Dict]("data"),
+			base.Arg[string]("destination?"),
 		},
 		&templateAction{
 			fsys: fsys,

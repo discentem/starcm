@@ -107,17 +107,12 @@ func New(ctx context.Context) *base.Module {
 }
 
 func newWithClock(ctx context.Context, now func() time.Time) *base.Module {
-	var (
-		format   string
-		timezone string
-	)
-
 	return base.NewModule(
 		ctx,
 		"date",
 		[]base.ArgPair{
-			{Key: "format??", Type: &format},
-			{Key: "timezone??", Type: &timezone},
+			base.Arg[string]("format??"),
+			base.Arg[string]("timezone??"),
 		},
 		&dateAction{now: now},
 	)

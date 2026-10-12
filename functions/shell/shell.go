@@ -126,21 +126,14 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 }
 
 func New(ctx context.Context, executor shelllib.Executor) *base.Module {
-	var (
-		str        string
-		args       *starlark.List
-		exitCode   starlark.Int
-		liveOutput starlark.Bool
-	)
-
 	return base.NewModule(
 		ctx,
 		"shell",
 		[]base.ArgPair{
-			{Key: "cmd", Type: &str},
-			{Key: "args", Type: &args},
-			{Key: "expected_exit_code??", Type: &exitCode},
-			{Key: "live_output??", Type: &liveOutput},
+			base.Arg[string]("cmd"),
+			base.Arg[*starlark.List]("args"),
+			base.Arg[starlark.Int]("expected_exit_code??"),
+			base.Arg[starlark.Bool]("live_output??"),
 		},
 		&shellAction{
 			executor: executor,

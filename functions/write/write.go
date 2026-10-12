@@ -63,11 +63,6 @@ func (a *writeAction) Run(ctx context.Context, workingDirectory string, moduleNa
 }
 
 func New(ctx context.Context, w io.Writer) *base.Module {
-	var (
-		str starlark.Value
-		end string
-	)
-
 	return base.NewModule(
 		ctx,
 		"write",
@@ -75,8 +70,8 @@ func New(ctx context.Context, w io.Writer) *base.Module {
 			// str is declared first so write("x") binds "x" to str. "??" only
 			// means "optional, None counts as unset"; it is not keyword-only,
 			// so if end came first a positional value would bind to end.
-			{Key: "str?", Type: &str},
-			{Key: "end??", Type: &end},
+			base.Arg[starlark.Value]("str?"),
+			base.Arg[string]("end??"),
 		},
 		&writeAction{
 			w: w,
