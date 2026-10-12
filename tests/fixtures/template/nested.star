@@ -17,4 +17,4 @@ r = template(
     },
 )
 print("")
-print(r.message)
+write(r.message, label = "show render", end = "")

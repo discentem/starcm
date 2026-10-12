@@ -15,6 +15,8 @@ nothing written
 
 ## Renders to destination, idempotently
 
+The file ends the way the template does, including its trailing newline.
+
 ```scrut
 $ starcm render.star
 first render: success=True changed=True
@@ -23,7 +25,7 @@ new data: success=True changed=True
 ```
 
 ```scrut
-$ cat hello.txt; echo
+$ cat hello.txt
 Hello World, you are 43 years old.
 ```
 

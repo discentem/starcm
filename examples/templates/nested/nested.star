@@ -16,4 +16,4 @@ render = template(
     },
     what_if = True,
 )
-write(render.message, label = "print config")
+write(render.message, label = "print config", end = "")

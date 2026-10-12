@@ -16,9 +16,19 @@ import (
 
 	// TODO (discentem): consider replacing with a different template engine
 	"github.com/noirbizarre/gonja"
+	gonjaconfig "github.com/noirbizarre/gonja/config"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
 )
+
+// renderEnv is gonja's default environment, except it keeps a template's
+// trailing newline (Jinja2 drops it by default) so rendered files end the
+// way their template does.
+var renderEnv = func() *gonja.Environment {
+	cfg := gonjaconfig.NewConfig()
+	cfg.KeepTrailingNewline = true
+	return gonja.NewEnvironment(cfg, gonja.DefaultLoader)
+}()
 
 type templateAction struct {
 	fsys afero.Fs
@@ -152,7 +162,7 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	}
 	logging.Log(moduleName, deck.V(2), "info", "%v before rendering: %v", template, string(b))
 	logging.Log(moduleName, deck.V(2), "info", "data: %v", gokv)
-	tmpl, err := gonja.FromBytes(b)
+	tmpl, err := renderEnv.FromBytes(b)
 	if err != nil {
 		// If it fails here, it's likely a problem with the .tmpl file itself such as unexpected symbols
 		logging.Log("template", deck.V(1), "error", "failed to parse template", err)
