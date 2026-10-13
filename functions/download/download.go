@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"os"
+	"path/filepath"
 	"time"
 
 	"fmt"
@@ -125,6 +126,9 @@ func (a *downloadAction) Run(
 
 	totalSize := resp.ContentLength
 
+	if err := a.fsys.MkdirAll(filepath.Dir(*savePath), 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create directory for %q: %w", *savePath, err)
+	}
 	f, err := a.fsys.Create(*savePath)
 	if err != nil {
 		return nil, err
