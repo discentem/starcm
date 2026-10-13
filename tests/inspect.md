@@ -39,3 +39,14 @@ $ starcm inspect broken.star 2>&1
 inspect: broken.star:1:6: not an identifier
 [1]
 ```
+
+## inspect()
+
+The same report, as a Starlark value.
+
+```scrut
+$ starcm inspect_fn.star
+["exec", "load_dynamic", "load_dynamic", "greet"]
+["lib.star", None]
+exec
+```

@@ -135,3 +135,26 @@ $ starcm sign --key trusted/test.pub.pem main.star 2>&1
 sign: trusted/test.pub.pem: not a PEM "PRIVATE KEY"
 [1]
 ```
+
+## sign()
+
+Signs from Starlark, like `starcm sign`. Signatures are deterministic, so
+re-signing unchanged content reports `changed = False`.
+
+```scrut
+$ starcm sign_fn.star && cut -d" " -f1,2 payload.txt.sig
+other key: changed=True value=other
+test key: changed=True value=test
+unchanged: changed=False value=test
+ed25519 key=test
+```
+
+Deployed runs never sign: `sign()` is disabled under `--trusted-keys`.
+
+```scrut
+$ starcm sign --key private/test.pem sign_deployed.star >/dev/null && starcm --trusted-keys trusted sign_deployed.star 2>&1
+Traceback (most recent call last):
+  sign_deployed.star:2:5: in <toplevel>
+Error in sign: sign() is disabled when starcm runs with --trusted-keys: signing belongs on the machine that holds the key, not where configuration is deployed
+[1]
+```

@@ -28,7 +28,7 @@ func (a *fileAction) Run(
 	args starlark.Tuple,
 	kwargs []starlark.Tuple,
 ) (*base.Result, error) {
-	// Get action (create or delete)
+	// Get action (create, delete or read)
 	action, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "action", "create")
 	if err != nil {
 		return nil, fmt.Errorf("failed to find action in kwargs: %w", err)
@@ -36,6 +36,9 @@ func (a *fileAction) Run(
 
 	if *action == "delete" {
 		return a.runDelete(ctx, workingDirectory, label, thread, args, kwargs)
+	}
+	if *action == "read" {
+		return a.runRead(label, kwargs)
 	}
 
 	return a.runCreate(ctx, workingDirectory, label, thread, args, kwargs)
@@ -253,4 +256,26 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 			fsys: fsys,
 		},
 	)
+}
+
+// runRead returns the file's content as the result's value.
+func (a *fileAction) runRead(label string, kwargs []starlark.Tuple) (*base.Result, error) {
+	path, err := starlarkhelpers.FindValueinKwargs(kwargs, "path")
+	if err != nil {
+		return nil, err
+	}
+	filePath, err := homedir.Expand(*path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to expand home directory in path %q: %w", *path, err)
+	}
+	if !filepath.IsAbs(filePath) {
+		if filePath, err = filepath.Abs(filePath); err != nil {
+			return nil, fmt.Errorf("failed to resolve path %q: %w", *path, err)
+		}
+	}
+	data, err := afero.ReadFile(a.fsys, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file %q: %w", filePath, err)
+	}
+	return &base.Result{Label: label, Success: true, Return: starlark.String(data)}, nil
 }

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "checksum",
+    srcs = ["checksum.go"],
+    importpath = "github.com/discentem/starcm/functions/checksum",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//libraries/sha256",
+        "//starlark-helpers",
+        "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
+    ],
+)

@@ -5,7 +5,10 @@ go_library(
     srcs = ["signing.go"],
     importpath = "github.com/discentem/starcm/libraries/signing",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_spf13_afero//:afero"],
+    deps = [
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@com_github_spf13_afero//:afero",
+    ],
 )
 
 go_test(

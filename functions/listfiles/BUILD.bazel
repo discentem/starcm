@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "listfiles",
+    srcs = ["listfiles.go"],
+    importpath = "github.com/discentem/starcm/functions/listfiles",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//starlark-helpers",
+        "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
+    ],
+)
