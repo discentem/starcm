@@ -65,3 +65,15 @@ if not check.success:
 ```
 
 `--var name=value` (repeatable) passes values into a run as the `vars` dict.
+
+#### Checking configuration before it runs
+
+`starcm inspect FILE...` prints what each file loads and calls, as JSON,
+without running it. Calls are resolved through `load()` aliases, and
+`load_dynamic` calls include their literal `path` (or `null` when it's built at
+runtime), so a script can enforce rules such as "this file may only use
+`download`" before signing or deploying:
+
+```bash
+starcm inspect bootstrap.star | jq -r '.[].calls[].function' | sort -u
+```

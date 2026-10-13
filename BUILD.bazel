@@ -6,12 +6,14 @@ gazelle(name = "gazelle")
 go_library(
     name = "starcm_lib",
     srcs = [
+        "inspect.go",
         "main.go",
         "sign.go",
     ],
     importpath = "github.com/discentem/starcm",
     visibility = ["//visibility:private"],
     deps = [
+        "//libraries/inspect",
         "//libraries/loader",
         "//libraries/shell",
         "//libraries/signing",
