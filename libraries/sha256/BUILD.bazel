@@ -1,8 +1,19 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "sha256",
     srcs = ["sha256.go"],
     importpath = "github.com/discentem/starcm/libraries/sha256",
     visibility = ["//visibility:public"],
+    deps = ["@com_github_spf13_afero//:afero"],
+)
+
+go_test(
+    name = "sha256_test",
+    srcs = ["sha256_test.go"],
+    embed = [":sha256"],
+    deps = [
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//require",
+    ],
 )
