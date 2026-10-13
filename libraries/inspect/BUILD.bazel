@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "inspect",
+    srcs = ["inspect.go"],
+    importpath = "github.com/discentem/starcm/libraries/inspect",
+    visibility = ["//visibility:public"],
+    deps = ["@net_starlark_go//syntax"],
+)
+
+go_test(
+    name = "inspect_test",
+    srcs = ["inspect_test.go"],
+    embed = [":inspect"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

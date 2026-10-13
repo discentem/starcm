@@ -24,7 +24,7 @@ func main() {
 		Args:  true,
 		// --var values may contain commas (URLs, lists); don't split them.
 		DisableSliceFlagSeparator: true,
-		Commands:                  []*cli.Command{signCommand()},
+		Commands:                  []*cli.Command{signCommand(), inspectCommand()},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "timestamps",
