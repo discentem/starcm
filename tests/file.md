@@ -43,11 +43,3 @@ delete: success=True changed=True
 delete again: success=True changed=False
 deleted
 ```
-
-## read
-
-```scrut
-$ starcm read.star
-success=True changed=False
-"line one\nline two\n"
-```

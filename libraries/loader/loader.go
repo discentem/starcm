@@ -28,6 +28,7 @@ import (
 	starcmFile "github.com/discentem/starcm/functions/file"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
+	starcmreadfile "github.com/discentem/starcm/functions/readfile"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmsign "github.com/discentem/starcm/functions/sign"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
@@ -315,6 +316,10 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"list_files": starlark.NewBuiltin(
 						"list_files",
 						starcmlistfiles.New(ctx, fsys).Function(),
+					),
+					"read_file": starlark.NewBuiltin(
+						"read_file",
+						starcmreadfile.New(ctx, fsys).Function(),
 					),
 					"sha256": starlark.NewBuiltin(
 						"sha256",
