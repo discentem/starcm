@@ -39,3 +39,29 @@ print(download(
 ))
 ```
 
+
+#### Only running signed configuration
+
+`starcm sign` writes a `<file>.sig` next to each file. Run with
+`--trusted-keys DIR` (a directory of `*.pem` public keys; a key's id is its
+file name before the first dot) and starcm refuses any `.star` file, including
+ones pulled in by `load()` and `load_dynamic()`, without a valid signature
+from one of those keys. `verify()` checks any other file the same way.
+
+```bash
+openssl genpkey -algorithm ed25519 -out 2026-a.pem                # private key: keep it secret
+openssl pkey -in 2026-a.pem -pubout -out trusted/2026-a.pub.pem   # public key: ship it
+starcm sign --key 2026-a.pem main.star lib/winpe.star agent.msi
+starcm --trusted-keys trusted --var base=https://config.example.com main.star
+```
+
+```python
+load("starcm", "download", "vars", "verify")
+
+download(label = "fetch agent", url = vars["base"] + "/agent.msi", save_to = "agent.msi", sha256 = AGENT_SHA256)
+check = verify("agent.msi", label = "check agent signature")   # reads agent.msi.sig
+if not check.success:
+    fail(check.error)
+```
+
+`--var name=value` (repeatable) passes values into a run as the `vars` dict.
