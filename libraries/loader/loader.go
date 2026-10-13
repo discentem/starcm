@@ -8,9 +8,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/discentem/starcm/libraries/logging"
+	"github.com/discentem/starcm/libraries/signing"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"github.com/spf13/afero"
@@ -24,6 +26,7 @@ import (
 	starcmFile "github.com/discentem/starcm/functions/file"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
+	starcmverify "github.com/discentem/starcm/functions/verify"
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	starcmshelllib "github.com/discentem/starcm/libraries/shell"
 )
@@ -75,6 +78,22 @@ type Loader struct {
 
 	// Fsys is the filesystem to use for loading modules.
 	Fsys afero.Fs
+
+	// Keyring, when set, requires every module to have a valid signature
+	// file next to it before it runs.
+	Keyring *signing.Keyring
+
+	// Vars are the --var values, exposed to Starlark as the "vars" dict.
+	Vars map[string]string
+}
+
+// CheckSignature verifies data, the content of the module at path, when the
+// loader has a Keyring. Without one it does nothing.
+func (l *Loader) CheckSignature(path string, data []byte) error {
+	if l.Keyring == nil {
+		return nil
+	}
+	return l.Keyring.CheckFile(l.Fsys, path, data)
 }
 
 // Sequential implements sequential module loading.
@@ -154,6 +173,9 @@ func (l *Loader) execModule(threadName, modulePath string, loadFunc func(*starla
 	if err != nil {
 		return nil, fmt.Errorf("loading module %q: %s", modulePath, err)
 	}
+	if err := l.CheckSignature(modulePath, data); err != nil {
+		return nil, err
+	}
 
 	thread := &starlark.Thread{
 		Name:  threadName,
@@ -197,6 +219,18 @@ func WithPredeclared(predeclared func(module string) (starlark.StringDict, error
 	}
 }
 
+func WithKeyring(k *signing.Keyring) LoaderOption {
+	return func(l *Loader) {
+		l.Keyring = k
+	}
+}
+
+func WithVars(vars map[string]string) LoaderOption {
+	return func(l *Loader) {
+		l.Vars = vars
+	}
+}
+
 func WithFsys(fsys afero.Fs) LoaderOption {
 	return func(l *Loader) {
 		l.Fsys = fsys
@@ -211,14 +245,27 @@ func NewLoader(ctx context.Context, opts ...LoaderOption) Loader {
 	return l
 }
 
-func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, workspacePath string) Loader {
-	l := NewLoader(
+func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, workspacePath string, opts ...LoaderOption) Loader {
+	var l Loader
+	l = NewLoader(
 		ctx,
 		WithWorkspacePath(workspacePath),
 		WithFsys(fsys),
 		WithPredeclared(func(module string) (starlark.StringDict, error) {
 			switch module {
 			case "starcm":
+				names := make([]string, 0, len(l.Vars))
+				for name := range l.Vars {
+					names = append(names, name)
+				}
+				sort.Strings(names)
+				vars := starlark.NewDict(len(names))
+				for _, name := range names {
+					if err := vars.SetKey(starlark.String(name), starlark.String(l.Vars[name])); err != nil {
+						return nil, err
+					}
+				}
+				vars.Freeze()
 				return starlark.StringDict{
 					"download": starlark.NewBuiltin(
 						"download",
@@ -256,6 +303,11 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"load_dynamic",
 						dynamicloading.New(ctx).Function(),
 					),
+					"verify": starlark.NewBuiltin(
+						"verify",
+						starcmverify.New(ctx, fsys, l.Keyring).Function(),
+					),
+					"vars": vars,
 				}, nil
 			case "stdlib":
 				return starlark.StringDict{
@@ -267,5 +319,9 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 			}
 		}),
 	)
+	// Applied last so Predeclared above sees the final Keyring and Vars.
+	for _, opt := range opts {
+		opt(&l)
+	}
 	return l
 }

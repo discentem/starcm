@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	loader "github.com/discentem/starcm/libraries/loader"
 	"github.com/discentem/starcm/libraries/shell"
+	"github.com/discentem/starcm/libraries/signing"
 	"github.com/spf13/afero"
 	"github.com/urfave/cli/v2"
 
@@ -19,6 +22,9 @@ func main() {
 		Name:  "starcm",
 		Usage: "A configuration management language using Starlark",
 		Args:  true,
+		// --var values may contain commas (URLs, lists); don't split them.
+		DisableSliceFlagSeparator: true,
+		Commands:                  []*cli.Command{signCommand()},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "timestamps",
@@ -28,6 +34,14 @@ func main() {
 				Name:  "v",
 				Value: 1,
 				Usage: "verbosity level",
+			},
+			&cli.StringFlag{
+				Name:  "trusted-keys",
+				Usage: "directory of *.pem public keys; when set, every .star file must have a valid <file>.sig signed by one of them, and verify() is enabled",
+			},
+			&cli.StringSliceFlag{
+				Name:  "var",
+				Usage: "`name=value` exposed to Starlark as vars[\"name\"] (load(\"starcm\", \"vars\")); repeatable",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -57,15 +71,36 @@ func main() {
 				return cli.Exit(err.Error(), 1)
 			}
 
+			vars := map[string]string{}
+			for _, kv := range c.StringSlice("var") {
+				name, value, ok := strings.Cut(kv, "=")
+				if !ok || name == "" {
+					return cli.Exit(fmt.Sprintf("--var %q: want name=value", kv), 1)
+				}
+				vars[name] = value
+			}
+			opts := []loader.LoaderOption{loader.WithVars(vars)}
+			if dir := c.String("trusted-keys"); dir != "" {
+				keyring, err := signing.LoadKeyring(fsys, dir)
+				if err != nil {
+					return cli.Exit(err.Error(), 1)
+				}
+				opts = append(opts, loader.WithKeyring(keyring))
+			}
+
 			starcmLoader := loader.Default(
 				ctx,
 				fsys,
 				&shell.RealExecutor{},
 				wd,
+				opts...,
 			)
 
 			b, err := afero.ReadFile(fsys, rootFile)
 			if err != nil {
+				return cli.Exit(err.Error(), 1)
+			}
+			if err := starcmLoader.CheckSignature(rootFile, b); err != nil {
 				return cli.Exit(err.Error(), 1)
 			}
 
