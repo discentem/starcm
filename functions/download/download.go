@@ -2,7 +2,6 @@ package download
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"net/http"
 
 	"github.com/discentem/starcm/functions/base"
+	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
@@ -70,22 +70,8 @@ func (a *downloadAction) Run(
 		return nil, fmt.Errorf("failed to find live_progress in kwargs: %w", err)
 	}
 
-	fileSHA256 := func(path string) (string, error) {
-		f, err := a.fsys.Open(path)
-		if err != nil {
-			return "", err
-		}
-		defer f.Close()
-
-		h := sha256.New()
-		if _, err := io.Copy(h, f); err != nil {
-			return "", err
-		}
-		return fmt.Sprintf("%x", h.Sum(nil)), nil
-	}
-
 	if _, err := a.fsys.Stat(*savePath); err == nil {
-		existingHash, err := fileSHA256(*savePath)
+		existingHash, err := starcmsha256.File(a.fsys, *savePath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to hash existing file %q: %w", *savePath, err)
 		}
@@ -135,7 +121,7 @@ func (a *downloadAction) Run(
 	}
 	defer f.Close()
 
-	hasher := sha256.New()
+	hasher := starcmsha256.New()
 
 	var dest io.Writer = io.MultiWriter(f, hasher)
 	if liveProgress {
@@ -159,7 +145,7 @@ func (a *downloadAction) Run(
 		fmt.Fprintln(a.output)
 	}
 
-	actualHash := fmt.Sprintf("%x", hasher.Sum(nil))
+	actualHash := starcmsha256.Hex(hasher)
 	if *expectedHash != actualHash {
 		_ = a.fsys.Remove(*savePath)
 		return nil, fmt.Errorf("expected sha256 hash %s, got %s", *expectedHash, actualHash)
