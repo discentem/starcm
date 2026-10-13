@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/discentem/starcm/libraries/signing"
+	"github.com/spf13/afero"
 	"github.com/urfave/cli/v2"
 )
 
@@ -30,32 +30,13 @@ func signCommand() *cli.Command {
 			if c.NArg() == 0 {
 				return cli.Exit("sign: no files given", 1)
 			}
-			keyPEM, err := os.ReadFile(c.String("key"))
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
-			}
-			key, err := signing.ParsePrivateKey(keyPEM)
-			if err != nil {
-				return cli.Exit(fmt.Sprintf("sign: %s: %v", c.String("key"), err), 1)
-			}
-			keyID := c.String("key-id")
-			if keyID == "" {
-				keyID = signing.KeyIDFromPath(c.String("key"))
-			}
+			fsys := afero.NewOsFs()
 			for _, path := range c.Args().Slice() {
-				data, err := os.ReadFile(path)
+				sig, _, err := signing.SignFile(fsys, c.String("key"), c.String("key-id"), path)
 				if err != nil {
 					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
 				}
-				sig, err := signing.Sign(key, keyID, data)
-				if err != nil {
-					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
-				}
-				sigPath := path + signing.SignatureSuffix
-				if err := os.WriteFile(sigPath, sig.Bytes(), 0o644); err != nil {
-					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
-				}
-				fmt.Printf("signed %s with key %q -> %s\n", path, keyID, sigPath)
+				fmt.Printf("signed %s with key %q -> %s\n", path, sig.KeyID, path+signing.SignatureSuffix)
 			}
 			return nil
 		},

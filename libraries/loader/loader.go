@@ -16,15 +16,20 @@ import (
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"github.com/spf13/afero"
+	starlarkjson "go.starlark.net/lib/json"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 	"go.starlark.net/syntax"
 
+	starcmchecksum "github.com/discentem/starcm/functions/checksum"
 	starcmdate "github.com/discentem/starcm/functions/date"
 	starcmdownload "github.com/discentem/starcm/functions/download"
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmFile "github.com/discentem/starcm/functions/file"
+	starcminspect "github.com/discentem/starcm/functions/inspect"
+	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
 	starcmshell "github.com/discentem/starcm/functions/shell"
+	starcmsign "github.com/discentem/starcm/functions/sign"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmverify "github.com/discentem/starcm/functions/verify"
 	starcmwrite "github.com/discentem/starcm/functions/write"
@@ -307,6 +312,24 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"verify",
 						starcmverify.New(ctx, fsys, l.Keyring).Function(),
 					),
+					"list_files": starlark.NewBuiltin(
+						"list_files",
+						starcmlistfiles.New(ctx, fsys).Function(),
+					),
+					"sha256": starlark.NewBuiltin(
+						"sha256",
+						starcmchecksum.New(ctx, fsys).Function(),
+					),
+					"inspect": starlark.NewBuiltin(
+						"inspect",
+						starcminspect.New(ctx, fsys).Function(),
+					),
+					"sign": starlark.NewBuiltin(
+						"sign",
+						// Disabled under --trusted-keys: deployed runs never sign.
+						starcmsign.New(ctx, fsys, l.Keyring != nil).Function(),
+					),
+					"json": starlarkjson.Module,
 					"vars": vars,
 				}, nil
 			case "stdlib":

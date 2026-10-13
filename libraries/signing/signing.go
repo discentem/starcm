@@ -11,6 +11,7 @@
 package signing
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/ed25519"
 	"crypto/x509"
@@ -23,6 +24,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/afero"
 )
 
@@ -128,6 +130,43 @@ func Sign(key crypto.Signer, keyID string, data []byte) (Signature, error) {
 	default:
 		return Signature{}, fmt.Errorf("signing with %s keys is not supported", keyType(key.Public()))
 	}
+}
+
+// SignFile signs the file at path with the PEM private key at keyPath and
+// writes path + SignatureSuffix. keyPath may start with ~. keyID defaults to
+// KeyIDFromPath(keyPath).
+// changed is false when the signature file already had this content (ed25519
+// signatures are deterministic), in which case it isn't rewritten.
+func SignFile(fsys afero.Fs, keyPath, keyID, path string) (sig Signature, changed bool, err error) {
+	if keyPath, err = homedir.Expand(keyPath); err != nil {
+		return Signature{}, false, err
+	}
+	keyPEM, err := afero.ReadFile(fsys, keyPath)
+	if err != nil {
+		return Signature{}, false, err
+	}
+	key, err := ParsePrivateKey(keyPEM)
+	if err != nil {
+		return Signature{}, false, fmt.Errorf("%s: %w", keyPath, err)
+	}
+	if keyID == "" {
+		keyID = KeyIDFromPath(keyPath)
+	}
+	data, err := afero.ReadFile(fsys, path)
+	if err != nil {
+		return Signature{}, false, err
+	}
+	if sig, err = Sign(key, keyID, data); err != nil {
+		return Signature{}, false, err
+	}
+	sigPath := path + SignatureSuffix
+	if old, err := afero.ReadFile(fsys, sigPath); err == nil && bytes.Equal(old, sig.Bytes()) {
+		return sig, false, nil
+	}
+	if err := afero.WriteFile(fsys, sigPath, sig.Bytes(), 0o644); err != nil {
+		return Signature{}, false, err
+	}
+	return sig, true, nil
 }
 
 // Keyring holds the public keys a run trusts, by key ID.

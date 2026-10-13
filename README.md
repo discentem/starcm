@@ -77,3 +77,9 @@ runtime), so a script can enforce rules such as "this file may only use
 ```bash
 starcm inspect bootstrap.star | jq -r '.[].calls[].function' | sort -u
 ```
+
+The same checks can run in Starlark: `inspect(path)` returns that report as a
+value, and `list_files(dir, pattern)`, `sha256(path)`, `json`,
+`file(action = "read")` and `sign(path, key = ...)` cover the rest of a signing
+script. `sign()` is disabled when starcm runs with `--trusted-keys`, so a
+deployed run can never sign anything.
