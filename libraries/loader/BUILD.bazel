@@ -13,6 +13,7 @@ go_library(
         "//functions/file",
         "//functions/inspect",
         "//functions/listfiles",
+        "//functions/readfile",
         "//functions/shell",
         "//functions/sign",
         "//functions/template",
