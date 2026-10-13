@@ -20,6 +20,14 @@ $ cat downloaded.txt
 starcm download fixture
 ```
 
+## Creates missing parent directories
+
+```scrut
+$ starcm subdir.star && cat nested/dir/payload.txt
+success=True changed=True
+starcm download fixture
+```
+
 ## Wrong sha256 fails and removes the download
 
 ```scrut
