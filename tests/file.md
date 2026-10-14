@@ -30,7 +30,7 @@ deep
 $ starcm missing_dir.star 2>&1
 Traceback (most recent call last):
   missing_dir.star:3:5: in <toplevel>
-Error in file: directory ".*/missing" does not exist and create_dirs is false (regex)
+Error in file: directory ".*[/\\]missing" does not exist and create_dirs is false (regex)
 [1]
 ```
 

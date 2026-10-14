@@ -69,12 +69,12 @@ the real home directory.
 
 ```scrut
 $ (cd files && HOME="$TMPDIR" starcm create.star)
-starcm_result(changed = True, error = "<nil>", label = "Create example.txt file", message = "created file \"*/example.txt\"", success = True, value = None) (glob)
+starcm_result(changed = True, error = "<nil>", label = "Create example.txt file", message = "created file \"*example.txt\"", success = True, value = None) (glob)
 ```
 
 ```scrut
 $ (cd files && HOME="$TMPDIR" starcm create.star)
-starcm_result(changed = False, error = "<nil>", label = "Create example.txt file", message = "file \"*/example.txt\" already exists with correct content", success = True, value = None) (glob)
+starcm_result(changed = False, error = "<nil>", label = "Create example.txt file", message = "file \"*example.txt\" already exists with correct content", success = True, value = None) (glob)
 ```
 
 ```scrut
