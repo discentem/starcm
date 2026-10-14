@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+	// Windows hosts have no zoneinfo database, so embed Go's copy for timezone=.
+	_ "time/tzdata"
 
 	"github.com/discentem/starcm/functions/base"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
