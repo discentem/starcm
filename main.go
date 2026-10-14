@@ -102,12 +102,14 @@ func main() {
 			if err != nil {
 				return cli.Exit(err.Error(), 1)
 			}
+			// Opened on first use, so runs that never use the store never
+			// create it.
+			openStore := localstore.Lazy(storeDir, perms)
 			opts := []loader.LoaderOption{
 				loader.WithVars(vars),
-				// Opened on first use, so runs that never download into the
-				// store never create it.
-				loader.WithStore(localstore.Lazy(storeDir, perms)),
+				loader.WithStore(openStore),
 				loader.WithStoreOnly(c.Bool("store-only")),
+				loader.WithStoreCheck(localstore.CheckIfStored(storeDir, openStore)),
 			}
 			if dir := c.String("trusted-keys"); dir != "" {
 				keyring, err := signing.LoadKeyring(fsys, dir)

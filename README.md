@@ -76,9 +76,10 @@ if not check.success:
 
 Leave out `save_to` and `download()` saves into a local store instead, at
 `<store>/sha256/<hash>/<name>` (named after the URL, or `file_name`), and
-returns the stored path as `value`. A stored file is re-hashed every time it's
-used, and starcm refuses a store that anyone other than the current user, root
-or administrators could change.
+returns the stored path as `value`. A stored file is re-hashed whenever
+`download()` finds it already in the store, and right before `exec()` runs with
+its path as `cmd` or one of `args`. starcm refuses a store that anyone other
+than the current user, root or administrators could change.
 
 The store defaults to `/Library/Application Support/starcm/store` (macOS),
 `/var/lib/starcm/store` (Linux) or `%ProgramData%\starcm\store` (Windows) when

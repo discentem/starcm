@@ -175,3 +175,74 @@ func hashFile(path string) (string, error) {
 	defer f.Close()
 	return starcmsha256.FromReader(f)
 }
+
+// CheckIfStored returns a function that verifies path if it names something
+// inside the store at dir, and does nothing otherwise. A path inside the
+// store must be a stored file, <dir>/sha256/<hash>/<name>; it's verified
+// with Get, so its permissions are re-checked and it's re-hashed against the
+// hash in its own path. open is only called for paths inside the store.
+//
+// Paths are compared against dir both as given and with symlinks resolved,
+// so a symlink into the store is caught too.
+func CheckIfStored(dir string, open func() (*Store, error)) func(path string) error {
+	return func(path string) error {
+		if path == "" {
+			return nil
+		}
+		rel, inside, err := relToStore(dir, path)
+		if err != nil || !inside {
+			return err
+		}
+		if rel == "." {
+			return nil // the store directory itself, not a file in it
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) != 3 || parts[0] != "sha256" {
+			return fmt.Errorf("%s is inside the store at %s but isn't a stored file", path, dir)
+		}
+		store, err := open()
+		if err != nil {
+			return err
+		}
+		_, ok, err := store.Get(parts[1], parts[2])
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("%s is not in the store", path)
+		}
+		return nil
+	}
+}
+
+// relToStore returns path relative to the store at dir, if it's inside it.
+func relToStore(dir, path string) (string, bool, error) {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return "", false, err
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", false, err
+	}
+	dirs := []string{absDir}
+	if real, err := filepath.EvalSymlinks(absDir); err == nil && real != absDir {
+		dirs = append(dirs, real)
+	}
+	paths := []string{absPath}
+	if real, err := filepath.EvalSymlinks(absPath); err == nil && real != absPath {
+		paths = append(paths, real)
+	}
+	for _, d := range dirs {
+		for _, p := range paths {
+			rel, err := filepath.Rel(d, p)
+			if err != nil {
+				continue // e.g. a different drive on Windows
+			}
+			if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				return rel, true, nil
+			}
+		}
+	}
+	return "", false, nil
+}

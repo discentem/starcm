@@ -66,7 +66,8 @@ Error in download: failed to download file "http://localhost:8000/tests/fixtures
 
 Files are stored as `<store>/sha256/<hash>/<name>`, named after the URL unless
 `file_name` is given, and `value` is the stored path. A stored file is
-re-hashed every time it's used.
+re-hashed whenever `download()` finds it already in the store, and whenever
+`exec()` is given its path.
 
 ```scrut
 $ starcm --store-dir "$TMPDIR/store" store.star
@@ -87,6 +88,21 @@ $ f=store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf31
 Traceback (most recent call last):
   store.star:11:14: in <toplevel>
 Error in download: *payload.txt in the store has sha256 *; it was changed after it was stored (glob)
+[1]
+```
+
+## exec() re-checks stored files before running
+
+Any `cmd` or `args` entry that names a file in the store is re-hashed right
+before the command starts, so a file changed after `download()` is refused.
+
+```scrut
+$ rm -rf store && starcm --store-dir "$TMPDIR/store" store_exec.star 2>&1
+read: "starcm download fixture\n"
+Traceback (most recent call last):
+  store_exec.star:17:4: in <toplevel>
+  store_exec.star:10:16: in cat
+Error in exec: exec(label="read again"): *payload.txt in the store has sha256 *; it was changed after it was stored (glob)
 [1]
 ```
 

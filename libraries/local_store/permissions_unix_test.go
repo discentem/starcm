@@ -79,3 +79,21 @@ func TestOpenResolvesSymlinks(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, want, s.Dir())
 }
+
+func TestCheckIfStoredFollowsSymlinks(t *testing.T) {
+	perms, err := NewPermissions()
+	require.NoError(t, err)
+	dir := filepath.Join(t.TempDir(), "store")
+	open := Lazy(dir, perms)
+	s, err := open()
+	require.NoError(t, err)
+	path, err := s.Put(contentHash, "payload.txt", strings.NewReader(content))
+	require.NoError(t, err)
+
+	link := filepath.Join(t.TempDir(), "link")
+	require.NoError(t, os.Symlink(path, link))
+	require.NoError(t, os.Chmod(path, 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("tampered\n"), 0o644))
+
+	require.ErrorContains(t, CheckIfStored(dir, open)(link), "was changed after it was stored")
+}
