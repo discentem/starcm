@@ -17,6 +17,9 @@ import (
 
 type shellAction struct {
 	executor shelllib.Executor
+	// checkStored verifies a cmd or arg that names a file in the local
+	// store, right before the command starts. Nil means no store.
+	checkStored func(path string) error
 }
 
 var _ base.Runnable = (*shellAction)(nil)
@@ -61,6 +64,14 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	var cmdArgsGo []string
 	for iter.Next(&v) {
 		cmdArgsGo = append(cmdArgsGo, v.(starlark.String).GoString())
+	}
+
+	if a.checkStored != nil {
+		for _, p := range append([]string{c}, cmdArgsGo...) {
+			if err := a.checkStored(p); err != nil {
+				return nil, fmt.Errorf("exec(label=%q): %w", moduleName, err)
+			}
+		}
 	}
 
 	ex := &shelllib.RealExecutor{}
@@ -125,7 +136,22 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	}
 }
 
-func New(ctx context.Context, executor shelllib.Executor) *base.Module {
+// Option configures exec().
+type Option func(*shellAction)
+
+// WithStoreCheck makes exec() call check on cmd and every arg before the
+// command starts, and refuse to run if it returns an error.
+func WithStoreCheck(check func(path string) error) Option {
+	return func(a *shellAction) { a.checkStored = check }
+}
+
+func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.Module {
+	a := &shellAction{
+		executor: executor,
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
 	return base.NewModule(
 		ctx,
 		"shell",
@@ -135,8 +161,6 @@ func New(ctx context.Context, executor shelllib.Executor) *base.Module {
 			base.Arg[starlark.Int]("expected_exit_code??"),
 			base.Arg[starlark.Bool]("live_output??"),
 		},
-		&shellAction{
-			executor: executor,
-		},
+		a,
 	)
 }

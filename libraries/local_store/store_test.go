@@ -104,3 +104,34 @@ func TestLazyOpensOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, a, b)
 }
+
+func TestCheckIfStored(t *testing.T) {
+	perms, err := NewPermissions()
+	require.NoError(t, err)
+	dir := filepath.Join(t.TempDir(), "store")
+	open := Lazy(dir, perms)
+	check := CheckIfStored(dir, open)
+
+	// A stored-file path is refused until the file is actually stored.
+	require.ErrorContains(t, check(filepath.Join(dir, "sha256", contentHash, "payload.txt")), "is not in the store")
+
+	s, err := open()
+	require.NoError(t, err)
+	path, err := s.Put(contentHash, "payload.txt", strings.NewReader(content))
+	require.NoError(t, err)
+
+	require.NoError(t, check(path))
+	require.NoError(t, check(filepath.Join(dir, "sha256", contentHash, "payload.txt")))
+	require.NoError(t, check(dir))
+	require.NoError(t, check("sh"))
+	require.NoError(t, check("-c"))
+	require.NoError(t, check(t.TempDir()))
+
+	require.ErrorContains(t, check(filepath.Join(dir, "sha256", contentHash, "other.txt")), "is not in the store")
+	require.ErrorContains(t, check(filepath.Join(dir, "sha256", contentHash)), "isn't a stored file")
+	require.ErrorContains(t, check(filepath.Join(dir, "sha256", contentHash, "payload.txt", "..", "..", "x", "y", "z")), "isn't a stored file")
+
+	require.NoError(t, os.Chmod(path, 0o644))
+	require.NoError(t, os.WriteFile(path, []byte("tampered\n"), 0o644))
+	require.ErrorContains(t, check(path), "was changed after it was stored")
+}

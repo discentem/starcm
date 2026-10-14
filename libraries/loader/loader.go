@@ -99,6 +99,10 @@ type Loader struct {
 
 	// StoreOnly makes download() refuse save_to.
 	StoreOnly bool
+
+	// StoreCheck verifies exec()'s cmd and args that name files in the
+	// local store. Nil means no check.
+	StoreCheck func(path string) error
 }
 
 // CheckSignature verifies data, the content of the module at path, when the
@@ -257,6 +261,12 @@ func WithStoreOnly(storeOnly bool) LoaderOption {
 	}
 }
 
+func WithStoreCheck(check func(path string) error) LoaderOption {
+	return func(l *Loader) {
+		l.StoreCheck = check
+	}
+}
+
 func WithFsys(fsys afero.Fs) LoaderOption {
 	return func(l *Loader) {
 		l.Fsys = fsys
@@ -313,6 +323,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						starcmshell.New(
 							ctx,
 							ex,
+							starcmshell.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
 					"file": starlark.NewBuiltin(
