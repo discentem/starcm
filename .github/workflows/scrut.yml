@@ -39,7 +39,9 @@ jobs:
           cd "$RUNNER_TEMP/scrut"
           curl -fsSL -o "${{ matrix.scrut_asset }}" \
             "https://github.com/facebookincubator/scrut/releases/download/v0.4.1/${{ matrix.scrut_asset }}"
-          echo "${{ matrix.scrut_sha256 }}  ${{ matrix.scrut_asset }}" | shasum -a 256 -c -
+          # Git Bash on Windows has sha256sum but no shasum; macOS may lack sha256sum.
+          if command -v sha256sum >/dev/null; then sha256="sha256sum"; else sha256="shasum -a 256"; fi
+          echo "${{ matrix.scrut_sha256 }}  ${{ matrix.scrut_asset }}" | $sha256 -c -
           case "${{ matrix.scrut_asset }}" in
             *.zip) unzip -q "${{ matrix.scrut_asset }}" ;;
             *) tar -xzf "${{ matrix.scrut_asset }}" ;;
@@ -69,6 +71,11 @@ jobs:
         run: |
           set -e
           python=$(command -v python3 || command -v python)
-          "$python" -m http.server 8000 --directory . &
-          sleep 1
+          # Bind IPv4 only: on macOS runners connections to [::1]:8000 time out
+          # instead of being refused, so "localhost" never falls back to IPv4.
+          "$python" -m http.server 8000 --bind 127.0.0.1 --directory . &
+          for _ in $(seq 30); do
+            curl -fs -o /dev/null http://127.0.0.1:8000/README.md && break
+            sleep 1
+          done
           scrut test --work-directory . README.md tests/
