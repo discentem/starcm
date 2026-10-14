@@ -120,6 +120,11 @@ func (a *downloadAction) Run(
 		return nil, err
 	}
 	defer f.Close()
+	// Close before removing: Windows can't delete a file that is still open.
+	discard := func() {
+		_ = f.Close()
+		_ = a.fsys.Remove(*savePath)
+	}
 
 	hasher := starcmsha256.New()
 
@@ -138,7 +143,7 @@ func (a *downloadAction) Run(
 
 	if _, err := io.Copy(dest, resp.Body); err != nil {
 		// Best-effort cleanup of partial download
-		_ = a.fsys.Remove(*savePath)
+		discard()
 		return nil, err
 	}
 	if liveProgress && a.output != nil {
@@ -147,7 +152,7 @@ func (a *downloadAction) Run(
 
 	actualHash := starcmsha256.Hex(hasher)
 	if *expectedHash != actualHash {
-		_ = a.fsys.Remove(*savePath)
+		discard()
 		return nil, fmt.Errorf("expected sha256 hash %s, got %s", *expectedHash, actualHash)
 	}
 
