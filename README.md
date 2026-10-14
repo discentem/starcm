@@ -72,6 +72,27 @@ if not check.success:
 
 `--var name=value` (repeatable) passes values into a run as the `vars` dict.
 
+#### Keeping downloads in a local store
+
+Leave out `save_to` and `download()` saves into a local store instead, at
+`<store>/sha256/<hash>/<name>` (named after the URL, or `file_name`), and
+returns the stored path as `value`. A stored file is re-hashed every time it's
+used, and starcm refuses a store that anyone other than the current user, root
+or administrators could change.
+
+The store defaults to `/Library/Application Support/starcm/store` (macOS),
+`/var/lib/starcm/store` (Linux) or `%ProgramData%\starcm\store` (Windows) when
+running as root or elevated, and to the user cache directory otherwise.
+`--store-dir DIR` picks another, and `--store-only` refuses `save_to` so every
+download goes into the store.
+
+```python
+load("starcm", "download", "exec")
+
+agent = download(label = "fetch agent", url = "https://example.com/agent.pkg", sha256 = AGENT_SHA256)
+exec(label = "install agent", cmd = "installer", args = ["-pkg", agent.value, "-target", "/"])
+```
+
 #### Checking configuration before it runs
 
 `starcm inspect FILE...` prints what each file loads and calls, as JSON,

@@ -20,6 +20,15 @@ $ cat downloaded.txt
 starcm download fixture
 ```
 
+The download is written to a temporary file and renamed into place once its
+sha256 matches, so nothing is left behind next to it.
+
+```scrut
+$ ls -a | grep -c '\.tmp-'
+0
+[1]
+```
+
 ## Creates missing parent directories
 
 ```scrut
@@ -51,4 +60,47 @@ Traceback (most recent call last):
   not_found.star:3:9: in <toplevel>
 Error in download: failed to download file "http://localhost:8000/tests/fixtures/download/does-not-exist.txt": 404 File not found
 [1]
+```
+
+## Without save_to, downloads go into the store
+
+Files are stored as `<store>/sha256/<hash>/<name>`, named after the URL unless
+`file_name` is given, and `value` is the stored path. A stored file is
+re-hashed every time it's used.
+
+```scrut
+$ starcm --store-dir "$TMPDIR/store" store.star
+into the store: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
+already stored: changed=False value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
+named: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/renamed.txt (glob)
+```
+
+```scrut
+$ cat store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt
+starcm download fixture
+```
+
+## A changed file in the store is refused
+
+```scrut
+$ f=store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt && chmod u+w "$f" && echo edited >> "$f" && starcm --store-dir "$TMPDIR/store" store.star 2>&1
+Traceback (most recent call last):
+  store.star:11:14: in <toplevel>
+Error in download: *payload.txt in the store has sha256 *; it was changed after it was stored (glob)
+[1]
+```
+
+## --store-only refuses save_to
+
+```scrut
+$ starcm --store-only store_only.star 2>&1
+Traceback (most recent call last):
+  store_only.star:3:9: in <toplevel>
+Error in download: download(label="to a path"): save_to is disabled by --store-only; omit it to download into the store
+[1]
+```
+
+```scrut
+$ rm -rf store && starcm --store-only --store-dir "$TMPDIR/store" store.star | head -1
+into the store: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
 ```

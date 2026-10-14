@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//libraries/inspect",
         "//libraries/loader",
+        "//libraries/local_store",
         "//libraries/shell",
         "//libraries/signing",
         "@com_github_google_deck//:deck",
