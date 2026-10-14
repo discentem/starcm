@@ -1,0 +1,5 @@
+common --enable_platform_specific_config
+
+# Tests read testdata through runfiles, which Bazel only lays out on Windows
+# when asked.
+build:windows --enable_runfiles
