@@ -35,6 +35,6 @@ hello
 $ starcm missing.star 2>&1
 Traceback (most recent call last):
   missing.star:3:13: in <toplevel>
-Error in load_dynamic: loading module "nope.star": open nope.star: no such file or directory
+Error in load_dynamic: loading module "nope\.star": open nope\.star: (no such file or directory|The system cannot find the file specified\.) (regex)
 [1]
 ```

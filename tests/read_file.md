@@ -18,6 +18,6 @@ success=True changed=False
 $ starcm missing.star 2>&1
 Traceback (most recent call last):
   missing.star:2:10: in <toplevel>
-Error in read_file: failed to read file "missing.txt": open */missing.txt: no such file or directory (glob)
+Error in read_file: failed to read file "missing\.txt": open .*[/\\]missing\.txt: (no such file or directory|The system cannot find the file specified\.) (regex)
 [1]
 ```

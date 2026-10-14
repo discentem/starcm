@@ -109,7 +109,7 @@ $ starcm --trusted-keys trusted verify.star
 signed: success=True value=test error=<nil>
 signature= kwarg: success=True value=test error=<nil>
 tampered: success=False value=None error=tampered.txt: key "test": signature does not match
-no signature: success=False value=None error=unsigned.txt: reading signature: open unsigned.txt.sig: no such file or directory
+no signature: success=False value=None error=unsigned\.txt: reading signature: open unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
 ```
 
 verify() needs `--trusted-keys`.
