@@ -1,0 +1,4 @@
+# Check out LF everywhere, including Windows: tests hash and verify signatures
+# over fixture bytes, which CRLF conversion would change.
+* text=auto eol=lf
+*.raw-sig binary
