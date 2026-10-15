@@ -7,6 +7,14 @@ from the repo root, so these tests don't need the internet.
 $ cp -R "$TESTDIR/fixtures/download/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
+The store refuses directories that an untrusted account could replace, all
+the way up to the root. On the Windows CI runners `D:\` (where `$TMPDIR` is)
+is owned by NETWORK SERVICE, so there the store goes under `%LocalAppData%`.
+
+```scrut
+$ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-scrut.XXXXXX") && store="$store_root/store" ;; esac
+```
+
 ## Downloads once, then verifies the existing file
 
 ```scrut
@@ -70,21 +78,21 @@ re-hashed whenever `download()` finds it already in the store, and whenever
 `exec()` is given its path.
 
 ```scrut
-$ starcm --store-dir "$TMPDIR/store" store.star
+$ starcm --store-dir "$store" store.star
 into the store: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
 already stored: changed=False value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
 named: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/renamed.txt (glob)
 ```
 
 ```scrut
-$ cat store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt
+$ cat "$store"/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt
 starcm download fixture
 ```
 
 ## A changed file in the store is refused
 
 ```scrut
-$ f=store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt && chmod u+w "$f" && echo edited >> "$f" && starcm --store-dir "$TMPDIR/store" store.star 2>&1
+$ f="$store"/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt && chmod u+w "$f" && echo edited >> "$f" && starcm --store-dir "$store" store.star 2>&1
 Traceback (most recent call last):
   store.star:11:14: in <toplevel>
 Error in download: *payload.txt in the store has sha256 *; it was changed after it was stored (glob)
@@ -97,7 +105,7 @@ Any `cmd` or `args` entry that names a file in the store is re-hashed right
 before the command starts, so a file changed after `download()` is refused.
 
 ```scrut
-$ rm -rf store && starcm --store-dir "$TMPDIR/store" store_exec.star 2>&1
+$ rm -rf "$store" && starcm --store-dir "$store" store_exec.star 2>&1
 read: "starcm download fixture\n"
 Traceback (most recent call last):
   store_exec.star:17:4: in <toplevel>
@@ -117,6 +125,10 @@ Error in download: download(label="to a path"): save_to is disabled by --store-o
 ```
 
 ```scrut
-$ rm -rf store && starcm --store-only --store-dir "$TMPDIR/store" store.star | head -1
+$ rm -rf "$store" && starcm --store-only --store-dir "$store" store.star | head -1
 into the store: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
+```
+
+```scrut
+$ rm -rf "$store" ${store_root:+"$store_root"}
 ```
