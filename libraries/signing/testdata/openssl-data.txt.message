@@ -1,0 +1,5 @@
+starcm-signature
+algorithm=ed25519
+key=openssl
+expires=2099-01-01T00:00:00Z
+sha256=65d6c2e669c15c23a8d6be4189a486e79440994b1d7eea20b7c8a2b2d6b0089f

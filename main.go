@@ -36,6 +36,10 @@ func main() {
 				Usage: "verbosity level",
 			},
 			&cli.StringFlag{
+				Name:  "max-expiry",
+				Usage: "with --trusted-keys, also refuse signatures that expire more than `DURATION` (e.g. 30d) from now",
+			},
+			&cli.StringFlag{
 				Name:  "trusted-keys",
 				Usage: "directory of *.pem public keys; when set, every .star file must have a valid <file>.sig signed by one of them, and verify() is enabled",
 			},
@@ -85,7 +89,16 @@ func main() {
 				if err != nil {
 					return cli.Exit(err.Error(), 1)
 				}
+				if maxExpiry := c.String("max-expiry"); maxExpiry != "" {
+					d, err := signing.ParseDuration(maxExpiry)
+					if err != nil {
+						return cli.Exit(fmt.Sprintf("--max-expiry: %v", err), 1)
+					}
+					keyring.SetMaxExpiry(d)
+				}
 				opts = append(opts, loader.WithKeyring(keyring))
+			} else if c.String("max-expiry") != "" {
+				return cli.Exit("--max-expiry needs --trusted-keys", 1)
 			}
 
 			starcmLoader := loader.Default(

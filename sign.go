@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/discentem/starcm/libraries/signing"
 	"github.com/spf13/afero"
@@ -22,6 +23,11 @@ func signCommand() *cli.Command {
 				Required: true,
 			},
 			&cli.StringFlag{
+				Name:     "expires",
+				Usage:    "when the signatures expire: a duration from now (`30d`, 36h), a date (2026-11-14, midnight UTC) or an RFC 3339 time",
+				Required: true,
+			},
+			&cli.StringFlag{
 				Name:  "key-id",
 				Usage: "key id to record in the signature; defaults to the key file's name before the first dot",
 			},
@@ -30,13 +36,17 @@ func signCommand() *cli.Command {
 			if c.NArg() == 0 {
 				return cli.Exit("sign: no files given", 1)
 			}
+			expires, err := signing.ParseExpiry(c.String("expires"), time.Now())
+			if err != nil {
+				return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
+			}
 			fsys := afero.NewOsFs()
 			for _, path := range c.Args().Slice() {
-				sig, _, err := signing.SignFile(fsys, c.String("key"), c.String("key-id"), path)
+				sig, _, err := signing.SignFile(fsys, c.String("key"), c.String("key-id"), path, expires)
 				if err != nil {
 					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
 				}
-				fmt.Printf("signed %s with key %q -> %s\n", path, sig.KeyID, path+signing.SignatureSuffix)
+				fmt.Printf("signed %s with key %q until %s -> %s\n", path, sig.KeyID, sig.Expires.Format(time.RFC3339), path+signing.SignatureSuffix)
 			}
 			return nil
 		},

@@ -1,9 +1,13 @@
 // Package signing creates and checks detached signatures for files starcm runs
 // or handles. A file's signature lives next to it in <file>.sig, as one line:
 //
-//	ed25519 key=2026-a sig=<base64>
+//	ed25519 key=2026-a expires=2026-11-14T00:00:00Z sig=<base64>
 //
 // The algorithm selects a Verifier and key names a public key in a Keyring.
+// Every signature expires: what's signed is Message, which covers the
+// algorithm, key id, expiry and the file's sha256, so none of them can be
+// changed without breaking the signature, and Keyring refuses signatures past
+// their expiry.
 // Keys are PEM files as written by openssl:
 //
 //	openssl genpkey -algorithm ed25519 -out 2026-a.pem
@@ -22,8 +26,11 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
+	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/afero"
 )
@@ -60,29 +67,99 @@ func (ed25519Verifier) Verify(pub crypto.PublicKey, data, sig []byte) error {
 type Signature struct {
 	Algorithm string
 	KeyID     string
-	Value     []byte
+	// Expires is when the signature stops being valid, in UTC to the second.
+	Expires time.Time
+	Value   []byte
 }
+
+const signatureFormat = `"<algorithm> key=<id> expires=<RFC 3339 time> sig=<base64>"`
 
 // ParseSignature parses a signature file.
 func ParseSignature(b []byte) (Signature, error) {
 	fields := strings.Fields(string(b))
-	if len(fields) != 3 || !strings.HasPrefix(fields[1], "key=") || !strings.HasPrefix(fields[2], "sig=") {
-		return Signature{}, errors.New(`malformed signature file, want "<algorithm> key=<id> sig=<base64>"`)
+	if len(fields) != 4 ||
+		!strings.HasPrefix(fields[1], "key=") ||
+		!strings.HasPrefix(fields[2], "expires=") ||
+		!strings.HasPrefix(fields[3], "sig=") {
+		return Signature{}, errors.New("malformed signature file, want " + signatureFormat)
 	}
 	keyID := strings.TrimPrefix(fields[1], "key=")
 	if keyID == "" {
 		return Signature{}, errors.New("malformed signature file: empty key id")
 	}
-	value, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(fields[2], "sig="))
+	expires, err := time.Parse(time.RFC3339, strings.TrimPrefix(fields[2], "expires="))
+	if err != nil {
+		return Signature{}, fmt.Errorf("malformed signature file: expires: %w", err)
+	}
+	value, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(fields[3], "sig="))
 	if err != nil {
 		return Signature{}, fmt.Errorf("malformed signature file: %w", err)
 	}
-	return Signature{Algorithm: fields[0], KeyID: keyID, Value: value}, nil
+	return Signature{Algorithm: fields[0], KeyID: keyID, Expires: expires.UTC(), Value: value}, nil
 }
 
 // Bytes formats s as a signature file.
 func (s Signature) Bytes() []byte {
-	return []byte(fmt.Sprintf("%s key=%s sig=%s\n", s.Algorithm, s.KeyID, base64.StdEncoding.EncodeToString(s.Value)))
+	return []byte(fmt.Sprintf("%s key=%s expires=%s sig=%s\n",
+		s.Algorithm, s.KeyID, formatTime(s.Expires), base64.StdEncoding.EncodeToString(s.Value)))
+}
+
+// Message is what a signature by keyID with this algorithm and expiry signs
+// for data. Signing the file's sha256 rather than the file keeps verifying
+// large files cheap.
+func Message(algorithm, keyID string, expires time.Time, data []byte) []byte {
+	sum, _ := starcmsha256.FromReader(bytes.NewReader(data)) // reading memory can't fail
+	return []byte(fmt.Sprintf("starcm-signature\nalgorithm=%s\nkey=%s\nexpires=%s\nsha256=%s\n",
+		algorithm, keyID, formatTime(expires), sum))
+}
+
+func formatTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
+}
+
+// ParseDuration parses a duration such as "30d", "36h" or "90m". "d" means 24
+// hours; anything else is as time.ParseDuration. It must be positive.
+func ParseDuration(s string) (time.Duration, error) {
+	var d time.Duration
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		n, err := strconv.Atoi(days)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+		d = time.Duration(n) * 24 * time.Hour
+	} else {
+		var err error
+		if d, err = time.ParseDuration(s); err != nil {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+	}
+	if d <= 0 {
+		return 0, fmt.Errorf("duration %q must be positive", s)
+	}
+	return d, nil
+}
+
+// ParseExpiry parses when a signature should expire: a duration from now (see
+// ParseDuration), a date ("2026-11-14", midnight UTC) or an RFC 3339 time.
+func ParseExpiry(s string, now time.Time) (time.Time, error) {
+	if d, err := ParseDuration(s); err == nil {
+		return now.Add(d), nil
+	}
+	if t, err := time.Parse(time.DateOnly, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid expiry %q: want a duration like 30d, a date like 2026-11-14, or an RFC 3339 time", s)
+}
+
+// formatDuration prints whole days as "30d" and anything else as Go does.
+func formatDuration(d time.Duration) string {
+	if day := 24 * time.Hour; d%day == 0 {
+		return fmt.Sprintf("%dd", d/day)
+	}
+	return d.String()
 }
 
 // KeyIDFromPath derives a key ID from a key file's name: everything before
@@ -118,26 +195,32 @@ func ParsePrivateKey(pemBytes []byte) (crypto.Signer, error) {
 	return signer, nil
 }
 
-// Sign signs data with key, recording keyID so verifiers can find the
-// matching public key.
-func Sign(key crypto.Signer, keyID string, data []byte) (Signature, error) {
+// Sign signs data with key until expires, recording keyID so verifiers can
+// find the matching public key.
+func Sign(key crypto.Signer, keyID string, expires time.Time, data []byte) (Signature, error) {
 	if keyID == "" || strings.ContainsAny(keyID, " \t\r\n") {
 		return Signature{}, fmt.Errorf("invalid key id %q: must be non-empty with no spaces", keyID)
 	}
+	if expires.IsZero() {
+		return Signature{}, errors.New("signatures must have an expiry")
+	}
+	expires = expires.UTC().Truncate(time.Second)
 	switch k := key.(type) {
 	case ed25519.PrivateKey:
-		return Signature{Algorithm: "ed25519", KeyID: keyID, Value: ed25519.Sign(k, data)}, nil
+		msg := Message("ed25519", keyID, expires, data)
+		return Signature{Algorithm: "ed25519", KeyID: keyID, Expires: expires, Value: ed25519.Sign(k, msg)}, nil
 	default:
 		return Signature{}, fmt.Errorf("signing with %s keys is not supported", keyType(key.Public()))
 	}
 }
 
-// SignFile signs the file at path with the PEM private key at keyPath and
-// writes path + SignatureSuffix. keyPath may start with ~. keyID defaults to
-// KeyIDFromPath(keyPath).
+// SignFile signs the file at path with the PEM private key at keyPath, valid
+// until expires, and writes path + SignatureSuffix. keyPath may start with ~.
+// keyID defaults to KeyIDFromPath(keyPath).
 // changed is false when the signature file already had this content (ed25519
-// signatures are deterministic), in which case it isn't rewritten.
-func SignFile(fsys afero.Fs, keyPath, keyID, path string) (sig Signature, changed bool, err error) {
+// signatures are deterministic, so only for the same content, key and
+// expiry), in which case it isn't rewritten.
+func SignFile(fsys afero.Fs, keyPath, keyID, path string, expires time.Time) (sig Signature, changed bool, err error) {
 	if keyPath, err = homedir.Expand(keyPath); err != nil {
 		return Signature{}, false, err
 	}
@@ -156,7 +239,7 @@ func SignFile(fsys afero.Fs, keyPath, keyID, path string) (sig Signature, change
 	if err != nil {
 		return Signature{}, false, err
 	}
-	if sig, err = Sign(key, keyID, data); err != nil {
+	if sig, err = Sign(key, keyID, expires, data); err != nil {
 		return Signature{}, false, err
 	}
 	sigPath := path + SignatureSuffix
@@ -172,6 +255,16 @@ func SignFile(fsys afero.Fs, keyPath, keyID, path string) (sig Signature, change
 // Keyring holds the public keys a run trusts, by key ID.
 type Keyring struct {
 	keys map[string]crypto.PublicKey
+	// maxExpiry, when set, refuses signatures that expire further than this
+	// from now.
+	maxExpiry time.Duration
+	now       func() time.Time
+}
+
+// SetMaxExpiry makes the keyring refuse signatures that expire more than d
+// from now. Zero allows any expiry.
+func (k *Keyring) SetMaxExpiry(d time.Duration) {
+	k.maxExpiry = d
 }
 
 // LoadKeyring reads every *.pem file in dir as a public key, named by
@@ -203,7 +296,7 @@ func LoadKeyring(fsys afero.Fs, dir string) (*Keyring, error) {
 	if len(keys) == 0 {
 		return nil, fmt.Errorf("reading trusted keys: no *.pem public keys in %s", dir)
 	}
-	return &Keyring{keys: keys}, nil
+	return &Keyring{keys: keys, now: time.Now}, nil
 }
 
 // KeyIDs returns the trusted key IDs, sorted.
@@ -217,7 +310,8 @@ func (k *Keyring) KeyIDs() []string {
 }
 
 // Verify checks data against sigFile, the content of a signature file, and
-// returns the parsed signature.
+// returns the parsed signature. A signature past its expiry, or one expiring
+// further out than SetMaxExpiry allows, is refused.
 func (k *Keyring) Verify(data, sigFile []byte) (Signature, error) {
 	sig, err := ParseSignature(sigFile)
 	if err != nil {
@@ -231,8 +325,17 @@ func (k *Keyring) Verify(data, sigFile []byte) (Signature, error) {
 	if !ok {
 		return sig, fmt.Errorf("key %q is not trusted", sig.KeyID)
 	}
-	if err := v.Verify(pub, data, sig.Value); err != nil {
+	if err := v.Verify(pub, Message(sig.Algorithm, sig.KeyID, sig.Expires, data), sig.Value); err != nil {
 		return sig, fmt.Errorf("key %q: %w", sig.KeyID, err)
+	}
+	// Checked after the signature, so the expiry is known to be the signer's.
+	now := k.now().UTC().Truncate(time.Second)
+	if !now.Before(sig.Expires) {
+		return sig, fmt.Errorf("key %q: signature expired at %s (now %s)", sig.KeyID, formatTime(sig.Expires), formatTime(now))
+	}
+	if k.maxExpiry > 0 && sig.Expires.After(now.Add(k.maxExpiry)) {
+		return sig, fmt.Errorf("key %q: signature expires at %s, more than %s from now (%s)",
+			sig.KeyID, formatTime(sig.Expires), formatDuration(k.maxExpiry), formatTime(now))
 	}
 	return sig, nil
 }

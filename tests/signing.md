@@ -1,6 +1,8 @@
 # Signing
 
-`starcm sign` writes `<file>.sig` next to each file. With `--trusted-keys DIR`
+`starcm sign` writes `<file>.sig` next to each file. Every signature expires:
+`--expires` takes a duration from now (`30d`, `36h`), a date (`2026-11-14`,
+midnight UTC) or an RFC 3339 time. With `--trusted-keys DIR`
 (a directory of `*.pem` public keys, named by key id), every `.star` file must
 have a valid signature before it runs, including files pulled in by `load()`
 and `load_dynamic()`, and `verify()` checks other files.
@@ -17,17 +19,17 @@ $ cp -R "$TESTDIR/fixtures/signing/." "$TMPDIR" && cd "$TMPDIR"
 The key id defaults to the key file's name before the first dot.
 
 ```scrut
-$ starcm sign --key private/test.pem main.star lib.star dyn.star verify.star payload.txt
-signed main.star with key "test" -> main.star.sig
-signed lib.star with key "test" -> lib.star.sig
-signed dyn.star with key "test" -> dyn.star.sig
-signed verify.star with key "test" -> verify.star.sig
-signed payload.txt with key "test" -> payload.txt.sig
+$ starcm sign --expires 30d --key private/test.pem main.star lib.star dyn.star verify.star payload.txt
+signed main.star with key "test" until * -> main.star.sig (glob)
+signed lib.star with key "test" until * -> lib.star.sig (glob)
+signed dyn.star with key "test" until * -> dyn.star.sig (glob)
+signed verify.star with key "test" until * -> verify.star.sig (glob)
+signed payload.txt with key "test" until * -> payload.txt.sig (glob)
 ```
 
 ```scrut
 $ cat main.star.sig
-ed25519 key=test sig=* (glob)
+ed25519 key=test expires=* sig=* (glob)
 ```
 
 ## Signed files run
@@ -85,8 +87,8 @@ dyn.star ran
 ## Signatures from keys that aren't trusted are refused
 
 ```scrut
-$ starcm sign --key private/untrusted.pem unsigned.star && starcm --trusted-keys trusted unsigned.star 2>&1
-signed unsigned.star with key "untrusted" -> unsigned.star.sig
+$ starcm sign --expires 30d --key private/untrusted.pem unsigned.star && starcm --trusted-keys trusted unsigned.star 2>&1
+signed unsigned.star with key "untrusted" until * -> unsigned.star.sig (glob)
 signature check failed for unsigned.star: key "untrusted" is not trusted
 [1]
 ```
@@ -94,8 +96,8 @@ signature check failed for unsigned.star: key "untrusted" is not trusted
 `--key-id` overrides the recorded key id.
 
 ```scrut
-$ starcm sign --key private/untrusted.pem --key-id release-2027 unsigned.star && cut -d" " -f2 unsigned.star.sig
-signed unsigned.star with key "release-2027" -> unsigned.star.sig
+$ starcm sign --expires 30d --key private/untrusted.pem --key-id release-2027 unsigned.star && cut -d" " -f2 unsigned.star.sig
+signed unsigned.star with key "release-2027" until * -> unsigned.star.sig (glob)
 key=release-2027
 ```
 
@@ -131,7 +133,7 @@ reading trusted keys: test.pem: not a PEM "PUBLIC KEY"
 ```
 
 ```scrut
-$ starcm sign --key trusted/test.pub.pem main.star 2>&1
+$ starcm sign --expires 30d --key trusted/test.pub.pem main.star 2>&1
 sign: trusted/test.pub.pem: not a PEM "PRIVATE KEY"
 [1]
 ```
@@ -139,7 +141,9 @@ sign: trusted/test.pub.pem: not a PEM "PRIVATE KEY"
 ## sign()
 
 Signs from Starlark, like `starcm sign`. Signatures are deterministic, so
-re-signing unchanged content reports `changed = False`.
+re-signing unchanged content with the same key and a fixed expiry reports
+`changed = False`. An expiry given as a duration is counted from now, so it
+re-signs every time.
 
 ```scrut
 $ starcm sign_fn.star && cut -d" " -f1,2 payload.txt.sig
@@ -152,9 +156,82 @@ ed25519 key=test
 Deployed runs never sign: `sign()` is disabled under `--trusted-keys`.
 
 ```scrut
-$ starcm sign --key private/test.pem sign_deployed.star >/dev/null && starcm --trusted-keys trusted sign_deployed.star 2>&1
+$ starcm sign --expires 30d --key private/test.pem sign_deployed.star >/dev/null && starcm --trusted-keys trusted sign_deployed.star 2>&1
 Traceback (most recent call last):
   sign_deployed.star:2:5: in <toplevel>
 Error in sign: sign() is disabled when starcm runs with --trusted-keys: signing belongs on the machine that holds the key, not where configuration is deployed
+[1]
+```
+
+## Expiry
+
+The expiry is part of what's signed, so it can't be extended by editing the
+`.sig` file, and an expired signature is refused everywhere a signature is
+checked.
+
+```scrut
+$ starcm sign --expires 2020-01-01 --key private/test.pem unsigned.star && starcm --trusted-keys trusted unsigned.star 2>&1
+signed unsigned.star with key "test" until 2020-01-01T00:00:00Z -> unsigned.star.sig
+signature check failed for unsigned.star: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
+[1]
+```
+
+```scrut
+$ sed 's/expires=2020-01-01T00:00:00Z/expires=2099-01-01T00:00:00Z/' unsigned.star.sig > extended.sig && mv extended.sig unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
+signature check failed for unsigned.star: key "test": signature does not match
+[1]
+```
+
+```scrut
+$ starcm sign --expires 2020-01-01 --key private/test.pem payload.txt >/dev/null && starcm --trusted-keys trusted verify.star | head -1
+signed: success=False value=None error=payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
+```
+
+Signatures without an expiry, in the old format, are refused.
+
+```scrut
+$ echo "ed25519 key=test sig=AAAA" > unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
+signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> sig=<base64>"
+[1]
+```
+
+`--expires` is required.
+
+```scrut
+$ starcm sign --key private/test.pem unsigned.star 2>&1 | head -1
+*Required flag "expires" not set (glob)
+```
+
+```scrut
+$ starcm sign --expires soon --key private/test.pem unsigned.star 2>&1
+sign: invalid expiry "soon": want a duration like 30d, a date like 2026-11-14, or an RFC 3339 time
+[1]
+```
+
+## --max-expiry
+
+`--max-expiry` also refuses signatures that expire too far from now, so a run
+can insist that what it trusts was signed recently.
+
+```scrut
+$ starcm sign --expires 30d --key private/test.pem unsigned.star >/dev/null && starcm --trusted-keys trusted --max-expiry 30d unsigned.star
+unsigned.star ran
+```
+
+```scrut
+$ starcm --trusted-keys trusted --max-expiry 7d unsigned.star 2>&1
+signature check failed for unsigned.star: key "test": signature expires at *, more than 7d from now (*) (glob)
+[1]
+```
+
+```scrut
+$ starcm --trusted-keys trusted --max-expiry week unsigned.star 2>&1
+--max-expiry: invalid duration "week"
+[1]
+```
+
+```scrut
+$ starcm --max-expiry 30d unsigned.star 2>&1
+--max-expiry needs --trusted-keys
 [1]
 ```
