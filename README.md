@@ -48,11 +48,17 @@ file name before the first dot) and starcm refuses any `.star` file, including
 ones pulled in by `load()` and `load_dynamic()`, without a valid signature
 from one of those keys. `verify()` checks any other file the same way.
 
+Every signature expires. `--expires` sets when, and the expiry is part of what's
+signed, so an old release stops being accepted on its own instead of being
+replayable forever. `--max-expiry 30d` also refuses signatures that expire more
+than 30 days out, so a run only trusts recently signed files; with it, re-sign
+on a schedule even when nothing changed.
+
 ```bash
 openssl genpkey -algorithm ed25519 -out 2026-a.pem                # private key: keep it secret
 openssl pkey -in 2026-a.pem -pubout -out trusted/2026-a.pub.pem   # public key: ship it
-starcm sign --key 2026-a.pem main.star lib/winpe.star agent.msi
-starcm --trusted-keys trusted --var base=https://config.example.com main.star
+starcm sign --expires 30d --key 2026-a.pem main.star lib/winpe.star agent.msi
+starcm --trusted-keys trusted --max-expiry 30d --var base=https://config.example.com main.star
 ```
 
 ```python
@@ -80,6 +86,6 @@ starcm inspect bootstrap.star | jq -r '.[].calls[].function' | sort -u
 
 The same checks can run in Starlark: `inspect(path)` returns that report as a
 value, and `list_files(dir, pattern)`, `sha256(path)`, `json`,
-`read_file(path)` and `sign(path, key = ...)` cover the rest of a signing
+`read_file(path)` and `sign(path, key = ..., expires = ...)` cover the rest of a signing
 script. `sign()` is disabled when starcm runs with `--trusted-keys`, so a
 deployed run can never sign anything.

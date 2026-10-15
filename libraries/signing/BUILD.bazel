@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/discentem/starcm/libraries/signing",
     visibility = ["//visibility:public"],
     deps = [
+        "//libraries/sha256",
         "@com_github_mitchellh_go_homedir//:go-homedir",
         "@com_github_spf13_afero//:afero",
     ],

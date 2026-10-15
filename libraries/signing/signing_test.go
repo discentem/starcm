@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
@@ -22,6 +23,9 @@ func newKey(t *testing.T) (pubPEM []byte, priv ed25519.PrivateKey) {
 	require.NoError(t, err)
 	return pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), priv
 }
+
+// later is an expiry comfortably in the future.
+var later = time.Now().Add(time.Hour)
 
 func keyring(t *testing.T, files map[string][]byte) (*Keyring, error) {
 	t.Helper()
@@ -41,7 +45,7 @@ func TestSignAndVerify(t *testing.T) {
 	require.Equal(t, []string{"2026-a", "2026-b"}, k.KeyIDs())
 
 	data := []byte("print('hi')\n")
-	sig, err := Sign(priv, "2026-a", data)
+	sig, err := Sign(priv, "2026-a", later, data)
 	require.NoError(t, err)
 
 	parsed, err := ParseSignature(sig.Bytes())
@@ -64,7 +68,7 @@ func TestSignAndVerify(t *testing.T) {
 	})
 	t.Run("untrusted key", func(t *testing.T) {
 		_, untrusted := newKey(t)
-		s, err := Sign(untrusted, "someone-else", data)
+		s, err := Sign(untrusted, "someone-else", later, data)
 		require.NoError(t, err)
 		_, err = k.Verify(data, s.Bytes())
 		require.EqualError(t, err, `key "someone-else" is not trusted`)
@@ -76,7 +80,13 @@ func TestSignAndVerify(t *testing.T) {
 		require.EqualError(t, err, `unsupported signature algorithm "rot13"`)
 	})
 	t.Run("malformed", func(t *testing.T) {
-		for _, bad := range []string{"", "ed25519", "ed25519 key= sig=AAAA", "ed25519 key=a sig=!!!", "ed25519 sig=AAAA key=a"} {
+		for _, bad := range []string{"", "ed25519", "ed25519 key= expires=2026-01-01T00:00:00Z sig=AAAA",
+			"ed25519 key=a expires=2026-01-01T00:00:00Z sig=!!!",
+			"ed25519 key=a expires=tomorrow sig=AAAA",
+			"ed25519 key=a sig=AAAA expires=2026-01-01T00:00:00Z",
+			// The old format, without an expiry, is no longer accepted.
+			"ed25519 key=a sig=AAAA",
+		} {
 			_, err := k.Verify(data, []byte(bad))
 			require.Error(t, err, bad)
 			require.Contains(t, err.Error(), "malformed signature file", bad)
@@ -91,7 +101,7 @@ func TestCheckFile(t *testing.T) {
 
 	fsys := afero.NewMemMapFs()
 	data := []byte("x = 1\n")
-	sig, err := Sign(priv, "k", data)
+	sig, err := Sign(priv, "k", later, data)
 	require.NoError(t, err)
 	require.NoError(t, afero.WriteFile(fsys, "main.star.sig", sig.Bytes(), 0o644))
 
@@ -129,38 +139,126 @@ func TestVerifyWrongKeyType(t *testing.T) {
 	require.NoError(t, err)
 
 	_, priv := newKey(t)
-	sig, err := Sign(priv, "ec", []byte("data"))
+	sig, err := Sign(priv, "ec", later, []byte("data"))
 	require.NoError(t, err)
 	_, err = k.Verify([]byte("data"), sig.Bytes())
 	require.EqualError(t, err, `key "ec": key is *ecdsa.PublicKey, not ed25519`)
 
-	_, err = Sign(ec, "ec", []byte("data"))
+	_, err = Sign(ec, "ec", later, []byte("data"))
 	require.EqualError(t, err, "signing with *ecdsa.PublicKey keys is not supported")
 }
 
 func TestSignRejectsBadKeyID(t *testing.T) {
 	_, priv := newKey(t)
 	for _, id := range []string{"", "has space", "tab\there"} {
-		_, err := Sign(priv, id, []byte("x"))
+		_, err := Sign(priv, id, later, []byte("x"))
 		require.Error(t, err, id)
 	}
 }
 
 // Keys and signatures made with openssl (see the package doc) work as-is: the
-// public key file is used unchanged and the raw signature only needs wrapping.
+// public key file is used unchanged, openssl signs Message (written out in
+// testdata/openssl-data.txt.message) and the raw signature only needs
+// wrapping.
+//
+//	openssl pkeyutl -sign -rawin -inkey key.pem -in openssl-data.txt.message -out openssl-data.txt.raw-sig
 func TestOpenSSLInterop(t *testing.T) {
 	pubPEM, err := os.ReadFile("testdata/openssl.pub.pem")
 	require.NoError(t, err)
 	data, err := os.ReadFile("testdata/openssl-data.txt")
 	require.NoError(t, err)
+	message, err := os.ReadFile("testdata/openssl-data.txt.message")
+	require.NoError(t, err)
 	raw, err := os.ReadFile("testdata/openssl-data.txt.raw-sig")
 	require.NoError(t, err)
 
+	expires := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	require.Equal(t, string(message), string(Message("ed25519", "openssl", expires, data)))
+
 	k, err := keyring(t, map[string][]byte{"openssl.pub.pem": pubPEM})
 	require.NoError(t, err)
-	sig := Signature{Algorithm: "ed25519", KeyID: "openssl", Value: raw}
+	sig := Signature{Algorithm: "ed25519", KeyID: "openssl", Expires: expires, Value: raw}
 	_, err = k.Verify(data, sig.Bytes())
 	require.NoError(t, err)
+}
+
+func TestExpiry(t *testing.T) {
+	pubPEM, priv := newKey(t)
+	k, err := keyring(t, map[string][]byte{"k.pub.pem": pubPEM})
+	require.NoError(t, err)
+	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	k.now = func() time.Time { return now }
+	data := []byte("x = 1\n")
+
+	sign := func(expires time.Time) Signature {
+		t.Helper()
+		sig, err := Sign(priv, "k", expires, data)
+		require.NoError(t, err)
+		return sig
+	}
+
+	t.Run("valid until expiry", func(t *testing.T) {
+		_, err := k.Verify(data, sign(now.Add(time.Second)).Bytes())
+		require.NoError(t, err)
+	})
+	t.Run("expired", func(t *testing.T) {
+		_, err := k.Verify(data, sign(now).Bytes())
+		require.EqualError(t, err, `key "k": signature expired at 2026-10-15T12:00:00Z (now 2026-10-15T12:00:00Z)`)
+		_, err = k.Verify(data, sign(now.Add(-24*time.Hour)).Bytes())
+		require.EqualError(t, err, `key "k": signature expired at 2026-10-14T12:00:00Z (now 2026-10-15T12:00:00Z)`)
+	})
+	t.Run("expiry is signed", func(t *testing.T) {
+		extended := sign(now.Add(-time.Hour))
+		extended.Expires = now.Add(time.Hour)
+		_, err := k.Verify(data, extended.Bytes())
+		require.EqualError(t, err, `key "k": signature does not match`)
+	})
+	t.Run("max expiry", func(t *testing.T) {
+		k.SetMaxExpiry(30 * 24 * time.Hour)
+		defer k.SetMaxExpiry(0)
+
+		_, err := k.Verify(data, sign(now.Add(30*24*time.Hour)).Bytes())
+		require.NoError(t, err)
+		_, err = k.Verify(data, sign(now.Add(30*24*time.Hour+time.Second)).Bytes())
+		require.EqualError(t, err, `key "k": signature expires at 2026-11-14T12:00:01Z, more than 30d from now (2026-10-15T12:00:00Z)`)
+	})
+	t.Run("expiry is required", func(t *testing.T) {
+		_, err := Sign(priv, "k", time.Time{}, data)
+		require.EqualError(t, err, "signatures must have an expiry")
+	})
+}
+
+func TestParseExpiry(t *testing.T) {
+	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	for in, want := range map[string]time.Time{
+		"30d":                  now.Add(30 * 24 * time.Hour),
+		"36h":                  now.Add(36 * time.Hour),
+		"2026-11-14":           time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC),
+		"2026-11-14T08:00:00Z": time.Date(2026, 11, 14, 8, 0, 0, 0, time.UTC),
+	} {
+		got, err := ParseExpiry(in, now)
+		require.NoError(t, err, in)
+		require.True(t, want.Equal(got), "%s: got %s, want %s", in, got, want)
+	}
+	for _, bad := range []string{"", "0d", "-1d", "soon", "30 days", "14/11/2026"} {
+		_, err := ParseExpiry(bad, now)
+		require.Error(t, err, bad)
+	}
+}
+
+func TestParseDuration(t *testing.T) {
+	d, err := ParseDuration("30d")
+	require.NoError(t, err)
+	require.Equal(t, 30*24*time.Hour, d)
+	d, err = ParseDuration("90m")
+	require.NoError(t, err)
+	require.Equal(t, 90*time.Minute, d)
+	for _, bad := range []string{"", "d", "0h", "-3d", "1.5d", "week"} {
+		_, err := ParseDuration(bad)
+		require.Error(t, err, bad)
+	}
+	require.Equal(t, "30d", formatDuration(30*24*time.Hour))
+	require.Equal(t, "36h0m0s", formatDuration(36*time.Hour))
 }
 
 func TestKeyIDFromPath(t *testing.T) {

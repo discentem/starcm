@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/signing"
@@ -57,7 +58,7 @@ func (a *verifyAction) Run(ctx context.Context, workingDirectory string, moduleN
 		return failed(err), nil
 	}
 
-	msg := fmt.Sprintf("%s verified with key %q", path, sig.KeyID)
+	msg := fmt.Sprintf("%s verified with key %q, signature expires %s", path, sig.KeyID, sig.Expires.Format(time.RFC3339))
 	return &base.Result{
 		Label:   moduleName,
 		Success: true,
