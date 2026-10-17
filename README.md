@@ -13,79 +13,67 @@ Starcm is intended to become a viable alternative for tools like [macadmins/inst
 
 1. Download starcm from https://github.com/discentem/starcm/releases and install it somewhere in your path, such as `/usr/local/bin/starcm`.
 
-> If you want to compile yourself, install [https://github.com/bazelbuild/bazelisk](Bazelisk) and run `make install`.
+> If you want to compile yourself, install [Bazelisk](https://github.com/bazelbuild/bazelisk) and run `make install`.
 
-# What can Starcm do?
+# Quick start
 
-Starcm is very flexible and can accomplish lots of different tasks. Here are a just a few examples of what it can do.
-
-#### Downloading a binary and verifying it's hash
+A configuration is a `.star` file that calls starcm's functions. This one
+makes sure a file has the right content, and shows it only when it changed:
 
 ```scrut
-$ starcm examples/download/a_file.star
-starcm_result(changed = True, error = "<nil>", label = "Downloading Ghostty 1.2.3", message = "downloaded file to Ghostty-1.2.3.dmg", success = True, value = None)
+$ cp -R "$TESTDIR/docs/fixtures/quickstart/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```python
-# examples/download/a_file.star
-load("starcm", "download")
+```scrut
+$ cat motd.star
+load("starcm", "exec", "file")
 
-print(download(
-    label = "Downloading Ghostty 1.2.3",
-    url = "https://release.files.ghostty.org/1.2.3/Ghostty.dmg",
-    save_to = "Ghostty-1.2.3.dmg",
-    sha256 = "f35ee91f116e28027ab9f8def45098c7575b44b407ff883a2dcd2985c483206b",
-    live_progress = False
-))
+motd = file(
+    label   = "message of the day",
+    path    = "motd.txt",
+    content = "Managed by starcm. Changes will be overwritten.\n",
+)
+print("motd: changed=%s" % motd.changed)
+
+exec(
+    label   = "show motd",
+    cmd     = "cat",
+    args    = ["motd.txt"],
+    only_if = motd.changed,
+    live_output = True,
+)
 ```
 
-
-#### Only running signed configuration
-
-`starcm sign` writes a `<file>.sig` next to each file. Run with
-`--trusted-keys DIR` (a directory of `*.pem` public keys; a key's id is its
-file name before the first dot) and starcm refuses any `.star` file, including
-ones pulled in by `load()` and `load_dynamic()`, without a valid signature
-from one of those keys. `verify()` checks any other file the same way.
-
-Every signature expires. `--expires` sets when, and the expiry is part of what's
-signed, so an old release stops being accepted on its own instead of being
-replayable forever. `--max-expiry 30d` also refuses signatures that expire more
-than 30 days out, so a run only trusts recently signed files; with it, re-sign
-on a schedule even when nothing changed.
-
-```bash
-openssl genpkey -algorithm ed25519 -out 2026-a.pem                # private key: keep it secret
-openssl pkey -in 2026-a.pem -pubout -out trusted/2026-a.pub.pem   # public key: ship it
-starcm sign --expires 30d --key 2026-a.pem main.star lib/winpe.star agent.msi
-starcm --trusted-keys trusted --max-expiry 30d --var base=https://config.example.com main.star
+```scrut
+$ starcm motd.star
+motd: changed=True
+Managed by starcm. Changes will be overwritten.
 ```
 
-```python
-load("starcm", "download", "vars", "verify")
+Run it again and nothing changes:
 
-download(label = "fetch agent", url = vars["base"] + "/agent.msi", save_to = "agent.msi", sha256 = AGENT_SHA256)
-check = verify("agent.msi", label = "check agent signature")   # reads agent.msi.sig
-if not check.success:
-    fail(check.error)
+```scrut
+$ starcm motd.star
+motd: changed=False
+INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[show motd\]: skipping shell\(label="show motd"\) because only_if was false (regex)
 ```
 
-`--var name=value` (repeatable) passes values into a run as the `vars` dict.
+# Documentation
 
-#### Checking configuration before it runs
+**[docs/](docs/README.md)** lists every function starcm provides, each with
+its arguments, return value and tested examples:
 
-`starcm inspect FILE...` prints what each file loads and calls, as JSON,
-without running it. Calls are resolved through `load()` aliases, and
-`load_dynamic` calls include their literal `path` (or `null` when it's built at
-runtime), so a script can enforce rules such as "this file may only use
-`download`" before signing or deploying:
-
-```bash
-starcm inspect bootstrap.star | jq -r '.[].calls[].function' | sort -u
-```
-
-The same checks can run in Starlark: `inspect(path)` returns that report as a
-value, and `list_files(dir, pattern)`, `sha256(path)`, `json`,
-`read_file(path)` and `sign(path, key = ..., expires = ...)` cover the rest of a signing
-script. `sign()` is disabled when starcm runs with `--trusted-keys`, so a
-deployed run can never sign anything.
+- Manage the machine with [download](docs/functions/download.md),
+  [exec](docs/functions/exec.md), [file](docs/functions/file.md) and
+  [template](docs/functions/template.md).
+- Read information with [date](docs/functions/date.md),
+  [read_file](docs/functions/read_file.md),
+  [list_files](docs/functions/list_files.md),
+  [sha256](docs/functions/sha256.md) and
+  [inspect](docs/functions/inspect.md).
+- Run only signed configuration with [sign](docs/functions/sign.md),
+  [verify](docs/functions/verify.md) and
+  [--trusted-keys](docs/cli.md#--trusted-keys-dir).
+- Pass values in with [--var](docs/functions/vars.md), and split
+  configuration across files with [load()](docs/loading.md) and
+  [load_dynamic](docs/functions/load_dynamic.md).
