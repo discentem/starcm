@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/discentem/starcm/functions/base"
+	localstore "github.com/discentem/starcm/libraries/local_store"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
 )
 
@@ -193,4 +198,88 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func serving(body string) *http.Client {
+	return &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewBufferString(body)),
+		}, nil
+	})}
+}
+
+func kwargs(pairs ...string) []starlark.Tuple {
+	var out []starlark.Tuple
+	for i := 0; i < len(pairs); i += 2 {
+		out = append(out, starlark.Tuple{starlark.String(pairs[i]), starlark.String(pairs[i+1])})
+	}
+	return out
+}
+
+func TestSaveToRenamesIntoPlace(t *testing.T) {
+	fsys := afero.NewMemMapFs()
+	a := &downloadAction{httpClient: serving("hello world"), fsys: fsys}
+
+	hash := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+	r, err := a.Run(context.Background(), "", "get", nil, nil,
+		kwargs("url", "http://example.com/hello.txt", "save_to", "out/hello.txt", "sha256", hash))
+	require.NoError(t, err)
+	require.True(t, r.Changed)
+
+	fi, err := fsys.Stat("out/hello.txt")
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o644), fi.Mode().Perm())
+
+	entries, err := afero.ReadDir(fsys, "out")
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "no temporary file may be left behind")
+
+	_, err = a.Run(context.Background(), "", "bad", nil, nil,
+		kwargs("url", "http://example.com/hello.txt", "save_to", "out/other.txt", "sha256", strings.Repeat("0", 64)))
+	require.ErrorContains(t, err, "expected sha256 hash")
+	entries, err = afero.ReadDir(fsys, "out")
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "a failed download must leave nothing behind")
+}
+
+func TestStoreOnlyRefusesSaveTo(t *testing.T) {
+	a := &downloadAction{httpClient: serving("hello world"), fsys: afero.NewMemMapFs(), storeOnly: true}
+	_, err := a.Run(context.Background(), "", "get", nil, nil,
+		kwargs("url", "http://example.com/hello.txt", "save_to", "hello.txt", "sha256", strings.Repeat("0", 64)))
+	require.ErrorContains(t, err, "save_to is disabled by --store-only")
+}
+
+func TestWithoutSaveToUsesStore(t *testing.T) {
+	perms, err := localstore.NewPermissions()
+	require.NoError(t, err)
+	a := &downloadAction{
+		httpClient: serving("hello world"),
+		fsys:       afero.NewMemMapFs(),
+		store:      localstore.Lazy(filepath.Join(t.TempDir(), "store"), perms),
+	}
+	hash := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+
+	r, err := a.Run(context.Background(), "", "get", nil, nil,
+		kwargs("url", "http://example.com/dl/hello.txt?x=1", "sha256", hash))
+	require.NoError(t, err)
+	require.True(t, r.Changed)
+	path := string(r.Return.(starlark.String))
+	require.True(t, strings.HasSuffix(path, filepath.Join("sha256", hash, "hello.txt")), path)
+
+	r, err = a.Run(context.Background(), "", "again", nil, nil,
+		kwargs("url", "http://example.com/dl/hello.txt", "sha256", hash))
+	require.NoError(t, err)
+	require.False(t, r.Changed)
+
+	_, err = a.Run(context.Background(), "", "unnamed", nil, nil,
+		kwargs("url", "http://example.com/", "sha256", hash))
+	require.ErrorContains(t, err, "pass file_name")
+}
+
+func TestWithoutSaveToOrStore(t *testing.T) {
+	a := &downloadAction{httpClient: serving("hello world"), fsys: afero.NewMemMapFs()}
+	_, err := a.Run(context.Background(), "", "get", nil, nil,
+		kwargs("url", "http://example.com/hello.txt", "sha256", strings.Repeat("0", 64)))
+	require.ErrorContains(t, err, "no store is configured")
 }

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	localstore "github.com/discentem/starcm/libraries/local_store"
 	"github.com/discentem/starcm/libraries/logging"
 	"github.com/discentem/starcm/libraries/signing"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
@@ -91,6 +92,17 @@ type Loader struct {
 
 	// Vars are the --var values, exposed to Starlark as the "vars" dict.
 	Vars map[string]string
+
+	// Store opens the local store that download() saves into when save_to
+	// is omitted. Nil means there's no store and save_to is required.
+	Store func() (*localstore.Store, error)
+
+	// StoreOnly makes download() refuse save_to.
+	StoreOnly bool
+
+	// StoreCheck verifies exec()'s cmd and args that name files in the
+	// local store. Nil means no check.
+	StoreCheck func(path string) error
 }
 
 // CheckSignature verifies data, the content of the module at path, when the
@@ -237,6 +249,24 @@ func WithVars(vars map[string]string) LoaderOption {
 	}
 }
 
+func WithStore(open func() (*localstore.Store, error)) LoaderOption {
+	return func(l *Loader) {
+		l.Store = open
+	}
+}
+
+func WithStoreOnly(storeOnly bool) LoaderOption {
+	return func(l *Loader) {
+		l.StoreOnly = storeOnly
+	}
+}
+
+func WithStoreCheck(check func(path string) error) LoaderOption {
+	return func(l *Loader) {
+		l.StoreCheck = check
+	}
+}
+
 func WithFsys(fsys afero.Fs) LoaderOption {
 	return func(l *Loader) {
 		l.Fsys = fsys
@@ -280,6 +310,8 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							*http.DefaultClient,
 							fsys,
 							os.Stdout,
+							starcmdownload.WithStore(l.Store),
+							starcmdownload.StoreOnly(l.StoreOnly),
 						).Function(),
 					),
 					"write": starlark.NewBuiltin(
@@ -291,6 +323,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						starcmshell.New(
 							ctx,
 							ex,
+							starcmshell.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
 					"file": starlark.NewBuiltin(
@@ -347,7 +380,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 			}
 		}),
 	)
-	// Applied last so Predeclared above sees the final Keyring and Vars.
+	// Applied last so Predeclared above sees the final Keyring, Vars and Store.
 	for _, opt := range opts {
 		opt(&l)
 	}

@@ -19,6 +19,7 @@ go_library(
         "//functions/template",
         "//functions/verify",
         "//functions/write",
+        "//libraries/local_store",
         "//libraries/logging",
         "//libraries/shell",
         "//libraries/signing",

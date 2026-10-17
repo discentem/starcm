@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "local_store",
+    srcs = [
+        "defaultdir_unix.go",
+        "defaultdir_windows.go",
+        "permissions_unix.go",
+        "permissions_windows.go",
+        "store.go",
+    ],
+    importpath = "github.com/discentem/starcm/libraries/local_store",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/sha256",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "local_store_test",
+    srcs = [
+        "permissions_unix_test.go",
+        "store_test.go",
+    ],
+    embed = [":local_store"],
+    deps = [
+        "//libraries/sha256",
+        "@com_github_stretchr_testify//require",
+    ],
+)

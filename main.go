@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	loader "github.com/discentem/starcm/libraries/loader"
+	localstore "github.com/discentem/starcm/libraries/local_store"
 	"github.com/discentem/starcm/libraries/shell"
 	"github.com/discentem/starcm/libraries/signing"
 	"github.com/spf13/afero"
@@ -42,6 +43,14 @@ func main() {
 			&cli.StringFlag{
 				Name:  "trusted-keys",
 				Usage: "directory of *.pem public keys; when set, every .star file must have a valid <file>.sig signed by one of them, and verify() is enabled",
+			},
+			&cli.StringFlag{
+				Name:  "store-dir",
+				Usage: "directory download() saves into when save_to is omitted, as <dir>/sha256/<hash>/<name> (default: a system directory as root/admin, else the user cache directory)",
+			},
+			&cli.BoolFlag{
+				Name:  "store-only",
+				Usage: "refuse download(save_to = ...), so every download goes into the store",
 			},
 			&cli.StringSliceFlag{
 				Name:  "var",
@@ -83,7 +92,25 @@ func main() {
 				}
 				vars[name] = value
 			}
-			opts := []loader.LoaderOption{loader.WithVars(vars)}
+			storeDir := c.String("store-dir")
+			if storeDir == "" {
+				if storeDir, err = localstore.DefaultDir(); err != nil {
+					return cli.Exit(err.Error(), 1)
+				}
+			}
+			perms, err := localstore.NewPermissions()
+			if err != nil {
+				return cli.Exit(err.Error(), 1)
+			}
+			// Opened on first use, so runs that never use the store never
+			// create it.
+			openStore := localstore.Lazy(storeDir, perms)
+			opts := []loader.LoaderOption{
+				loader.WithVars(vars),
+				loader.WithStore(openStore),
+				loader.WithStoreOnly(c.Bool("store-only")),
+				loader.WithStoreCheck(localstore.CheckIfStored(storeDir, openStore)),
+			}
 			if dir := c.String("trusted-keys"); dir != "" {
 				keyring, err := signing.LoadKeyring(fsys, dir)
 				if err != nil {
