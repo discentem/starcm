@@ -78,4 +78,4 @@ jobs:
             curl -fs -o /dev/null http://127.0.0.1:8000/README.md && break
             sleep 1
           done
-          scrut test --work-directory . README.md tests/
+          scrut test --work-directory . README.md docs/ tests/
