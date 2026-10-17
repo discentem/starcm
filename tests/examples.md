@@ -4,9 +4,6 @@ Runs every file under `examples/` so they can't silently fall behind the API.
 The directory is copied into scrut's per-document `$TMPDIR`; each example runs
 from its own directory (via a subshell) unless noted.
 
-`examples/download/a_file.star` downloads from the internet and is exercised
-by README.md instead.
-
 ```scrut
 $ cp -R "$TESTDIR/../examples" "$TMPDIR" && cd "$TMPDIR/examples"
 ```
@@ -26,6 +23,15 @@ Traceback (most recent call last):
   invalid_timezone.star:5:5: in <toplevel>
 Error in date: invalid timezone "Not/AZone": unknown time zone Not/AZone
 [1]
+```
+
+## download
+
+Downloads Ghostty from the internet into the scratch directory.
+
+```scrut
+$ (cd download && starcm a_file.star)
+starcm_result(changed = True, error = "<nil>", label = "Downloading Ghostty 1.2.3", message = "downloaded file to Ghostty-1.2.3.dmg", success = True, value = None)
 ```
 
 ## download/load_remote
