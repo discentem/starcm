@@ -90,7 +90,7 @@ hello, workspace
 
 ```scrut
 $ (cd lib && starcm ../workspace.star 2>&1 | tail -1)
-Error: cannot load //lib/users.star: loading module ".*lib[/\\]lib[/\\]users\.star": open .*lib[/\\]lib[/\\]users\.star: (no such file or directory|The system cannot find the (file|path) specified\.) (regex)
+Error: cannot load //lib/users.star: loading module ".*lib[/\\]+lib[/\\]+users\.star": open .*lib[/\\]lib[/\\]users\.star: (no such file or directory|The system cannot find the (file|path) specified\.) (regex)
 ```
 
 ## See also
