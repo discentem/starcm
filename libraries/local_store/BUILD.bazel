@@ -25,11 +25,17 @@ go_test(
     name = "local_store_test",
     srcs = [
         "permissions_unix_test.go",
+        "permissions_windows_test.go",
         "store_test.go",
     ],
     embed = [":local_store"],
     deps = [
         "//libraries/sha256",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
