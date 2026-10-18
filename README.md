@@ -63,7 +63,8 @@ INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[show motd\]: skipping shell\(label="
 **[docs/](docs/README.md)** lists every function starcm provides, each with
 its arguments, return value and tested examples:
 
-- Manage the machine with [download](docs/functions/download.md),
+- Manage the machine with [download](docs/functions/download.md) (to a
+  path or into a local, hash-checked store),
   [exec](docs/functions/exec.md), [file](docs/functions/file.md) and
   [template](docs/functions/template.md).
 - Read information with [date](docs/functions/date.md),

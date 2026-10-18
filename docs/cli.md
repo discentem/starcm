@@ -3,7 +3,7 @@
 [← Documentation index](README.md)
 
 ```bash
-starcm [--var name=value]... [--trusted-keys DIR [--max-expiry DURATION]] [-v N] [--timestamps] FILE
+starcm [--var name=value]... [--trusted-keys DIR [--max-expiry DURATION]] [--store-dir DIR] [--store-only] [-v N] [--timestamps] FILE
 starcm sign --key KEY --expires WHEN [--key-id ID] FILE...
 starcm inspect FILE...
 ```
@@ -21,6 +21,8 @@ code, don't change the exit code unless the configuration calls `fail()`.
 | [--var name=value](#--var-namevalue) | none | Pass a value to the run as `vars["name"]`. Repeatable. |
 | [--trusted-keys DIR](#--trusted-keys-dir) | none | Require every `.star` file to be signed by a key in `DIR`, and enable `verify()`. |
 | [--max-expiry DURATION](#--max-expiry-duration) | none | With `--trusted-keys`, also refuse signatures that expire more than `DURATION` (e.g. `30d`, `36h`) from now. |
+| [--store-dir DIR](#--store-dir-dir-and---store-only) | see below | Where `download()` keeps files when `save_to` is omitted. |
+| [--store-only](#--store-dir-dir-and---store-only) | `false` | Refuse `download(save_to = ...)`, so every download goes into the store. |
 | `-v N` | `1` | Log verbosity. Higher values log more of starcm's internals; `3` or more traces every function call. |
 | `--timestamps` | `false` | Log times in UTC. Log lines always have a timestamp; without this flag it's in local time. |
 | `--help`, `-h` | | Show help. Running `starcm` with no file does the same. |
@@ -107,6 +109,31 @@ signature check failed for hello.star: key "release": signature expires at *, mo
 $ starcm --max-expiry 30d hello.star 2>&1
 --max-expiry needs --trusted-keys
 [1]
+```
+
+### `--store-dir DIR` and `--store-only`
+
+Without `save_to`, [download()](functions/download.md#the-local-store) saves
+files into a local store at `DIR/sha256/<sha256>/<name>`, and
+[exec()](functions/exec.md#files-from-the-local-store) re-checks stored files
+before running them. Without `--store-dir`, the store is:
+
+| Running as | macOS | Linux | Windows |
+| --- | --- | --- | --- |
+| root / elevated | `/Library/Application Support/starcm/store` | `/var/lib/starcm/store` | `%ProgramData%\starcm\store` |
+| anyone else | `~/Library/Caches/starcm/store` | `$XDG_CACHE_HOME/starcm/store` (`~/.cache/...`) | `%LocalAppData%\starcm\store` |
+
+starcm refuses a store, or any directory above it, that anyone other than the
+current user, root or administrators could change. `--store-only` makes
+`download(save_to = ...)` an error, so every download goes through the store.
+[download](functions/download.md) has examples of both.
+
+The store is only created when a run uses it:
+
+```scrut
+$ starcm --store-dir "$TMPDIR/unused-store" hello.star && test ! -e "$TMPDIR/unused-store" && echo "no store was created"
+hello, world
+no store was created
 ```
 
 ### Verbosity and logs

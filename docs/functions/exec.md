@@ -36,6 +36,14 @@ exec(
 `working_directory` and `what_if` have no effect: the command runs in the
 directory starcm runs in, every time.
 
+### Files from the local store
+
+When `cmd` or any of `args` is a path inside the
+[local store](download.md#the-local-store), `exec` hashes that file again
+right before the command starts and stops the run if it no longer matches the
+hash it was stored under. So a file [download](download.md) checked can't be
+swapped between the download and the command that uses it.
+
 ## Returns
 
 A [starcm_result](../common-functionality.md#starcm_result):
@@ -176,7 +184,69 @@ $ starcm chain.star
 installing not-a-real-tool
 ```
 
+### Run a file from the local store
+
+The examples use a store in the scratch directory. On Windows, starcm refuses
+a store anywhere under the CI runners' `D:\` drive (where scrut's scratch
+directory lives), because the drive is owned by another account, so there the
+store goes under `%LocalAppData%`:
+
+```scrut
+$ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-docs.XXXXXX") && store="$store_root/store" ;; esac
+```
+
+```scrut
+$ cat stored.star
+load("starcm", "download", "exec")
+
+agent = download(
+    label  = "fetch agent",
+    url    = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
+)
+
+# agent.value is a path in the store, so exec() re-hashes it before running.
+exec(label = "install agent", cmd = "cat", args = [agent.value], live_output = True)
+```
+
+```scrut
+$ starcm --store-dir "$store" stored.star
+agent v1.2.0
+```
+
+If the stored file changes after `download` checked it, `exec` refuses to run:
+
+```scrut
+$ cat stored_changed.star
+load("starcm", "download", "exec")
+
+agent = download(
+    label  = "fetch agent",
+    url    = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
+)
+
+# Something changes the stored file after download() checked it...
+exec(label = "tamper", cmd = "sh", args = ["-c", "chmod u+w \"$1\" && echo malware >> \"$1\"", "sh", agent.value])
+
+# ...so exec() refuses to run with it.
+exec(label = "install agent", cmd = "cat", args = [agent.value], live_output = True)
+```
+
+```scrut
+$ starcm --store-dir "$store" stored_changed.star 2>&1
+Traceback (most recent call last):
+  stored_changed.star:13:5: in <toplevel>
+Error in exec: exec(label="install agent"): *agent-1.2.0.txt in the store has sha256 *; it was changed after it was stored (glob)
+[1]
+```
+
+```scrut
+$ rm -rf "$store" ${store_root:+"$store_root"}
+```
+
 ## See also
 
+- [download](download.md#the-local-store) for the local store.
 - [Common functionality](../common-functionality.md) for `only_if`, `not_if` and `timeout`.
 - [tests/exec.md](../../tests/exec.md) for argument errors.
