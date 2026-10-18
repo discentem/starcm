@@ -9,35 +9,34 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 
 	"github.com/discentem/starcm/functions/base"
+	shelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
 
-// Runner runs a command and returns its combined stdout and stderr. err is
-// non-nil when the command couldn't start or exited non-zero.
-type Runner func(ctx context.Context, name string, args ...string) ([]byte, error)
-
-func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).CombinedOutput()
-}
-
 type pkgAction struct {
-	run  Runner
-	goos string
+	executor shelllib.Executor
+	goos     string
 	// checkStored verifies path if it names a file in the local store.
 	// Nil means no store.
 	checkStored func(path string) error
 }
 
 var _ base.Runnable = (*pkgAction)(nil)
+
+// run runs a command with the executor and returns its combined stdout and
+// stderr. err is non-nil when the command couldn't start or exited non-zero.
+func (a *pkgAction) run(name string, args ...string) ([]byte, error) {
+	a.executor.Command(name, args...)
+	return a.executor.CombinedOutput()
+}
 
 type parsedArgs struct {
 	path             string
@@ -102,7 +101,7 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 	}
 
 	if p.id != "" {
-		installed, err := a.installedVersion(ctx, p.id, p.target)
+		installed, err := a.installedVersion(p.id, p.target)
 		if err != nil {
 			return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
 		}
@@ -130,7 +129,7 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
 	}
 
-	sig, err := a.checkSignature(ctx, pkgPath)
+	sig, err := a.checkSignature(pkgPath)
 	if err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s: %w", label, p.path, err)
 	}
@@ -144,7 +143,7 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 		return &base.Result{Label: label, Success: true, Changed: true, Message: &msg, Return: value}, nil
 	}
 
-	out, err := a.run(ctx, "/usr/sbin/installer", "-pkg", pkgPath, "-target", p.target)
+	out, err := a.run("/usr/sbin/installer", "-pkg", pkgPath, "-target", p.target)
 	if err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): installer failed: %w\n%s", label, err, strings.TrimSpace(string(out)))
 	}
@@ -156,8 +155,8 @@ var versionLine = regexp.MustCompile(`(?m)^version: (.+)$`)
 
 // installedVersion is the version of package id installed on target, or ""
 // when it isn't installed.
-func (a *pkgAction) installedVersion(ctx context.Context, id, target string) (string, error) {
-	out, err := a.run(ctx, "/usr/sbin/pkgutil", "--pkg-info", id, "--volume", target)
+func (a *pkgAction) installedVersion(id, target string) (string, error) {
+	out, err := a.run("/usr/sbin/pkgutil", "--pkg-info", id, "--volume", target)
 	if err != nil {
 		if strings.Contains(string(out), "No receipt for") {
 			return "", nil
@@ -171,9 +170,9 @@ func (a *pkgAction) installedVersion(ctx context.Context, id, target string) (st
 	return strings.TrimSpace(string(m[1])), nil
 }
 
-func (a *pkgAction) checkSignature(ctx context.Context, path string) (*Signature, error) {
+func (a *pkgAction) checkSignature(path string) (*Signature, error) {
 	// pkgutil exits non-zero for unsigned packages; the output says why.
-	out, runErr := a.run(ctx, "/usr/sbin/pkgutil", "--check-signature", path)
+	out, runErr := a.run("/usr/sbin/pkgutil", "--check-signature", path)
 	sig, err := ParseCheckSignature(string(out))
 	if err != nil {
 		if runErr != nil {
@@ -323,22 +322,18 @@ func WithStoreCheck(check func(path string) error) Option {
 	return func(a *pkgAction) { a.checkStored = check }
 }
 
-// WithRunner replaces how commands are run, for tests.
-func WithRunner(run Runner) Option {
-	return func(a *pkgAction) { a.run = run }
-}
-
 // WithGOOS replaces the operating system install_mac_pkg() thinks it runs on,
 // for tests.
 func WithGOOS(goos string) Option {
 	return func(a *pkgAction) { a.goos = goos }
 }
 
-// New returns the install_mac_pkg() builtin.
+// New returns the install_mac_pkg() builtin, which runs pkgutil and
+// installer with executor.
 //
 //	install_mac_pkg("agent.pkg", signer_sha256 = "1E 77 DE ...", label = "install agent")
-func New(ctx context.Context, opts ...Option) *base.Module {
-	a := &pkgAction{run: runCommand, goos: runtime.GOOS}
+func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.Module {
+	a := &pkgAction{executor: executor, goos: runtime.GOOS}
 	for _, opt := range opts {
 		opt(a)
 	}

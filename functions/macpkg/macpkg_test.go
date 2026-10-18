@@ -3,11 +3,13 @@ package macpkg
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	shelllib "github.com/discentem/starcm/libraries/shell"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
@@ -84,10 +86,11 @@ func TestNormalizeFingerprint(t *testing.T) {
 	}
 }
 
-// fakeMac records commands and answers pkgutil and installer the way macOS
-// does for the outputs it's given.
+// fakeMac is a shelllib.Executor that records commands and answers pkgutil
+// and installer the way macOS does for the outputs it's given.
 type fakeMac struct {
 	calls        [][]string
+	pending      []string
 	checkOutput  string
 	checkErr     error
 	pkgInfo      string // "" means not installed
@@ -96,7 +99,17 @@ type fakeMac struct {
 	seen string
 }
 
-func (f *fakeMac) run(_ context.Context, name string, args ...string) ([]byte, error) {
+var _ shelllib.Executor = (*fakeMac)(nil)
+
+func (f *fakeMac) Command(name string, args ...string) {
+	f.pending = append([]string{name}, args...)
+}
+
+func (f *fakeMac) Stream(...io.WriteCloser) error { return errors.New("not used") }
+func (f *fakeMac) ExitCode() (int, error)         { return 0, errors.New("not used") }
+
+func (f *fakeMac) CombinedOutput() ([]byte, error) {
+	name, args := f.pending[0], f.pending[1:]
 	f.calls = append(f.calls, append([]string{filepath.Base(name)}, args...))
 	switch {
 	case filepath.Base(name) == "pkgutil" && args[0] == "--check-signature":
@@ -156,7 +169,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("installs a correctly signed package", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		pkg := writePkg(t, "pkg bytes")
 		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer_sha256", strings.ToUpper(tailscaleSHA256)))
 		require.NoError(t, err)
@@ -182,7 +195,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("refuses a package signed by someone else", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", strings.Repeat("00", 32)))
 		assert.ErrorContains(t, err, "not the expected 0000")
 		assert.Equal(t, []string{"pkgutil --check-signature"}, f.commands(), "installer never runs")
@@ -190,7 +203,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("refuses an unsigned package", func(t *testing.T) {
 		f := &fakeMac{checkOutput: readTestdata(t, "unsigned.txt"), checkErr: errors.New("exit status 1")}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256))
 		assert.ErrorContains(t, err, "signature is not trusted: no signature")
 		assert.Equal(t, []string{"pkgutil --check-signature"}, f.commands())
@@ -198,7 +211,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("what_if checks but doesn't install", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256, "what_if", true))
 		require.NoError(t, err)
 		assert.True(t, r.Changed)
@@ -208,7 +221,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("skips an installed version", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed, pkgInfo: "package-id: com.example.agent\nversion: 1.2.0\nvolume: /\n"}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256, "id", "com.example.agent", "version", "1.2.0"))
 		require.NoError(t, err)
 		assert.False(t, r.Changed)
@@ -218,7 +231,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("installs when another version is installed", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed, pkgInfo: "package-id: com.example.agent\nversion: 1.1.0\n"}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256, "id", "com.example.agent", "version", "1.2.0", "target", "/Volumes/Other"))
 		require.NoError(t, err)
 		assert.True(t, r.Changed)
@@ -229,21 +242,21 @@ func TestRun(t *testing.T) {
 
 	t.Run("installer failure stops the run", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed, installerErr: errors.New("exit status 1")}
-		a := &pkgAction{run: f.run, goos: "darwin"}
+		a := &pkgAction{executor: f, goos: "darwin"}
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256))
 		assert.ErrorContains(t, err, "installer failed: exit status 1")
 	})
 
 	t.Run("re-checks files from the local store", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
-		a := &pkgAction{run: f.run, goos: "darwin", checkStored: func(string) error { return errors.New("changed after it was stored") }}
+		a := &pkgAction{executor: f, goos: "darwin", checkStored: func(string) error { return errors.New("changed after it was stored") }}
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256))
 		assert.ErrorContains(t, err, "changed after it was stored")
 		assert.Empty(t, f.calls)
 	})
 
 	t.Run("argument errors come before the platform check", func(t *testing.T) {
-		a := &pkgAction{run: (&fakeMac{}).run, goos: "linux"}
+		a := &pkgAction{executor: &fakeMac{}, goos: "linux"}
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer_sha256", "W5364U7YZB"))
 		assert.ErrorContains(t, err, "signer_sha256")
 		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer_sha256", tailscaleSHA256, "id", "com.example.agent"))
