@@ -35,6 +35,7 @@ All of these functions can be enhanced by:
 | [exec](functions/exec.md) | Run a command, capture its output and check its exit code. |
 | [file](functions/file.md) | Create a file with given content, or delete it. |
 | [template](functions/template.md) | Render a Jinja2-style template to a file. |
+| [install_mac_pkg](functions/install_mac_pkg.md) | Install a macOS `.pkg` only if it's signed by the certificate you pin. |
 
 ### Reading information
 

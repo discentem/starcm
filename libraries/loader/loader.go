@@ -29,6 +29,7 @@ import (
 	starcmFile "github.com/discentem/starcm/functions/file"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
+	starcmmacpkg "github.com/discentem/starcm/functions/macpkg"
 	starcmreadfile "github.com/discentem/starcm/functions/readfile"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmsign "github.com/discentem/starcm/functions/sign"
@@ -353,6 +354,13 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"read_file": starlark.NewBuiltin(
 						"read_file",
 						starcmreadfile.New(ctx, fsys).Function(),
+					),
+					"install_mac_pkg": starlark.NewBuiltin(
+						"install_mac_pkg",
+						starcmmacpkg.New(
+							ctx,
+							starcmmacpkg.WithStoreCheck(l.StoreCheck),
+						).Function(),
 					),
 					"sha256": starlark.NewBuiltin(
 						"sha256",

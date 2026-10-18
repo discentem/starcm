@@ -16,7 +16,7 @@ load("starcm", run = "exec")                 # load under another name
 
 | Module | Names |
 | --- | --- |
-| `starcm` | [download](functions/download.md), [exec](functions/exec.md), [file](functions/file.md), [template](functions/template.md), [write](functions/write.md), [date](functions/date.md), [load_dynamic](functions/load_dynamic.md), [read_file](functions/read_file.md), [list_files](functions/list_files.md), [sha256](functions/sha256.md), [inspect](functions/inspect.md), [sign](functions/sign.md), [verify](functions/verify.md), [json](functions/json.md), [vars](functions/vars.md) |
+| `starcm` | [download](functions/download.md), [exec](functions/exec.md), [file](functions/file.md), [template](functions/template.md), [install_mac_pkg](functions/install_mac_pkg.md), [write](functions/write.md), [date](functions/date.md), [load_dynamic](functions/load_dynamic.md), [read_file](functions/read_file.md), [list_files](functions/list_files.md), [sha256](functions/sha256.md), [inspect](functions/inspect.md), [sign](functions/sign.md), [verify](functions/verify.md), [json](functions/json.md), [vars](functions/vars.md) |
 | `stdlib` | [struct](functions/struct.md) |
 | any path ending in `.star` | the file's top-level names |
 
