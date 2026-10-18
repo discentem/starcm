@@ -4,6 +4,7 @@
 package localstore
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -165,6 +166,46 @@ func (s *Store) Put(hash, name string, r io.Reader) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+// PutSignature writes sig as the signature file of the stored file with
+// this hash and name, <name>.sig next to it, so checks that look for a
+// file's signature beside it (--trusted-keys loading a stored .star file)
+// find it. A different signature already there is replaced, as happens
+// after re-signing; changed is false when it was already there.
+func (s *Store) PutSignature(hash, name string, sig []byte) (path string, changed bool, err error) {
+	stored, err := s.Path(hash, name)
+	if err != nil {
+		return "", false, err
+	}
+	path = stored + ".sig"
+	if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, sig) {
+		return path, false, nil
+	}
+	dir := filepath.Dir(path)
+	if err := s.perms.Check(dir); err != nil {
+		return "", false, fmt.Errorf("%s is not safe to use: %w", dir, err)
+	}
+	tmp, err := os.CreateTemp(dir, "."+name+".sig.tmp-")
+	if err != nil {
+		return "", false, err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // no-op once renamed
+	if _, err := tmp.Write(sig); err != nil {
+		tmp.Close()
+		return "", false, err
+	}
+	if err := tmp.Close(); err != nil {
+		return "", false, err
+	}
+	if err := s.perms.LockFile(tmpName); err != nil {
+		return "", false, err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return "", false, err
+	}
+	return path, true, nil
 }
 
 func hashFile(path string) (string, error) {

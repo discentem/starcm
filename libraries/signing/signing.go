@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,18 +70,24 @@ type Signature struct {
 	KeyID     string
 	// Expires is when the signature stops being valid, in UTC to the second.
 	Expires time.Time
-	Value   []byte
+	// SHA256 is the signed file's sha256, lowercase hex. It's part of what's
+	// signed, so a verified signature is also a trusted sha256 pin.
+	SHA256 string
+	Value  []byte
 }
 
-const signatureFormat = `"<algorithm> key=<id> expires=<RFC 3339 time> sig=<base64>"`
+const signatureFormat = `"<algorithm> key=<id> expires=<RFC 3339 time> sha256=<hex> sig=<base64>"`
+
+var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ParseSignature parses a signature file.
 func ParseSignature(b []byte) (Signature, error) {
 	fields := strings.Fields(string(b))
-	if len(fields) != 4 ||
+	if len(fields) != 5 ||
 		!strings.HasPrefix(fields[1], "key=") ||
 		!strings.HasPrefix(fields[2], "expires=") ||
-		!strings.HasPrefix(fields[3], "sig=") {
+		!strings.HasPrefix(fields[3], "sha256=") ||
+		!strings.HasPrefix(fields[4], "sig=") {
 		return Signature{}, errors.New("malformed signature file, want " + signatureFormat)
 	}
 	keyID := strings.TrimPrefix(fields[1], "key=")
@@ -91,17 +98,21 @@ func ParseSignature(b []byte) (Signature, error) {
 	if err != nil {
 		return Signature{}, fmt.Errorf("malformed signature file: expires: %w", err)
 	}
-	value, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(fields[3], "sig="))
+	sum := strings.TrimPrefix(fields[3], "sha256=")
+	if !sha256Hex.MatchString(sum) {
+		return Signature{}, fmt.Errorf("malformed signature file: sha256 %q is not 64 lowercase hex characters", sum)
+	}
+	value, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(fields[4], "sig="))
 	if err != nil {
 		return Signature{}, fmt.Errorf("malformed signature file: %w", err)
 	}
-	return Signature{Algorithm: fields[0], KeyID: keyID, Expires: expires.UTC(), Value: value}, nil
+	return Signature{Algorithm: fields[0], KeyID: keyID, Expires: expires.UTC(), SHA256: sum, Value: value}, nil
 }
 
 // Bytes formats s as a signature file.
 func (s Signature) Bytes() []byte {
-	return []byte(fmt.Sprintf("%s key=%s expires=%s sig=%s\n",
-		s.Algorithm, s.KeyID, formatTime(s.Expires), base64.StdEncoding.EncodeToString(s.Value)))
+	return []byte(fmt.Sprintf("%s key=%s expires=%s sha256=%s sig=%s\n",
+		s.Algorithm, s.KeyID, formatTime(s.Expires), s.SHA256, base64.StdEncoding.EncodeToString(s.Value)))
 }
 
 // Message is what a signature by keyID with this algorithm and expiry signs
@@ -109,6 +120,11 @@ func (s Signature) Bytes() []byte {
 // large files cheap.
 func Message(algorithm, keyID string, expires time.Time, data []byte) []byte {
 	sum, _ := starcmsha256.FromReader(bytes.NewReader(data)) // reading memory can't fail
+	return digestMessage(algorithm, keyID, expires, sum)
+}
+
+// digestMessage is Message for a file whose sha256 is sum.
+func digestMessage(algorithm, keyID string, expires time.Time, sum string) []byte {
 	return []byte(fmt.Sprintf("starcm-signature\nalgorithm=%s\nkey=%s\nexpires=%s\nsha256=%s\n",
 		algorithm, keyID, formatTime(expires), sum))
 }
@@ -207,8 +223,9 @@ func Sign(key crypto.Signer, keyID string, expires time.Time, data []byte) (Sign
 	expires = expires.UTC().Truncate(time.Second)
 	switch k := key.(type) {
 	case ed25519.PrivateKey:
-		msg := Message("ed25519", keyID, expires, data)
-		return Signature{Algorithm: "ed25519", KeyID: keyID, Expires: expires, Value: ed25519.Sign(k, msg)}, nil
+		sum, _ := starcmsha256.FromReader(bytes.NewReader(data)) // reading memory can't fail
+		msg := digestMessage("ed25519", keyID, expires, sum)
+		return Signature{Algorithm: "ed25519", KeyID: keyID, Expires: expires, SHA256: sum, Value: ed25519.Sign(k, msg)}, nil
 	default:
 		return Signature{}, fmt.Errorf("signing with %s keys is not supported", keyType(key.Public()))
 	}
@@ -317,27 +334,50 @@ func (k *Keyring) Verify(data, sigFile []byte) (Signature, error) {
 	if err != nil {
 		return Signature{}, err
 	}
+	sum, _ := starcmsha256.FromReader(bytes.NewReader(data)) // reading memory can't fail
+	return sig, k.verify(sig, sum)
+}
+
+// VerifyDigest checks sigFile against the sha256 it records, without the
+// file, and returns the parsed signature. Its SHA256 is then a sha256 a
+// trusted key vouches for, to pin a download to before fetching it.
+func (k *Keyring) VerifyDigest(sigFile []byte) (Signature, error) {
+	sig, err := ParseSignature(sigFile)
+	if err != nil {
+		return Signature{}, err
+	}
+	return sig, k.verify(sig, sig.SHA256)
+}
+
+// verify checks that sig is a valid, unexpired signature by a trusted key
+// over a file whose sha256 is sum.
+func (k *Keyring) verify(sig Signature, sum string) error {
 	v, ok := Verifiers[sig.Algorithm]
 	if !ok {
-		return sig, fmt.Errorf("unsupported signature algorithm %q", sig.Algorithm)
+		return fmt.Errorf("unsupported signature algorithm %q", sig.Algorithm)
 	}
 	pub, ok := k.keys[sig.KeyID]
 	if !ok {
-		return sig, fmt.Errorf("key %q is not trusted", sig.KeyID)
+		return fmt.Errorf("key %q is not trusted", sig.KeyID)
 	}
-	if err := v.Verify(pub, Message(sig.Algorithm, sig.KeyID, sig.Expires, data), sig.Value); err != nil {
-		return sig, fmt.Errorf("key %q: %w", sig.KeyID, err)
+	if err := v.Verify(pub, digestMessage(sig.Algorithm, sig.KeyID, sig.Expires, sum), sig.Value); err != nil {
+		return fmt.Errorf("key %q: %w", sig.KeyID, err)
+	}
+	// The signature covers sum, not the sha256 written in the file, so a
+	// mismatch here means only that field was edited.
+	if sig.SHA256 != sum {
+		return fmt.Errorf("key %q: signature file records sha256 %s, but the signature is for %s", sig.KeyID, sig.SHA256, sum)
 	}
 	// Checked after the signature, so the expiry is known to be the signer's.
 	now := k.now().UTC().Truncate(time.Second)
 	if !now.Before(sig.Expires) {
-		return sig, fmt.Errorf("key %q: signature expired at %s (now %s)", sig.KeyID, formatTime(sig.Expires), formatTime(now))
+		return fmt.Errorf("key %q: signature expired at %s (now %s)", sig.KeyID, formatTime(sig.Expires), formatTime(now))
 	}
 	if k.maxExpiry > 0 && sig.Expires.After(now.Add(k.maxExpiry)) {
-		return sig, fmt.Errorf("key %q: signature expires at %s, more than %s from now (%s)",
+		return fmt.Errorf("key %q: signature expires at %s, more than %s from now (%s)",
 			sig.KeyID, formatTime(sig.Expires), formatDuration(k.maxExpiry), formatTime(now))
 	}
-	return sig, nil
+	return nil
 }
 
 // CheckFile verifies data, the content of the file at path, against the

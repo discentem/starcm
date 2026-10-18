@@ -135,3 +135,33 @@ func TestCheckIfStored(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("tampered\n"), 0o644))
 	require.ErrorContains(t, check(path), "was changed after it was stored")
 }
+
+func TestPutSignature(t *testing.T) {
+	s := openStore(t)
+	stored, err := s.Put(contentHash, "main.star", strings.NewReader(content))
+	require.NoError(t, err)
+
+	path, changed, err := s.PutSignature(contentHash, "main.star", []byte("sig one\n"))
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, stored+".sig", path)
+
+	// The same signature again changes nothing.
+	_, changed, err = s.PutSignature(contentHash, "main.star", []byte("sig one\n"))
+	require.NoError(t, err)
+	require.False(t, changed)
+
+	// A new signature (after re-signing) replaces the old one, even though
+	// stored files are read-only.
+	_, changed, err = s.PutSignature(contentHash, "main.star", []byte("sig two\n"))
+	require.NoError(t, err)
+	require.True(t, changed)
+	b, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "sig two\n", string(b))
+
+	// The stored file itself is untouched.
+	_, ok, err := s.Get(contentHash, "main.star")
+	require.NoError(t, err)
+	require.True(t, ok)
+}

@@ -1,17 +1,21 @@
 package signing
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -177,7 +181,9 @@ func TestOpenSSLInterop(t *testing.T) {
 
 	k, err := keyring(t, map[string][]byte{"openssl.pub.pem": pubPEM})
 	require.NoError(t, err)
-	sig := Signature{Algorithm: "ed25519", KeyID: "openssl", Expires: expires, Value: raw}
+	sum, err := starcmsha256.FromReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	sig := Signature{Algorithm: "ed25519", KeyID: "openssl", Expires: expires, SHA256: sum, Value: raw}
 	_, err = k.Verify(data, sig.Bytes())
 	require.NoError(t, err)
 }
@@ -265,4 +271,45 @@ func TestKeyIDFromPath(t *testing.T) {
 	require.Equal(t, "2026-a", KeyIDFromPath("/keys/2026-a.pub.pem"))
 	require.Equal(t, "2026-a", KeyIDFromPath("2026-a.pem"))
 	require.Equal(t, "plain", KeyIDFromPath("plain"))
+}
+
+func TestVerifyDigest(t *testing.T) {
+	pubPEM, priv := newKey(t)
+	k, err := keyring(t, map[string][]byte{"k.pub.pem": pubPEM})
+	require.NoError(t, err)
+	data := []byte("agent payload\n")
+	sig, err := Sign(priv, "k", time.Now().Add(time.Hour), data)
+	require.NoError(t, err)
+	want, err := starcmsha256.FromReader(bytes.NewReader(data))
+	require.NoError(t, err)
+	assert.Equal(t, want, sig.SHA256)
+	assert.Contains(t, string(sig.Bytes()), " sha256="+want+" ")
+
+	// Without the file, the signature vouches for the sha256 it records.
+	got, err := k.VerifyDigest(sig.Bytes())
+	require.NoError(t, err)
+	assert.Equal(t, want, got.SHA256)
+
+	// Editing the recorded sha256 breaks the signature...
+	edited := sig
+	edited.SHA256 = strings.Repeat("0", 64)
+	_, err = k.VerifyDigest(edited.Bytes())
+	assert.EqualError(t, err, `key "k": signature does not match`)
+	// ...and Verify, which hashes the file itself, says which field is off.
+	_, err = k.Verify(data, edited.Bytes())
+	assert.EqualError(t, err, `key "k": signature file records sha256 `+strings.Repeat("0", 64)+`, but the signature is for `+want)
+
+	// Untrusted keys are refused either way.
+	otherPub, _ := newKey(t)
+	other, err := keyring(t, map[string][]byte{"other.pub.pem": otherPub})
+	require.NoError(t, err)
+	_, err = other.VerifyDigest(sig.Bytes())
+	assert.EqualError(t, err, `key "k" is not trusted`)
+}
+
+func TestParseSignatureRequiresSHA256(t *testing.T) {
+	_, err := ParseSignature([]byte("ed25519 key=k expires=2099-01-01T00:00:00Z sig=AAAA\n"))
+	assert.EqualError(t, err, "malformed signature file, want "+signatureFormat)
+	_, err = ParseSignature([]byte("ed25519 key=k expires=2099-01-01T00:00:00Z sha256=ABC sig=AAAA\n"))
+	assert.ErrorContains(t, err, "is not 64 lowercase hex characters")
 }

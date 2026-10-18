@@ -79,7 +79,7 @@ func (a *s3DownloadAction) Run(ctx context.Context, workingDirectory string, mod
 		return nil, fmt.Errorf("fsys must be provided to s3_download module")
 	}
 	required := map[string]*string{}
-	for _, k := range []string{"bucket", "key", "sha256"} {
+	for _, k := range []string{"bucket", "key"} {
 		v, err := starlarkhelpers.FindValueinKwargs(kwargs, k)
 		if err != nil {
 			return nil, err
@@ -89,7 +89,7 @@ func (a *s3DownloadAction) Run(ctx context.Context, workingDirectory string, mod
 		}
 		required[k] = v
 	}
-	bucket, key, expectedHash := *required["bucket"], *required["key"], *required["sha256"]
+	bucket, key := *required["bucket"], *required["key"]
 
 	var opts s3Options
 	for k, dst := range map[string]*string{"endpoint": &opts.endpoint, "region": &opts.region} {
@@ -110,6 +110,15 @@ func (a *s3DownloadAction) Run(ctx context.Context, workingDirectory string, mod
 		return nil, err
 	}
 
+	// signature is the key of the signature file, in the same bucket.
+	expectedHash, sig, err := a.pin(ctx, moduleName, kwargs, func(ctx context.Context, sigKey string) (io.ReadCloser, error) {
+		body, _, err := getS3(ctx, bucket, sigKey, opts)
+		return body, err
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	name := fmt.Sprintf("s3://%s/%s", bucket, key)
 	get := func(ctx context.Context) (io.ReadCloser, error) {
 		body, size, err := getS3(ctx, bucket, key, opts)
@@ -118,7 +127,7 @@ func (a *s3DownloadAction) Run(ctx context.Context, workingDirectory string, mod
 		}
 		return a.withProgress(body, size, name, liveProgress), nil
 	}
-	return a.save(ctx, moduleName, kwargs, savePath, path.Base(key), expectedHash, get, liveProgress)
+	return a.save(ctx, moduleName, kwargs, savePath, path.Base(key), expectedHash, sig, get, liveProgress)
 }
 
 // NewS3 returns the s3_download() builtin. It takes the same options as New,
@@ -141,7 +150,8 @@ func NewS3(ctx context.Context, fsys afero.Fs, writer io.Writer, opts ...Option)
 		[]base.ArgPair{
 			base.Arg[string]("bucket"),
 			base.Arg[string]("key"),
-			base.Arg[string]("sha256"),
+			base.OptionalArg[string]("sha256"),
+			base.OptionalArg[string]("signature"),
 			base.OptionalArg[string]("save_to"),
 			base.OptionalArg[string]("file_name"),
 			base.OptionalArgAllowNone[bool]("live_progress"),

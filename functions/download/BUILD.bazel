@@ -12,6 +12,7 @@ go_library(
         "//functions/base",
         "//libraries/local_store",
         "//libraries/sha256",
+        "//libraries/signing",
         "//starlark-helpers",
         "@com_github_aws_aws_sdk_go_v2//aws",
         "@com_github_aws_aws_sdk_go_v2_config//:config",
@@ -26,11 +27,13 @@ go_test(
     srcs = [
         "download_test.go",
         "s3_test.go",
+        "signature_test.go",
     ],
     embed = [":download"],
     deps = [
         "//functions/base",
         "//libraries/local_store",
+        "//libraries/signing",
         "@com_github_spf13_afero//:afero",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
