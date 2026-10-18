@@ -277,7 +277,7 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 		[]base.ArgPair{
 			base.Arg[string]("template"),
 			base.Arg[*starlark.Dict]("data"),
-			base.Arg[string]("destination?"),
+			base.OptionalArg[string]("destination"),
 		},
 		&templateAction{
 			fsys: fsys,

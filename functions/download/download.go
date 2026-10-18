@@ -293,10 +293,10 @@ func New(ctx context.Context, httpClient http.Client, fsys afero.Fs, writer io.W
 		"download",
 		[]base.ArgPair{
 			base.Arg[string]("url"),
-			base.Arg[string]("save_to?"),
-			base.Arg[string]("file_name?"),
+			base.OptionalArg[string]("save_to"),
+			base.OptionalArg[string]("file_name"),
 			base.Arg[string]("sha256"),
-			base.Arg[bool](string(starlarkhelpers.OptionalKeyword("live_progress"))),
+			base.OptionalArgAllowNone[bool]("live_progress"),
 		},
 		a,
 	)

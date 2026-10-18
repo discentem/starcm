@@ -78,7 +78,7 @@ func New(ctx context.Context, fsys afero.Fs, keyring *signing.Keyring) *base.Mod
 		"verify",
 		[]base.ArgPair{
 			base.Arg[string]("path"),
-			base.Arg[string]("signature?"),
+			base.OptionalArg[string]("signature"),
 		},
 		&verifyAction{fsys: fsys, keyring: keyring},
 	)

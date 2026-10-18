@@ -29,7 +29,7 @@ func (a *recordingAction) Run(ctx context.Context, workingDirectory string, labe
 func exec(t *testing.T, src string) (*recordingAction, error) {
 	t.Helper()
 	action := &recordingAction{}
-	m := NewModule(context.Background(), "test_type", []ArgPair{Arg[string]("name?")}, action)
+	m := NewModule(context.Background(), "test_type", []ArgPair{OptionalArg[string]("name")}, action)
 	predeclared := starlark.StringDict{
 		"fn": starlark.NewBuiltin("fn", m.Function()),
 	}
@@ -78,8 +78,31 @@ func TestFunction_UnpackErrorWithoutLabelUsesBuiltinName(t *testing.T) {
 
 // Each call unpacks function-specific arguments into its own target.
 func TestArg_FreshTargetPerCall(t *testing.T) {
-	a := Arg[string]("name?")
+	a := OptionalArg[string]("name")
 	first, second := a.newTarget(), a.newTarget()
 	require.IsType(t, new(string), first)
 	require.NotSame(t, first, second)
+}
+
+func TestArgKinds(t *testing.T) {
+	require.Equal(t, "name", Arg[string]("name").Key)
+	require.Equal(t, "name?", OptionalArg[string]("name").Key)
+	require.Equal(t, "name??", OptionalArgAllowNone[string]("name").Key)
+	require.Panics(t, func() { Arg[string]("name?") })
+	require.Panics(t, func() { Arg[string]("name??") })
+}
+
+// OptionalArg rejects an explicit None; OptionalArgAllowNone treats it as
+// left out.
+func TestOptionalArgNone(t *testing.T) {
+	unpack := func(a ArgPair) error {
+		return starlark.UnpackArgs("fn", nil, []starlark.Tuple{{starlark.String("name"), starlark.None}}, a.Key, a.newTarget())
+	}
+	require.ErrorContains(t, unpack(OptionalArg[string]("name")), `for parameter "name": got NoneType, want string`)
+	require.NoError(t, unpack(OptionalArgAllowNone[string]("name")))
+
+	// Leaving either out is fine.
+	for _, a := range []ArgPair{OptionalArg[string]("name"), OptionalArgAllowNone[string]("name")} {
+		require.NoError(t, starlark.UnpackArgs("fn", nil, nil, a.Key, a.newTarget()))
+	}
 }

@@ -357,11 +357,11 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 		[]base.ArgPair{
 			base.Arg[string]("path"),
 			base.Arg[string]("signer"),
-			base.Arg[string]("sha256?"),
-			base.Arg[bool]("require_notarized??"),
-			base.Arg[string]("target?"),
-			base.Arg[string]("id?"),
-			base.Arg[string]("version?"),
+			base.OptionalArg[string]("sha256"),
+			base.OptionalArgAllowNone[bool]("require_notarized"),
+			base.OptionalArg[string]("target"),
+			base.OptionalArg[string]("id"),
+			base.OptionalArg[string]("version"),
 		},
 		a,
 	)

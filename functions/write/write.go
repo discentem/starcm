@@ -67,11 +67,11 @@ func New(ctx context.Context, w io.Writer) *base.Module {
 		ctx,
 		"write",
 		[]base.ArgPair{
-			// str is declared first so write("x") binds "x" to str. "??" only
-			// means "optional, None counts as unset"; it is not keyword-only,
-			// so if end came first a positional value would bind to end.
-			base.Arg[starlark.Value]("str?"),
-			base.Arg[string]("end??"),
+			// str is declared first so write("x") binds "x" to str. Optional
+			// arguments aren't keyword-only, so if end came first a positional
+			// value would bind to end.
+			base.OptionalArg[starlark.Value]("str"),
+			base.OptionalArgAllowNone[string]("end"),
 		},
 		&writeAction{
 			w: w,
