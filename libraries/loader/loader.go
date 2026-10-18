@@ -359,6 +359,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"install_mac_pkg",
 						starcmmacpkg.New(
 							ctx,
+							ex,
 							starcmmacpkg.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
