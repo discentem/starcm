@@ -31,7 +31,8 @@ All of these functions can be enhanced by:
 
 | Function | Description |
 | --- | --- |
-| [download](functions/download.md) | Download a file, to a path or into a local store, and check its sha256. Does nothing if it's already there. |
+| [download](functions/download.md) | Download a file over HTTP(S), to a path or into a local store, and check its sha256. Does nothing if it's already there. |
+| [s3_download](functions/s3_download.md) | The same, for an object in S3 or an S3-compatible store, with AWS credentials. |
 | [exec](functions/exec.md) | Run a command, capture its output and check its exit code. |
 | [file](functions/file.md) | Create a file with given content, or delete it. |
 | [template](functions/template.md) | Render a Jinja2-style template to a file. |

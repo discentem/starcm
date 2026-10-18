@@ -33,8 +33,8 @@ import (
 	starcmreadfile "github.com/discentem/starcm/functions/readfile"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmsign "github.com/discentem/starcm/functions/sign"
-	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmtempdir "github.com/discentem/starcm/functions/tempdir"
+	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmverify "github.com/discentem/starcm/functions/verify"
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	starcmshelllib "github.com/discentem/starcm/libraries/shell"
@@ -316,6 +316,16 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							starcmdownload.StoreOnly(l.StoreOnly),
 						).Function(),
 					),
+					"s3_download": starlark.NewBuiltin(
+						"s3_download",
+						starcmdownload.NewS3(
+							ctx,
+							fsys,
+							os.Stdout,
+							starcmdownload.WithStore(l.Store),
+							starcmdownload.StoreOnly(l.StoreOnly),
+						).Function(),
+					),
 					"write": starlark.NewBuiltin(
 						"write",
 						starcmwrite.New(ctx, os.Stdout).Function(),
@@ -378,8 +388,8 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						starcmsign.New(ctx, fsys, l.Keyring != nil).Function(),
 					),
 					"temp_dir": starcmtempdir.New(),
-					"json": starlarkjson.Module,
-					"vars": vars,
+					"json":     starlarkjson.Module,
+					"vars":     vars,
 				}, nil
 			case "stdlib":
 				return starlark.StringDict{

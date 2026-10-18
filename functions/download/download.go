@@ -31,6 +31,8 @@ type downloadAction struct {
 	store func() (*localstore.Store, error)
 	// storeOnly refuses save_to, so every download goes into the store.
 	storeOnly bool
+	// fn is the Starlark function name used in error messages.
+	fn string
 }
 
 // Ensure downloadAction implements base.Runnable
@@ -74,23 +76,44 @@ func (a *downloadAction) Run(
 		return nil, fmt.Errorf("failed to find live_progress in kwargs: %w", err)
 	}
 
+	get := func(ctx context.Context) (io.ReadCloser, error) {
+		body, size, err := a.httpGet(ctx, *url)
+		if err != nil {
+			return nil, err
+		}
+		return a.withProgress(body, size, *url, liveProgress), nil
+	}
+	urlName := ""
+	if u, err := neturl.Parse(*url); err == nil {
+		urlName = path.Base(u.Path)
+	}
+	return a.save(ctx, moduleName, kwargs, savePath, urlName, *expectedHash, get, liveProgress)
+}
+
+// save finishes a download: to savePath when it's given, otherwise into the
+// local store under file_name or defaultName.
+func (a *downloadAction) save(ctx context.Context, moduleName string, kwargs []starlark.Tuple, savePath *string, defaultName, expectedHash string, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
 	if savePath == nil {
 		fileName, err := optionalString(kwargs, "file_name")
 		if err != nil {
 			return nil, err
 		}
-		return a.toStore(ctx, moduleName, *url, *expectedHash, fileName, liveProgress)
+		name := defaultName
+		if fileName != nil {
+			name = *fileName
+		}
+		return a.toStore(ctx, moduleName, name, expectedHash, get, liveProgress)
 	}
 	if a.storeOnly {
-		return nil, fmt.Errorf("download(label=%q): save_to is disabled by --store-only; omit it to download into the store", moduleName)
+		return nil, fmt.Errorf("%s(label=%q): save_to is disabled by --store-only; omit it to download into the store", a.fn, moduleName)
 	}
-	return a.toPath(ctx, moduleName, *url, *savePath, *expectedHash, liveProgress)
+	return a.toPath(ctx, moduleName, *savePath, expectedHash, get, liveProgress)
 }
 
 // toPath downloads url to savePath. The data goes to a temporary file next to
 // savePath and is renamed into place once its sha256 matches, so savePath
 // never holds unverified data.
-func (a *downloadAction) toPath(ctx context.Context, moduleName, url, savePath, expectedHash string, liveProgress bool) (*base.Result, error) {
+func (a *downloadAction) toPath(ctx context.Context, moduleName, savePath, expectedHash string, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
 	if _, err := a.fsys.Stat(savePath); err == nil {
 		existingHash, err := starcmsha256.File(a.fsys, savePath)
 		if err != nil {
@@ -104,7 +127,7 @@ func (a *downloadAction) toPath(ctx context.Context, moduleName, url, savePath, 
 		return nil, fmt.Errorf("failed to stat %q: %w", savePath, err)
 	}
 
-	body, err := a.get(ctx, url, liveProgress)
+	body, err := get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -145,19 +168,13 @@ func (a *downloadAction) toPath(ctx context.Context, moduleName, url, savePath, 
 	return changed(moduleName, fmt.Sprintf("downloaded file to %s", savePath), starlark.None), nil
 }
 
-// toStore downloads url into the local store and returns its path there.
-func (a *downloadAction) toStore(ctx context.Context, moduleName, rawURL, expectedHash string, fileName *string, liveProgress bool) (*base.Result, error) {
+// toStore downloads into the local store as name and returns its path there.
+func (a *downloadAction) toStore(ctx context.Context, moduleName, name, expectedHash string, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
 	if a.store == nil {
-		return nil, fmt.Errorf("download(label=%q): save_to must be provided; no store is configured", moduleName)
-	}
-	name := ""
-	if fileName != nil {
-		name = *fileName
-	} else if u, err := neturl.Parse(rawURL); err == nil {
-		name = path.Base(u.Path)
+		return nil, fmt.Errorf("%s(label=%q): save_to must be provided; no store is configured", a.fn, moduleName)
 	}
 	if name == "" || name == "." || name == "/" {
-		return nil, fmt.Errorf("download(label=%q): can't name the file from url %q; pass file_name", moduleName, rawURL)
+		return nil, fmt.Errorf("%s(label=%q): can't name the stored file; pass file_name", a.fn, moduleName)
 	}
 
 	store, err := a.store()
@@ -172,7 +189,7 @@ func (a *downloadAction) toStore(ctx context.Context, moduleName, rawURL, expect
 		return unchanged(moduleName, fmt.Sprintf("%q already in the store and sha256 verified", stored), starlark.String(stored)), nil
 	}
 
-	body, err := a.get(ctx, rawURL, liveProgress)
+	body, err := get(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -185,28 +202,34 @@ func (a *downloadAction) toStore(ctx context.Context, moduleName, rawURL, expect
 	return changed(moduleName, fmt.Sprintf("downloaded file to %s", stored), starlark.String(stored)), nil
 }
 
-// get starts downloading url. Reading the body prints progress when
-// liveProgress is set.
-func (a *downloadAction) get(ctx context.Context, url string, liveProgress bool) (io.ReadCloser, error) {
+// httpGet starts an HTTP GET of url, returning the body and its size (-1
+// when unknown).
+func (a *downloadAction) httpGet(ctx context.Context, url string) (io.ReadCloser, int64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		return nil, fmt.Errorf("failed to download file %q: %s", url, resp.Status)
+		return nil, 0, fmt.Errorf("failed to download file %q: %s", url, resp.Status)
 	}
+	return resp.Body, resp.ContentLength, nil
+}
+
+// withProgress makes reading body print progress for name when
+// liveProgress is set.
+func (a *downloadAction) withProgress(body io.ReadCloser, size int64, name string, liveProgress bool) io.ReadCloser {
 	if !liveProgress {
-		return resp.Body, nil
+		return body
 	}
 	pw := &progressWriter{
-		total: resp.ContentLength,
+		total: size,
 		out:   a.output,
-		name:  url,
+		name:  name,
 	}
 	if pw.out == nil {
 		pw.out = io.Discard
@@ -214,7 +237,7 @@ func (a *downloadAction) get(ctx context.Context, url string, liveProgress bool)
 	return struct {
 		io.Reader
 		io.Closer
-	}{io.TeeReader(resp.Body, pw), resp.Body}, nil
+	}{io.TeeReader(body, pw), body}
 }
 
 func (a *downloadAction) endProgress(liveProgress bool) {
@@ -257,7 +280,11 @@ func (pw *progressWriter) Write(p []byte) (int, error) {
 
 	now := time.Now()
 	if now.Sub(pw.lastPrint) > 500*time.Millisecond || pw.written == pw.total {
-		_, _ = fmt.Fprintf(pw.out, "\rDownloading %s... %d%%", pw.name, (pw.written*100)/pw.total)
+		if pw.total > 0 {
+			_, _ = fmt.Fprintf(pw.out, "\rDownloading %s... %d%%", pw.name, (pw.written*100)/pw.total)
+		} else {
+			_, _ = fmt.Fprintf(pw.out, "\rDownloading %s... %d bytes", pw.name, pw.written)
+		}
 		pw.lastPrint = now
 	}
 
@@ -284,6 +311,7 @@ func New(ctx context.Context, httpClient http.Client, fsys afero.Fs, writer io.W
 		httpClient: &httpClient,
 		fsys:       fsys,
 		output:     writer,
+		fn:         "download",
 	}
 	for _, opt := range opts {
 		opt(a)
