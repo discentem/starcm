@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/discentem/starcm/functions/base"
+	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	shelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
@@ -41,6 +42,7 @@ func (a *pkgAction) run(name string, args ...string) ([]byte, error) {
 type parsedArgs struct {
 	path             string
 	signer           string
+	sha256           string // "" when not pinned
 	requireNotarized bool
 	target           string
 	id, version      string
@@ -64,6 +66,13 @@ func (a *pkgAction) parseArgs(label string, args starlark.Tuple, kwargs []starla
 	}
 	if p.signer = strings.TrimSpace(*signer); p.signer == "" {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): signer must name the certificate, e.g. \"Developer ID Installer: Example Corp (ABCDE12345)\"", label)
+	}
+	sum, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "sha256", "")
+	if err != nil {
+		return nil, err
+	}
+	if p.sha256 = strings.ToLower(*sum); p.sha256 != "" && !sha256Hex.MatchString(p.sha256) {
+		return nil, fmt.Errorf("install_mac_pkg(label=%q): sha256 %q is not 64 hex characters", label, *sum)
 	}
 	if p.requireNotarized, err = starlarkhelpers.FindBoolInKwargs(kwargs, "require_notarized", true); err != nil {
 		return nil, err
@@ -125,8 +134,12 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 	}
 	defer os.RemoveAll(dir)
 	pkgPath := filepath.Join(dir, filepath.Base(p.path))
-	if err := copyFile(p.path, pkgPath); err != nil {
+	sum, err := copyFile(p.path, pkgPath)
+	if err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
+	}
+	if p.sha256 != "" && sum != p.sha256 {
+		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s has sha256 %s, not the expected %s", label, p.path, sum, p.sha256)
 	}
 
 	sig, err := a.checkSignature(pkgPath)
@@ -183,21 +196,29 @@ func (a *pkgAction) checkSignature(path string) (*Signature, error) {
 	return sig, nil
 }
 
-func copyFile(src, dst string) error {
+var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// copyFile copies src to a new file dst and returns the sha256 of what it
+// wrote.
+func copyFile(src, dst string) (string, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer in.Close()
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if _, err := io.Copy(out, in); err != nil {
+	h := starcmsha256.New()
+	if _, err := io.Copy(io.MultiWriter(out, h), in); err != nil {
 		out.Close()
-		return err
+		return "", err
 	}
-	return out.Close()
+	if err := out.Close(); err != nil {
+		return "", err
+	}
+	return starcmsha256.Hex(h), nil
 }
 
 // Certificate is one entry of a signature's certificate chain.
@@ -336,6 +357,7 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 		[]base.ArgPair{
 			base.Arg[string]("path"),
 			base.Arg[string]("signer"),
+			base.Arg[string]("sha256?"),
 			base.Arg[bool]("require_notarized??"),
 			base.Arg[string]("target?"),
 			base.Arg[string]("id?"),

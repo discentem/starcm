@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	shelllib "github.com/discentem/starcm/libraries/shell"
@@ -17,6 +18,9 @@ import (
 // tailscaleSigner and tailscaleSHA256 are the installer certificate in
 // testdata/developer-id-notarized.txt, real `pkgutil --check-signature`
 // output for a Developer ID signed, notarized package.
+// pkgBytesSHA256 is the sha256 of "pkg bytes", the content writePkg uses.
+const pkgBytesSHA256 = "fed2df1114f653c1184c3484ef40aea482f9634f49189b7ea5be36c204b8a1ca"
+
 const (
 	tailscaleSigner = "Developer ID Installer: Tailscale Inc. (W5364U7YZB)"
 	tailscaleSHA256 = "1e77de6fe47d426984c5aa180d581f3246197f73c0c713277b844008b936e093"
@@ -253,6 +257,26 @@ func TestRun(t *testing.T) {
 		a := &pkgAction{executor: f, goos: "darwin"}
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner))
 		assert.ErrorContains(t, err, "installer failed: exit status 1")
+	})
+
+	t.Run("checks a pinned sha256 of the package", func(t *testing.T) {
+		sum := strings.Repeat("ab", 32)
+		f := &fakeMac{checkOutput: signed}
+		a := &pkgAction{executor: f, goos: "darwin"}
+		pkg := writePkg(t, "pkg bytes")
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner, "sha256", sum))
+		assert.ErrorContains(t, err, "has sha256 ")
+		assert.ErrorContains(t, err, ", not the expected "+sum)
+		assert.Empty(t, f.calls, "pkgutil and installer never run")
+
+		f = &fakeMac{checkOutput: signed}
+		a = &pkgAction{executor: f, goos: "darwin"}
+		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner, "sha256", strings.ToUpper(pkgBytesSHA256)))
+		require.NoError(t, err)
+		assert.True(t, r.Changed)
+
+		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner, "sha256", "abc"))
+		assert.ErrorContains(t, err, `sha256 "abc" is not 64 hex characters`)
 	})
 
 	t.Run("re-checks files from the local store", func(t *testing.T) {

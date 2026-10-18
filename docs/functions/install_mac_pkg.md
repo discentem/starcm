@@ -20,6 +20,7 @@ installed only when all of these hold; otherwise the run stops before
   name you gave, including the Team ID in parentheses. Naming an
   intermediate or root certificate doesn't count.
 - Apple has notarized it, unless you set `require_notarized = False`.
+- If you pin `sha256`, the file's sha256 matches it.
 
 Because the developer is named rather than one certificate, packages signed
 with the developer's renewed certificate keep working.
@@ -41,6 +42,7 @@ load("starcm", "install_mac_pkg")
 install_mac_pkg(
     "agent.pkg",                                                   # path, required
     signer            = "Developer ID Installer: Example Corp (ABCDE12345)",  # required
+    sha256            = "8974888d...",
     require_notarized = True,
     target            = "/",
     id                = "com.example.agent",
@@ -55,6 +57,7 @@ install_mac_pkg(
 | --- | --- | --- | --- |
 | `path` | string | required | The `.pkg` to install, positionally or as `path =`. |
 | `signer` | string | required | The installer certificate's name, exactly as `pkgutil --check-signature` prints it: `Developer ID Installer: <developer> (<Team ID>)`. |
+| `sha256` | string | none | The `.pkg` file's sha256 (`shasum -a 256`). When given, a package with any other content is refused before its signature is checked. That pins one exact build rather than any package the developer signed. |
 | `require_notarized` | bool | `True` | Refuse packages Apple hasn't notarized. |
 | `target` | string | `"/"` | The volume to install on (`installer -target`). |
 | `id`, `version` | string | none | Package id and version. When `pkgutil --pkg-info <id>` already reports this version on `target`, nothing is checked or installed and `changed = False`. Give both or neither. |
