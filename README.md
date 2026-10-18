@@ -27,13 +27,6 @@ after it. (The same file is in this repository at
 your system's temporary directory, so `motd.txt` goes into a
 `starcm-quickstart` folder there instead of the directory you run it from.
 
-Type the commands without the leading `$`; the lines after each one are its
-output. Skip this first command: it only sets up this README's automated test.
-
-```scrut
-$ cp -R "$TESTDIR/docs/fixtures/quickstart/." "$TMPDIR" && cd "$TMPDIR" && export TMP="$TMPDIR" TEMP="$TMPDIR"
-```
-
 `motd.star`:
 
 <!-- fixture: docs/fixtures/quickstart/motd.star -->
@@ -59,6 +52,8 @@ exec(
     live_output = True,
 )
 ```
+
+Run it:
 
 ```scrut
 $ starcm motd.star
