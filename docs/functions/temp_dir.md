@@ -75,5 +75,4 @@ kept between runs
 
 ## See also
 
-- The [quick start](../../README.md#quick-start) writes its example file with `temp_dir`.
 - [file](file.md) with `create_dirs = True` to create folders under it.

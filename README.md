@@ -17,56 +17,58 @@ Starcm is intended to become a viable alternative for tools like [macadmins/inst
 
 # Quick start
 
-A configuration is a `.star` file that calls starcm's functions. This one
-makes sure a file has the right content, and shows it only when it changed.
+starcm runs `.star` files. Here is an example of a `.star` file that installs
+a `.pkg` file on macOS: [dockutil](https://github.com/kcrawford/dockutil). It
+downloads the package, checks it against a pinned sha256, and installs it only
+if it's signed by dockutil's developer and notarized by Apple.
 
-Save the code below as `motd.star`, in any directory, and run the commands
-after it. (The same file is in this repository at
-[docs/fixtures/quickstart/motd.star](docs/fixtures/quickstart/motd.star).)
-`motd.star` calls [temp_dir()](docs/functions/temp_dir.md), which returns
-your system's temporary directory, so `motd.txt` goes into a
-`starcm-quickstart` folder there instead of the directory you run it from.
+Save the code below as `install_dockutil.star`. (The same file is in this
+repository at
+[docs/fixtures/quickstart/install_dockutil.star](docs/fixtures/quickstart/install_dockutil.star).)
+The package is kept in starcm's
+[local store](docs/functions/download.md#the-local-store), so nothing is
+left in the directory you run it from.
 
-`motd.star`:
+`install_dockutil.star`:
 
-<!-- fixture: docs/fixtures/quickstart/motd.star -->
+<!-- fixture: docs/fixtures/quickstart/install_dockutil.star -->
 ```python
-load("starcm", "exec", "file", "temp_dir")
+load("starcm", "download", "install_mac_pkg")
 
-# A starcm-quickstart folder in the system's temporary directory.
-path = temp_dir("starcm-quickstart", "motd.txt")
-
-motd = file(
-    label       = "message of the day",
-    path        = path,
-    content     = "Managed by starcm. Changes will be overwritten.\n",
-    create_dirs = True,
+# dockutil 3.1.3. download() checks the sha256 and keeps the package in
+# starcm's local store.
+pkg = download(
+    label  = "fetch dockutil",
+    url    = "https://github.com/kcrawford/dockutil/releases/download/3.1.3/dockutil-3.1.3.pkg",
+    sha256 = "f60db8273fe80d7c4824588bedb538a5387675c3917edb0010dab9f52d3f2582",
 )
-print("motd: changed=%s" % motd.changed)
 
-exec(
-    label   = "show motd",
-    cmd     = "cat",
-    args    = [path],
-    only_if = motd.changed,
-    live_output = True,
+# Install it only if dockutil's developer signed it and Apple notarized it.
+r = install_mac_pkg(
+    pkg.value,
+    signer  = "Developer ID Installer: Kyle Crawford (Z5J8CJBUWC)",
+    id      = "dockutil.cli.tool",
+    version = "3.1.3",
+    label   = "install dockutil",
 )
+if r.changed:
+    print("installed dockutil, signed by %s" % r.value.signer)
+else:
+    print(r.message)
 ```
 
-Run it:
+Installing a package needs root, so run it with `sudo`:
 
 ```scrut
-$ starcm motd.star
-motd: changed=True
-Managed by starcm. Changes will be overwritten.
+$ sudo starcm install_dockutil.star
+installed dockutil, signed by Developer ID Installer: Kyle Crawford (Z5J8CJBUWC)
 ```
 
 Run it again and nothing changes:
 
 ```scrut
-$ starcm motd.star
-motd: changed=False
-INFO: [show motd]: skipping shell(label="show motd") because only_if was false
+$ sudo starcm install_dockutil.star
+dockutil.cli.tool 3.1.3 is already installed
 ```
 
 # Documentation

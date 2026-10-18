@@ -86,9 +86,12 @@ scrut from the repository root:
 ```bash
 make install
 python3 -m http.server 8000 --bind 127.0.0.1 &
-scrut test --work-directory docs/fixtures/quickstart README.md
 scrut test --work-directory . docs/ tests/
 ```
+
+The quick start in the top-level README.md installs a real package with
+`sudo`, so it isn't part of that run. The macOS Install workflow runs it on a
+CI runner and removes the package afterwards.
 
 Fixtures for the examples live in [fixtures/](fixtures). Each page copies
 its fixtures into a scratch directory, so running the examples leaves

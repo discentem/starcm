@@ -78,8 +78,6 @@ jobs:
             curl -fs -o /dev/null http://127.0.0.1:8000/README.md && break
             sleep 1
           done
-          # The README's quick start runs motd.star where it lives. It writes
-          # its output under temp_dir(): scrut's fresh $TMPDIR on macOS and
-          # Linux, and the runner's empty %TEMP% on Windows.
-          scrut test --work-directory docs/fixtures/quickstart README.md
+          # README.md's quick start installs a real package with sudo, so it
+          # runs in the macOS Install workflow instead.
           scrut test --work-directory . docs/ tests/
