@@ -78,8 +78,8 @@ $ cp -R "$TESTDIR/../fixtures/date/." "$TMPDIR" && cd "$TMPDIR"
 
 `TZ=UTC` pins the local timezone for this example.
 
-```scrut
-$ cat now.star
+<!-- fixture: ../fixtures/date/now.star -->
+```python
 load("starcm", "date")
 
 r = date(label = "now")
@@ -95,8 +95,8 @@ message:   \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (regex)
 
 ### Named formats and Go layouts
 
-```scrut
-$ cat formats.star
+<!-- fixture: ../fixtures/date/formats.star -->
+```python
 load("starcm", "date")
 
 for fmt in ["date", "datetime", "kitchen", "iso8601basic", "2006/01/02"]:
@@ -114,8 +114,8 @@ iso8601basic: \d{8}T\d{6}Z (regex)
 
 ### Fields in another timezone
 
-```scrut
-$ cat fields.star
+<!-- fixture: ../fixtures/date/fields.star -->
+```python
 load("starcm", "date")
 
 d = date(label = "tokyo", timezone = "Asia/Tokyo").value
@@ -133,8 +133,8 @@ unix=\d+ (regex)
 
 ### Record when a run happened
 
-```scrut
-$ cat stamp_file.star
+<!-- fixture: ../fixtures/date/stamp_file.star -->
+```python
 load("starcm", "date", "file")
 
 today = date(label = "today", format = "date", timezone = "UTC").value.formatted

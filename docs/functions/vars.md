@@ -39,8 +39,8 @@ Each example runs in a scratch copy of
 $ cp -R "$TESTDIR/../fixtures/vars/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```scrut
-$ cat vars.star
+<!-- fixture: ../fixtures/vars/vars.star -->
+```python
 load("starcm", "vars")
 
 print(vars)

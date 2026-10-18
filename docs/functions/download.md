@@ -59,8 +59,8 @@ file is only ever stored under the hash it was checked against. Stored files
 are read-only.
 
 - **Where:** [--store-dir](../cli.md#--store-dir-dir-and---store-only) sets the
-  store's directory. By default it's `/Library/Application
-  Support/starcm/store` (macOS), `/var/lib/starcm/store` (Linux) or
+  store's directory. By default it's
+  `/Library/Application Support/starcm/store` (macOS), `/var/lib/starcm/store` (Linux) or
   `%ProgramData%\starcm\store` (Windows) when starcm runs as root or
   elevated, and `starcm/store` in the user's cache directory otherwise. It's
   created the first time a run uses it.
@@ -100,8 +100,8 @@ $ cp -R "$TESTDIR/../fixtures/download/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Download a file and verify its hash
 
-```scrut
-$ cat basic.star
+<!-- fixture: ../fixtures/download/basic.star -->
+```python
 load("starcm", "download")
 
 r = download(
@@ -127,8 +127,8 @@ starcm_result(changed = False, error = "<nil>", label = "fetch agent", message =
 
 ### Save into a directory that doesn't exist yet
 
-```scrut
-$ cat nested.star
+<!-- fixture: ../fixtures/download/nested.star -->
+```python
 load("starcm", "download")
 
 r = download(
@@ -151,8 +151,8 @@ agent v1.2.0
 Keep the version and hash in the configuration and pass the environment in
 with [--var](vars.md):
 
-```scrut
-$ cat from_var.star
+<!-- fixture: ../fixtures/download/from_var.star -->
+```python
 load("starcm", "download", "vars")
 
 VERSION = "1.2.0"
@@ -174,8 +174,8 @@ fetch agent 1.2.0: success=True changed=True
 
 ### Pin a hash computed with `sha256()`
 
-```scrut
-$ cat pin_with_sha256.star
+<!-- fixture: ../fixtures/download/pin_with_sha256.star -->
+```python
 load("starcm", "download", "sha256")
 
 # Hash a copy you trust once, then pin that hash in your configuration.
@@ -201,8 +201,8 @@ success=True changed=True
 
 The mismatching download is deleted, and nothing after the call runs.
 
-```scrut
-$ cat wrong_hash.star
+<!-- fixture: ../fixtures/download/wrong_hash.star -->
+```python
 load("starcm", "download")
 
 download(
@@ -241,8 +241,8 @@ there the store goes under `%LocalAppData%`:
 $ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-docs.XXXXXX") && store="$store_root/store" ;; esac
 ```
 
-```scrut
-$ cat store.star
+<!-- fixture: ../fixtures/download/store.star -->
+```python
 load("starcm", "download")
 
 r = download(
@@ -278,8 +278,8 @@ agent v1.2.0
 
 The name comes from the URL unless `file_name` is given:
 
-```scrut
-$ cat store_named.star
+<!-- fixture: ../fixtures/download/store_named.star -->
+```python
 load("starcm", "download")
 
 r = download(
@@ -298,8 +298,8 @@ $ starcm --store-dir "$store" store_named.star
 
 ### Require the store with `--store-only`
 
-```scrut
-$ cat store_only.star
+<!-- fixture: ../fixtures/download/store_only.star -->
+```python
 load("starcm", "download")
 
 download(

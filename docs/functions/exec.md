@@ -69,8 +69,8 @@ $ cp -R "$TESTDIR/../fixtures/exec/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Capture a command's output
 
-```scrut
-$ cat capture.star
+<!-- fixture: ../fixtures/exec/capture.star -->
+```python
 load("starcm", "exec")
 
 r = exec(label = "say hello", cmd = "echo", args = ["hello", "world"])
@@ -84,8 +84,8 @@ starcm_result(changed = True, error = "<nil>", label = "say hello", message = ""
 
 ### Use a shell for pipes and redirects
 
-```scrut
-$ cat shell.star
+<!-- fixture: ../fixtures/exec/shell.star -->
+```python
 load("starcm", "exec")
 
 # cmd is run directly, not through a shell. Ask for one to use pipes,
@@ -108,8 +108,8 @@ On Windows, use `cmd = "cmd.exe", args = ["/c", ...]` or
 
 ### Expect a non-zero exit code
 
-```scrut
-$ cat exit_codes.star
+<!-- fixture: ../fixtures/exec/exit_codes.star -->
+```python
 load("starcm", "exec")
 
 ok = exec(label = "grep finds nothing", cmd = "sh", args = ["-c", "exit 1"], expected_exit_code = 1)
@@ -130,8 +130,8 @@ handle the failure here, or stop the run with fail()
 
 ### Stream output while it runs
 
-```scrut
-$ cat live_output.star
+<!-- fixture: ../fixtures/exec/live_output.star -->
+```python
 load("starcm", "exec")
 
 exec(
@@ -150,8 +150,8 @@ step 2
 
 ### Give up after a timeout
 
-```scrut
-$ cat timeout.star
+<!-- fixture: ../fixtures/exec/timeout.star -->
+```python
 load("starcm", "exec")
 
 r = exec(label = "hangs", cmd = "sleep", args = ["2"], timeout = "500ms")
@@ -165,8 +165,8 @@ success=False error=context deadline exceeded
 
 ### Run a command only when a check fails
 
-```scrut
-$ cat chain.star
+<!-- fixture: ../fixtures/exec/chain.star -->
+```python
 load("starcm", "exec")
 
 check = exec(label = "is the tool installed?", cmd = "sh", args = ["-c", "command -v not-a-real-tool"])
@@ -195,8 +195,8 @@ store goes under `%LocalAppData%`:
 $ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-docs.XXXXXX") && store="$store_root/store" ;; esac
 ```
 
-```scrut
-$ cat stored.star
+<!-- fixture: ../fixtures/exec/stored.star -->
+```python
 load("starcm", "download", "exec")
 
 agent = download(
@@ -216,8 +216,8 @@ agent v1.2.0
 
 If the stored file changes after `download` checked it, `exec` refuses to run:
 
-```scrut
-$ cat stored_changed.star
+<!-- fixture: ../fixtures/exec/stored_changed.star -->
+```python
 load("starcm", "download", "exec")
 
 agent = download(

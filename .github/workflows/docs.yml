@@ -1,0 +1,15 @@
+name: Docs
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  fixture-sources:
+    # Code shown in the docs must match the fixtures their examples run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check code blocks against fixtures
+        run: python3 docs/check_sources.py

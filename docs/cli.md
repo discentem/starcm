@@ -42,8 +42,8 @@ Options go before the file name.
 $ cp -R "$TESTDIR/fixtures/cli/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```scrut
-$ cat hello.star
+<!-- fixture: fixtures/cli/hello.star -->
+```python
 load("starcm", "vars", "write")
 
 write("hello, %s" % vars.get("name", "world"), label = "greet")
@@ -140,8 +140,8 @@ no store was created
 
 Skipped calls are always logged:
 
-```scrut
-$ cat skip.star
+<!-- fixture: fixtures/cli/skip.star -->
+```python
 load("starcm", "write")
 
 write("skipped", label = "skip me", only_if = False)

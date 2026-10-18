@@ -57,8 +57,8 @@ $ cp -R "$TESTDIR/../fixtures/file/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Create a file
 
-```scrut
-$ cat create.star
+<!-- fixture: ../fixtures/file/create.star -->
+```python
 load("starcm", "file")
 
 r = file(
@@ -86,8 +86,8 @@ starcm_result(changed = False, error = "<nil>", label = "hosts allow list", mess
 
 `content` is the whole file, not a line to add.
 
-```scrut
-$ cat update.star
+<!-- fixture: ../fixtures/file/update.star -->
+```python
 load("starcm", "file")
 
 r = file(
@@ -107,8 +107,8 @@ sshd: 192.168.0.0/16
 
 ### Create parent directories and set the mode
 
-```scrut
-$ cat create_dirs.star
+<!-- fixture: ../fixtures/file/create_dirs.star -->
+```python
 load("starcm", "file")
 
 r = file(
@@ -129,8 +129,8 @@ server = https://config.example.com
 
 Without `create_dirs`, a missing parent directory fails the run:
 
-```scrut
-$ cat missing_dir.star
+<!-- fixture: ../fixtures/file/missing_dir.star -->
+```python
 load("starcm", "file")
 
 file(label = "no parent", path = "nowhere/file.txt", content = "x")
@@ -149,8 +149,8 @@ Error in file: directory ".*[/\\]nowhere" does not exist and create_dirs is fals
 Here `HOME` points at the scratch directory so the example doesn't touch your
 real home directory.
 
-```scrut
-$ cat home.star
+<!-- fixture: ../fixtures/file/home.star -->
+```python
 load("starcm", "file")
 
 r = file(label = "dotfile", path = "~/.agentrc", content = "debug = false\n")
@@ -167,8 +167,8 @@ debug = false
 
 Deleting a file that's already gone succeeds with `changed = False`.
 
-```scrut
-$ cat delete.star
+<!-- fixture: ../fixtures/file/delete.star -->
+```python
 load("starcm", "file")
 
 for i in range(2):

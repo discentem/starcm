@@ -87,12 +87,16 @@ $ cp -R "$TESTDIR/../fixtures/signing/." "$TMPDIR" && cd "$TMPDIR" && mkdir trus
 
 ### Sign configuration with `starcm sign`
 
-```scrut
-$ cat main.star lib.star
+<!-- fixture: ../fixtures/signing/main.star -->
+```python
 load("starcm", "write")
 load("lib.star", "NAME")
 
 write("hello from signed %s" % NAME, label = "hello")
+```
+
+<!-- fixture: ../fixtures/signing/lib.star -->
+```python
 NAME = "configuration"
 ```
 
@@ -134,8 +138,8 @@ Error: cannot load lib.star: signature check failed for lib.star: key "release":
 [inspect](inspect.md) has checked each file. Here it re-signs every `.star`
 file with the same expiry; only the edited `lib.star` changes.
 
-```scrut
-$ cat sign_all.star
+<!-- fixture: ../fixtures/signing/sign_all.star -->
+```python
 load("starcm", "list_files", "sign", "vars")
 
 for f in list_files(".", pattern = "*.star", label = "find config").value:

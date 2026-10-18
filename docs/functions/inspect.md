@@ -61,8 +61,8 @@ $ cp -R "$TESTDIR/../fixtures/inspect/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Report from the command line
 
-```scrut
-$ cat sneaky.star
+<!-- fixture: ../fixtures/inspect/sneaky.star -->
+```python
 load("starcm", run = "exec")
 
 run(label = "innocent", cmd = "sh", args = ["-c", "echo pwned"])
@@ -98,8 +98,8 @@ $ starcm inspect sneaky.star
 
 ### Find computed `load_dynamic` paths
 
-```scrut
-$ cat bootstrap.star
+<!-- fixture: ../fixtures/inspect/bootstrap.star -->
+```python
 load("starcm", "download", "load_dynamic", "vars")
 
 download(
@@ -128,8 +128,8 @@ $ starcm inspect bootstrap.star | jq -c '[.[].values[] | [.function, .line]]'
 
 ### Enforce a policy in Starlark
 
-```scrut
-$ cat policy.star
+<!-- fixture: ../fixtures/inspect/policy.star -->
+```python
 load("starcm", "inspect", "list_files")
 
 ALLOWED = ["download", "load_dynamic"]
