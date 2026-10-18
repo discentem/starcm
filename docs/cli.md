@@ -24,7 +24,7 @@ code, don't change the exit code unless the configuration calls `fail()`.
 | [--store-dir DIR](#--store-dir-dir-and---store-only) | see below | Where `download()` keeps files when `save_to` is omitted. |
 | [--store-only](#--store-dir-dir-and---store-only) | `false` | Refuse `download(save_to = ...)`, so every download goes into the store. |
 | `-v N` | `1` | Log verbosity. Higher values log more of starcm's internals; `3` or more traces every function call. |
-| `--timestamps` | `false` | Log times in UTC. Log lines always have a timestamp; without this flag it's in local time. |
+| `--timestamps` | `false` | Start every log line with the date and time, in UTC. |
 | `--help`, `-h` | | Show help. Running `starcm` with no file does the same. |
 
 Options go before the file name.
@@ -149,17 +149,24 @@ write("skipped", label = "skip me", only_if = False)
 
 ```scrut
 $ starcm skip.star
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[skip me\]: skipping write\(label="skip me"\) because only_if was false (regex)
+INFO: [skip me]: skipping write(label="skip me") because only_if was false
 ```
 
 `-v 3` adds a line before and after every function call:
 
 ```scrut
 $ starcm -v 3 hello.star
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[LoadFromFile\]: loading file "hello.star" (regex)
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[base.go\]: calling m.Action.Run\(ctx, workingDirectory=".", label="greet", args, kwargs\) (regex)
+INFO: [LoadFromFile]: loading file "hello.star"
+INFO: [base.go]: calling m.Action.Run(ctx, workingDirectory=".", label="greet", args, kwargs)
 hello, world
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[base.go\]: finished m.Action.Run for label="greet" (regex)
+INFO: [base.go]: finished m.Action.Run for label="greet"
+```
+
+`--timestamps` starts each log line with the date and time, in UTC:
+
+```scrut
+$ starcm --timestamps skip.star
+INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[skip me\]: skipping write\(label="skip me"\) because only_if was false (regex)
 ```
 
 ### Errors

@@ -131,7 +131,7 @@ else:
 
 ```scrut
 $ starcm optional.star
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[database role\]: skipping load\(label="database role"\) because only_if was false (regex)
+INFO: [database role]: skipping load(label="database role") because only_if was false
 database role skipped
 ```
 

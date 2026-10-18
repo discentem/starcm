@@ -108,7 +108,7 @@ hello from d.star
 ```scrut
 $ (cd nested_files && starcm a.star)
 hello from a.star
-INFO: * [load b.star]: skipping load(label="load b.star") because only_if was false (glob)
+INFO: [load b.star]: skipping load(label="load b.star") because only_if was false
 ```
 
 ```scrut
@@ -144,7 +144,7 @@ hello from e.star
 ```scrut
 $ (cd only_if && starcm only_if.star)
 we expect to exit 2
-INFO: * [print_not_success_#2]: skipping write(label="print_not_success_#2") because only_if was false (glob)
+INFO: [print_not_success_#2]: skipping write(label="print_not_success_#2") because only_if was false
 ```
 
 ## templates

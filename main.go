@@ -29,7 +29,7 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:  "timestamps",
-				Usage: "include timestamps in logs",
+				Usage: "prefix log lines with the date and time (UTC)",
 			},
 			&cli.IntFlag{
 				Name:  "v",
@@ -68,9 +68,11 @@ func main() {
 
 			l := log.Default()
 			l.SetOutput(os.Stdout)
-			flags := log.LstdFlags
+			// deck's logger.Init turns 0 into log.LstdFlags; Lmsgprefix is
+			// non-zero but adds nothing without a date or time.
+			flags := log.Lmsgprefix
 			if timestamps {
-				flags |= log.LUTC
+				flags = log.LstdFlags | log.LUTC
 			}
 			deck.Add(logger.Init(l.Writer(), flags))
 			deck.SetVerbosity(verbosity)

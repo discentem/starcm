@@ -49,8 +49,8 @@ print("skipped: %s" % skipped)
 ```scrut
 $ starcm conditions.star
 installing
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[configure\]: skipping write\(label="configure"\) because only_if was false (regex)
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[skipped\]: skipping write\(label="skipped"\) because only_if was false (regex)
+INFO: [configure]: skipping write(label="configure") because only_if was false
+INFO: [skipped]: skipping write(label="skipped") because only_if was false
 skipped: starcm_result(changed = False, error = "<nil>", label = "", message = "", success = False, value = None)
 ```
 
