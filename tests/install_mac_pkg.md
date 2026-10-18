@@ -11,13 +11,13 @@ macOS.
 $ cp -R "$TESTDIR/fixtures/install_mac_pkg/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-## signer_sha256 must be a sha256 fingerprint
+## signer is required
 
 ```scrut
-$ starcm bad_fingerprint.star 2>&1
+$ starcm empty_signer.star 2>&1
 Traceback (most recent call last):
-  bad_fingerprint.star:4:16: in <toplevel>
-Error in install_mac_pkg: install_mac_pkg(label="team id"): signer_sha256: "W5364U7YZB" is not a sha256 fingerprint (64 hex digits)
+  empty_signer.star:3:16: in <toplevel>
+Error in install_mac_pkg: install_mac_pkg(label="no signer"): signer must name the certificate, e.g. "Developer ID Installer: Example Corp (ABCDE12345)"
 [1]
 ```
 
@@ -43,6 +43,6 @@ $ if command -v pkgbuild >/dev/null; then pkgbuild --nopayload --identifier com.
 $ starcm unsigned.star 2>&1
 Traceback (most recent call last):
   unsigned.star:3:16: in <toplevel>
-Error in install_mac_pkg: install_mac_pkg\(label="unsigned"\): (unsigned\.pkg: signature is not trusted: no signature|install_mac_pkg\(\) only works on macOS) (regex)
+Error in install_mac_pkg: install_mac_pkg\(label="unsigned"\): (unsigned\.pkg: not signed with a certificate Apple issued for distribution: no signature|install_mac_pkg\(\) only works on macOS) (regex)
 [1]
 ```

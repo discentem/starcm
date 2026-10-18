@@ -1,6 +1,6 @@
-// Package macpkg implements install_mac_pkg(), which installs a macOS .pkg only
-// after checking that it's signed by the certificate the configuration
-// pins.
+// Package macpkg implements install_mac_pkg(), which installs a macOS .pkg
+// only after checking that it's signed, through Apple, by the developer
+// certificate the configuration names.
 package macpkg
 
 import (
@@ -40,7 +40,7 @@ func (a *pkgAction) run(name string, args ...string) ([]byte, error) {
 
 type parsedArgs struct {
 	path             string
-	signerSHA256     string
+	signer           string
 	requireNotarized bool
 	target           string
 	id, version      string
@@ -58,12 +58,12 @@ func (a *pkgAction) parseArgs(label string, args starlark.Tuple, kwargs []starla
 		}
 		p.path = *v
 	}
-	signer, err := starlarkhelpers.FindValueinKwargs(kwargs, "signer_sha256")
+	signer, err := starlarkhelpers.FindValueinKwargs(kwargs, "signer")
 	if err != nil {
 		return nil, err
 	}
-	if p.signerSHA256, err = NormalizeFingerprint(*signer); err != nil {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): signer_sha256: %w", label, err)
+	if p.signer = strings.TrimSpace(*signer); p.signer == "" {
+		return nil, fmt.Errorf("install_mac_pkg(label=%q): signer must name the certificate, e.g. \"Developer ID Installer: Example Corp (ABCDE12345)\"", label)
 	}
 	if p.requireNotarized, err = starlarkhelpers.FindBoolInKwargs(kwargs, "require_notarized", true); err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 	if err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s: %w", label, p.path, err)
 	}
-	if err := sig.Check(p.signerSHA256, p.requireNotarized); err != nil {
+	if err := sig.Check(p.signer, p.requireNotarized); err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s: %w", label, p.path, err)
 	}
 	value := sig.Value()
@@ -213,15 +213,20 @@ type Signature struct {
 	Chain     []Certificate // leaf first
 }
 
-// trustedStatuses are the pkgutil statuses of signatures macOS trusts for
-// installation. Anything else (no signature, an untrusted or expired
-// certificate, a development certificate) is refused.
-var trustedStatuses = []string{
+// appleStatuses are the pkgutil statuses of signatures whose certificate
+// Apple issued for distribution. The signer is matched by name, and Apple
+// only issues a Developer ID certificate to the team it names, so anything
+// else is refused: no signature, an untrusted, expired or development
+// certificate, and certificates from other CAs that macOS trusts ("signed by
+// a certificate trusted by macOS"), which could carry any name.
+var appleStatuses = []string{
 	"signed Apple Software",
 	"signed by a developer certificate issued by Apple for distribution",
-	"signed by a certificate trusted by macOS",
-	"signed by a certificate trusted by Mac OS X",
 }
+
+// appleRoot is the name pkgutil prints for the last certificate of every
+// chain Apple issues.
+const appleRoot = "Apple Root CA"
 
 var (
 	statusLine       = regexp.MustCompile(`^\s*Status: (.+?)\s*$`)
@@ -259,24 +264,24 @@ func ParseCheckSignature(out string) (*Signature, error) {
 	return sig, nil
 }
 
-// Check returns an error unless the signature is trusted, its leaf
-// certificate has the fingerprint want, and it's notarized when
+// Check returns an error unless the signature chains to Apple, its leaf
+// certificate is named signer exactly, and it's notarized when
 // requireNotarized is set.
-func (s *Signature) Check(want string, requireNotarized bool) error {
+func (s *Signature) Check(signer string, requireNotarized bool) error {
 	trusted := false
-	for _, t := range trustedStatuses {
+	for _, t := range appleStatuses {
 		if s.Status == t {
 			trusted = true
 		}
 	}
 	if !trusted {
-		return fmt.Errorf("signature is not trusted: %s", s.Status)
+		return fmt.Errorf("not signed with a certificate Apple issued for distribution: %s", s.Status)
 	}
-	if len(s.Chain) == 0 || len(s.Chain[0].SHA256) != 64 {
-		return errors.New("pkgutil reported no signing certificate fingerprint")
+	if len(s.Chain) < 2 || s.Chain[len(s.Chain)-1].Name != appleRoot {
+		return fmt.Errorf("certificate chain doesn't end at %s", appleRoot)
 	}
-	if got := s.Chain[0].SHA256; got != want {
-		return fmt.Errorf("signed by %q with certificate sha256 %s, not the expected %s", s.Chain[0].Name, got, want)
+	if got := s.Chain[0].Name; got != signer {
+		return fmt.Errorf("signed by %q, not the expected %q", got, signer)
 	}
 	if requireNotarized && !s.Notarized {
 		return errors.New("not notarized by Apple; pass require_notarized = False to install it anyway")
@@ -301,18 +306,6 @@ func (s *Signature) Value() starlark.Value {
 	})
 }
 
-var nonHex = regexp.MustCompile(`[\s:]`)
-
-// NormalizeFingerprint accepts a sha256 fingerprint as pkgutil prints it
-// ("1E 77 DE ..."), with colons, or as plain hex, and returns lowercase hex.
-func NormalizeFingerprint(s string) (string, error) {
-	h := strings.ToLower(nonHex.ReplaceAllString(s, ""))
-	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(h) {
-		return "", fmt.Errorf("%q is not a sha256 fingerprint (64 hex digits)", s)
-	}
-	return h, nil
-}
-
 // Option configures install_mac_pkg().
 type Option func(*pkgAction)
 
@@ -331,7 +324,7 @@ func WithGOOS(goos string) Option {
 // New returns the install_mac_pkg() builtin, which runs pkgutil and
 // installer with executor.
 //
-//	install_mac_pkg("agent.pkg", signer_sha256 = "1E 77 DE ...", label = "install agent")
+//	install_mac_pkg("agent.pkg", signer = "Developer ID Installer: Example Corp (ABCDE12345)", label = "install agent")
 func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.Module {
 	a := &pkgAction{executor: executor, goos: runtime.GOOS}
 	for _, opt := range opts {
@@ -342,7 +335,7 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 		"install_mac_pkg",
 		[]base.ArgPair{
 			base.Arg[string]("path"),
-			base.Arg[string]("signer_sha256"),
+			base.Arg[string]("signer"),
 			base.Arg[bool]("require_notarized??"),
 			base.Arg[string]("target?"),
 			base.Arg[string]("id?"),

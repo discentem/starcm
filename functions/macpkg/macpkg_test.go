@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	shelllib "github.com/discentem/starcm/libraries/shell"
@@ -15,10 +14,13 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// tailscaleSHA256 is the installer certificate in
+// tailscaleSigner and tailscaleSHA256 are the installer certificate in
 // testdata/developer-id-notarized.txt, real `pkgutil --check-signature`
 // output for a Developer ID signed, notarized package.
-const tailscaleSHA256 = "1e77de6fe47d426984c5aa180d581f3246197f73c0c713277b844008b936e093"
+const (
+	tailscaleSigner = "Developer ID Installer: Tailscale Inc. (W5364U7YZB)"
+	tailscaleSHA256 = "1e77de6fe47d426984c5aa180d581f3246197f73c0c713277b844008b936e093"
+)
 
 func readTestdata(t *testing.T, name string) string {
 	t.Helper()
@@ -50,40 +52,46 @@ func TestParseCheckSignature(t *testing.T) {
 func TestSignatureCheck(t *testing.T) {
 	sig, err := ParseCheckSignature(readTestdata(t, "developer-id-notarized.txt"))
 	require.NoError(t, err)
-	assert.NoError(t, sig.Check(tailscaleSHA256, true))
+	assert.NoError(t, sig.Check(tailscaleSigner, true))
 
-	other := strings.Repeat("ab", 32)
-	assert.ErrorContains(t, sig.Check(other, true), `signed by "Developer ID Installer: Tailscale Inc. (W5364U7YZB)" with certificate sha256 `+tailscaleSHA256+", not the expected "+other)
+	// Another developer's certificate, or a near miss, is refused.
+	for _, other := range []string{
+		"Developer ID Installer: Some Other Co (ABCDE12345)",
+		"Developer ID Installer: Tailscale Inc. (ABCDE12345)",
+		"Developer ID Installer: Tailscale Inc.",
+		"W5364U7YZB",
+		"developer id installer: tailscale inc. (w5364u7yzb)",
+	} {
+		assert.ErrorContains(t, sig.Check(other, true), `signed by "`+tailscaleSigner+`", not the expected "`+other+`"`)
+	}
 
-	// Pinning the root or intermediate isn't enough: only the leaf counts.
-	assert.Error(t, sig.Check(sig.Chain[2].SHA256, true))
+	// Naming an intermediate or the root isn't enough: only the leaf counts.
+	assert.Error(t, sig.Check("Developer ID Certification Authority", true))
+	assert.Error(t, sig.Check("Apple Root CA", true))
 
 	notNotarized := *sig
 	notNotarized.Notarized = false
-	assert.ErrorContains(t, notNotarized.Check(tailscaleSHA256, true), "not notarized")
-	assert.NoError(t, notNotarized.Check(tailscaleSHA256, false))
+	assert.ErrorContains(t, notNotarized.Check(tailscaleSigner, true), "not notarized")
+	assert.NoError(t, notNotarized.Check(tailscaleSigner, false))
 
-	for _, status := range []string{"no signature", "signed by untrusted certificate", "signed by a certificate that has since expired", "signed by a developer certificate issued by Apple (Development)"} {
+	// Only certificates Apple issued count, even if macOS trusts the
+	// certificate: a private CA could issue one with any name.
+	for _, status := range []string{
+		"no signature",
+		"signed by untrusted certificate",
+		"signed by a certificate that has since expired",
+		"signed by a developer certificate issued by Apple (Development)",
+		"signed by a certificate trusted by macOS",
+	} {
 		s := *sig
 		s.Status = status
-		assert.ErrorContains(t, s.Check(tailscaleSHA256, false), "signature is not trusted: "+status)
+		assert.ErrorContains(t, s.Check(tailscaleSigner, false), "not signed with a certificate Apple issued for distribution: "+status)
 	}
-}
 
-func TestNormalizeFingerprint(t *testing.T) {
-	for _, in := range []string{
-		"1E 77 DE 6F E4 7D 42 69 84 C5 AA 18 0D 58 1F 32 46 19 7F 73 C0 C7 \n 13 27 7B 84 40 08 B9 36 E0 93",
-		"1E:77:DE:6F:E4:7D:42:69:84:C5:AA:18:0D:58:1F:32:46:19:7F:73:C0:C7:13:27:7B:84:40:08:B9:36:E0:93",
-		tailscaleSHA256,
-	} {
-		got, err := NormalizeFingerprint(in)
-		require.NoError(t, err, in)
-		assert.Equal(t, tailscaleSHA256, got)
-	}
-	for _, in := range []string{"", "W5364U7YZB", tailscaleSHA256[:62], tailscaleSHA256 + "00", strings.Repeat("zz", 32)} {
-		_, err := NormalizeFingerprint(in)
-		assert.Error(t, err, in)
-	}
+	// A chain that doesn't end at Apple's root is refused.
+	forged := *sig
+	forged.Chain = append([]Certificate{}, sig.Chain[:2]...)
+	assert.ErrorContains(t, forged.Check(tailscaleSigner, false), "certificate chain doesn't end at Apple Root CA")
 }
 
 // fakeMac is a shelllib.Executor that records commands and answers pkgutil
@@ -171,7 +179,7 @@ func TestRun(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
 		a := &pkgAction{executor: f, goos: "darwin"}
 		pkg := writePkg(t, "pkg bytes")
-		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer_sha256", strings.ToUpper(tailscaleSHA256)))
+		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
 		require.NoError(t, err)
 		assert.True(t, r.Success)
 		assert.True(t, r.Changed)
@@ -196,23 +204,23 @@ func TestRun(t *testing.T) {
 	t.Run("refuses a package signed by someone else", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
 		a := &pkgAction{executor: f, goos: "darwin"}
-		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", strings.Repeat("00", 32)))
-		assert.ErrorContains(t, err, "not the expected 0000")
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", "Developer ID Installer: Some Other Co (ABCDE12345)"))
+		assert.ErrorContains(t, err, `signed by "`+tailscaleSigner+`", not the expected "Developer ID Installer: Some Other Co (ABCDE12345)"`)
 		assert.Equal(t, []string{"pkgutil --check-signature"}, f.commands(), "installer never runs")
 	})
 
 	t.Run("refuses an unsigned package", func(t *testing.T) {
 		f := &fakeMac{checkOutput: readTestdata(t, "unsigned.txt"), checkErr: errors.New("exit status 1")}
 		a := &pkgAction{executor: f, goos: "darwin"}
-		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256))
-		assert.ErrorContains(t, err, "signature is not trusted: no signature")
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner))
+		assert.ErrorContains(t, err, "not signed with a certificate Apple issued for distribution: no signature")
 		assert.Equal(t, []string{"pkgutil --check-signature"}, f.commands())
 	})
 
 	t.Run("what_if checks but doesn't install", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
 		a := &pkgAction{executor: f, goos: "darwin"}
-		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256, "what_if", true))
+		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner, "what_if", true))
 		require.NoError(t, err)
 		assert.True(t, r.Changed)
 		assert.Contains(t, *r.Message, "would install")
@@ -222,7 +230,7 @@ func TestRun(t *testing.T) {
 	t.Run("skips an installed version", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed, pkgInfo: "package-id: com.example.agent\nversion: 1.2.0\nvolume: /\n"}
 		a := &pkgAction{executor: f, goos: "darwin"}
-		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256, "id", "com.example.agent", "version", "1.2.0"))
+		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner, "id", "com.example.agent", "version", "1.2.0"))
 		require.NoError(t, err)
 		assert.False(t, r.Changed)
 		assert.Equal(t, "com.example.agent 1.2.0 is already installed", *r.Message)
@@ -232,7 +240,7 @@ func TestRun(t *testing.T) {
 	t.Run("installs when another version is installed", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed, pkgInfo: "package-id: com.example.agent\nversion: 1.1.0\n"}
 		a := &pkgAction{executor: f, goos: "darwin"}
-		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256, "id", "com.example.agent", "version", "1.2.0", "target", "/Volumes/Other"))
+		r, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner, "id", "com.example.agent", "version", "1.2.0", "target", "/Volumes/Other"))
 		require.NoError(t, err)
 		assert.True(t, r.Changed)
 		assert.Equal(t, []string{"pkgutil --pkg-info", "pkgutil --check-signature", "installer -pkg"}, f.commands())
@@ -243,25 +251,25 @@ func TestRun(t *testing.T) {
 	t.Run("installer failure stops the run", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed, installerErr: errors.New("exit status 1")}
 		a := &pkgAction{executor: f, goos: "darwin"}
-		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256))
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner))
 		assert.ErrorContains(t, err, "installer failed: exit status 1")
 	})
 
 	t.Run("re-checks files from the local store", func(t *testing.T) {
 		f := &fakeMac{checkOutput: signed}
 		a := &pkgAction{executor: f, goos: "darwin", checkStored: func(string) error { return errors.New("changed after it was stored") }}
-		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer_sha256", tailscaleSHA256))
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner))
 		assert.ErrorContains(t, err, "changed after it was stored")
 		assert.Empty(t, f.calls)
 	})
 
 	t.Run("argument errors come before the platform check", func(t *testing.T) {
 		a := &pkgAction{executor: &fakeMac{}, goos: "linux"}
-		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer_sha256", "W5364U7YZB"))
-		assert.ErrorContains(t, err, "signer_sha256")
-		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer_sha256", tailscaleSHA256, "id", "com.example.agent"))
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer", "  "))
+		assert.ErrorContains(t, err, "signer must name the certificate")
+		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer", tailscaleSigner, "id", "com.example.agent"))
 		assert.ErrorContains(t, err, "id and version must be given together")
-		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer_sha256", tailscaleSHA256))
+		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String("x.pkg")}, kw("signer", tailscaleSigner))
 		assert.ErrorContains(t, err, "install_mac_pkg() only works on macOS")
 	})
 }
