@@ -69,6 +69,7 @@ These take no `label` and don't return a `starcm_result`.
 | --- | --- |
 | [json](functions/json.md) | `json.encode`, `json.decode` and `json.indent`. |
 | [vars](functions/vars.md) | The `--var name=value` values, as a dict. |
+| [temp_dir](functions/temp_dir.md) | The system's temporary directory, with optional path parts joined on. |
 | [struct](functions/struct.md) | Build a record with named fields. Load it from `stdlib`: `load("stdlib", "struct")`. |
 
 Starlark's built-ins, such as `print`, `fail`, `len`, `range` and `sorted`,

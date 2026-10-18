@@ -17,6 +17,7 @@ go_library(
         "//functions/readfile",
         "//functions/shell",
         "//functions/sign",
+        "//functions/tempdir",
         "//functions/template",
         "//functions/verify",
         "//functions/write",
