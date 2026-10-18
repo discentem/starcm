@@ -29,7 +29,7 @@ signed payload.txt with key "test" until * -> payload.txt.sig (glob)
 
 ```scrut
 $ cat main.star.sig
-ed25519 key=test expires=* sig=* (glob)
+ed25519 key=test expires=* sha256=* sig=* (glob)
 ```
 
 ## Signed files run
@@ -187,11 +187,26 @@ $ starcm sign --expires 2020-01-01 --key private/test.pem payload.txt >/dev/null
 signed: success=False value=None error=payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
 ```
 
-Signatures without an expiry, in the old format, are refused.
+Signatures in older formats, without an expiry or without the file's
+sha256, are refused.
 
 ```scrut
 $ echo "ed25519 key=test sig=AAAA" > unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
-signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> sig=<base64>"
+signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> sha256=<hex> sig=<base64>"
+[1]
+```
+
+```scrut
+$ echo "ed25519 key=test expires=2099-01-01T00:00:00Z sig=AAAA" > unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
+signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> sha256=<hex> sig=<base64>"
+[1]
+```
+
+Editing the recorded sha256 breaks the signature too:
+
+```scrut
+$ starcm sign --expires 2099-01-01 --key private/test.pem unsigned.star >/dev/null && sed 's/sha256=[0-9a-f]*/sha256=0000000000000000000000000000000000000000000000000000000000000000/' unsigned.star.sig > edited.sig && mv edited.sig unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
+signature check failed for unsigned.star: key "test": signature file records sha256 0000000000000000000000000000000000000000000000000000000000000000, but the signature is for * (glob)
 [1]
 ```
 

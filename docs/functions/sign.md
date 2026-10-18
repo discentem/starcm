@@ -107,12 +107,18 @@ signed lib.star with key "release" until 2099-01-01T00:00:00Z -> lib.star.sig
 signed agent.pkg with key "release" until 2099-01-01T00:00:00Z -> agent.pkg.sig
 ```
 
-A signature file is one line: the algorithm, the key id, the expiry and the
-signature.
+A signature file is one line: the algorithm, the key id, the expiry, the
+signed file's sha256 and the signature. All of them are covered by the
+signature, so none can be changed without breaking it.
 
 ```scrut
 $ cat main.star.sig
-ed25519 key=release expires=2099-01-01T00:00:00Z sig=* (glob)
+ed25519 key=release expires=2099-01-01T00:00:00Z sha256=b7b0ba01565b10e6e5f6cd227e2bb72b188437d0d57690c9f0ced3725d2aaaa5 sig=* (glob)
+```
+
+```scrut
+$ (command -v sha256sum >/dev/null && sha256sum main.star || shasum -a 256 main.star) | cut -d" " -f1
+b7b0ba01565b10e6e5f6cd227e2bb72b188437d0d57690c9f0ced3725d2aaaa5
 ```
 
 ### Run only signed configuration
@@ -197,6 +203,7 @@ ed25519 key=release-2027
 
 ## See also
 
+- [download](download.md#pinning-by-signature) and [s3_download](s3_download.md) can pin a download to its signature instead of a sha256.
 - [verify](verify.md) to check signatures on downloads and other files.
 - [--trusted-keys](../cli.md#--trusted-keys-dir).
 - [tests/signing.md](../../tests/signing.md) for untrusted keys, tampering via `load_dynamic`, edited expiries, old-format signatures, bad keys and `sign()` under `--trusted-keys`.

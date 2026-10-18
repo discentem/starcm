@@ -17,7 +17,8 @@ load("starcm", "download")
 download(
     label         = "fetch agent",       # required
     url           = "https://...",       # required
-    sha256        = "ffcf2b6c...",       # required
+    sha256        = "ffcf2b6c...",       # sha256 or signature is required
+    signature     = "https://.../agent.pkg.sig",
     save_to       = "agent.pkg",         # omit to use the local store
     file_name     = "agent.pkg",         # name in the store; only without save_to
     live_progress = False,
@@ -29,7 +30,8 @@ download(
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `url` | string | required | URL to fetch. Any status other than `200 OK` fails the run. |
-| `sha256` | string | required | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
+| `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
+| `signature` | string | `sha256` or `signature` | URL of the file's signature, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](#pinning-by-signature). |
 | `save_to` | string | none | Where to save the file, relative to the directory starcm runs in. Missing parent directories are created. Leave it out to download into the [local store](#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
 | `file_name` | string | the last part of the URL's path | The file's name in the local store. Only used without `save_to`. |
 | `live_progress` | bool | `False` | Print a `Downloading <url>... N%` progress line while downloading. |
@@ -37,6 +39,37 @@ download(
 `download` also takes the [common arguments](../common-functionality.md#common-arguments):
 `label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
 `what_if`.
+
+## Pinning by signature
+
+Give exactly one of `sha256` or `signature`.
+
+- **`sha256`** accepts exactly one build of the file. Each new release
+  changes your configuration.
+- **`signature`** accepts any file your release key has signed, as long as
+  its signature hasn't expired. starcm first fetches the signature and
+  checks it against [--trusted-keys](../cli.md#--trusted-keys-dir), including
+  [--max-expiry](../cli.md#--max-expiry-duration). It then downloads the file
+  as if the sha256 recorded in the signature had been given as `sha256`, so
+  the second run still downloads nothing. Publishing a release means
+  uploading the file and its new `.sig`, with no change to your
+  configuration.
+
+The signature is saved next to the file, as `<save_to>.sig` or next to the
+file in the local store. So `verify()` finds it, and a `.star` file fetched
+this way can be loaded with [load_dynamic](load_dynamic.md) under
+`--trusted-keys`.
+
+A pinned `sha256` refuses things a signature accepts:
+
+- an older release that's still validly signed, if someone who can write to
+  the server swaps it in. Short `--expires` and `--max-expiry` narrow that
+  window;
+- anything signed with a leaked release key, until the key is removed from
+  `--trusted-keys`.
+
+Use `sha256` when that matters more than not having to change your
+configuration for each release.
 
 ## What it does
 
@@ -195,6 +228,48 @@ print("success=%s changed=%s" % (r.success, r.changed))
 $ starcm pin_with_sha256.star
 36f40179484cbb22f924bb9b88c8bf261363c078b3d58bc973038345072a11b5
 success=True changed=True
+```
+
+### Pin by signature
+
+These examples use the test-only key from
+[tests/fixtures/signing/](../../tests/fixtures/signing), and a signature
+made with it,
+[agent-1.2.0.txt.sig](../fixtures/download/files/agent-1.2.0.txt.sig). Under
+`--trusted-keys`, the `.star` file itself must be signed too.
+
+```scrut
+$ mkdir -p trusted && cp "$TESTDIR/../../tests/fixtures/signing/trusted/test.pub.pem" trusted/ && starcm sign --expires 2099-01-01 --key "$TESTDIR/../../tests/fixtures/signing/private/test.pem" signed.star >/dev/null
+```
+
+<!-- fixture: ../fixtures/download/signed.star -->
+```python
+load("starcm", "download")
+
+# No sha256 here: the signature, checked against --trusted-keys, says which
+# sha256 the file must have.
+r = download(
+    label     = "fetch signed agent",
+    url       = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    signature = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt.sig",
+    save_to   = "signed/agent.txt",
+)
+print(r.message)
+```
+
+```scrut
+$ starcm --trusted-keys trusted signed.star && cat signed/agent.txt && ls signed
+downloaded file to signed/agent.txt
+agent v1.2.0
+agent.txt
+agent.txt.sig
+```
+
+Without `--trusted-keys` there's nothing to check the signature against:
+
+```scrut
+$ starcm signed.star 2>&1 | tail -1
+Error in download: download(label="fetch signed agent"): signature needs trusted keys: run starcm with --trusted-keys
 ```
 
 ### A wrong hash stops the run

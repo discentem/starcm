@@ -22,7 +22,8 @@ s3_download(
     label         = "fetch agent",                 # required
     bucket        = "releases",                    # required
     key           = "agent/agent-1.2.0.pkg",       # required
-    sha256        = "ffcf2b6c...",                 # required
+    sha256        = "ffcf2b6c...",                 # sha256 or signature is required
+    signature     = "agent/agent-1.2.0.pkg.sig",   # key of the signature, same bucket
     save_to       = "agent.pkg",                   # omit to use the local store
     file_name     = "agent.pkg",                   # name in the store; only without save_to
     region        = "eu-west-1",
@@ -37,7 +38,8 @@ s3_download(
 | --- | --- | --- | --- |
 | `bucket` | string | required | The bucket. |
 | `key` | string | required | The object's key, such as `agent/agent-1.2.0.pkg`. |
-| `sha256` | string | required | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
+| `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
+| `signature` | string | `sha256` or `signature` | Key of the file's signature in the same bucket, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](download.md#pinning-by-signature) for when to use which. |
 | `save_to` | string | none | Where to save the file, relative to the directory starcm runs in. Leave it out to download into the [local store](download.md#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
 | `file_name` | string | the last part of `key` | The file's name in the local store. Only used without `save_to`. |
 | `region` | string | from the AWS configuration, else `us-east-1` | The bucket's region. |
@@ -125,6 +127,39 @@ The second run finds the file with the right hash and doesn't fetch it again:
 ```scrut
 $ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm fetch.star
 "agent-1.2.0.txt" already present and sha256 verified
+```
+
+### Pin by signature
+
+The signature is fetched from the same bucket and checked against
+`--trusted-keys` first, and the file must then have the sha256 it records.
+The signature is saved next to the file.
+
+```scrut
+$ mkdir -p trusted && cp "$TESTDIR/../../tests/fixtures/signing/trusted/test.pub.pem" trusted/ && starcm sign --expires 2099-01-01 --key "$TESTDIR/../../tests/fixtures/signing/private/test.pem" signed.star >/dev/null
+```
+
+<!-- fixture: ../fixtures/s3_download/signed.star -->
+```python
+load("starcm", "s3_download")
+
+# The signature is another object in the same bucket.
+r = s3_download(
+    label     = "fetch signed agent from S3",
+    bucket    = "docs",
+    key       = "fixtures/download/files/agent-1.2.0.txt",
+    signature = "fixtures/download/files/agent-1.2.0.txt.sig",
+    save_to   = "signed/agent.txt",
+    endpoint  = "http://localhost:8000",
+)
+print(r.message)
+```
+
+```scrut
+$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --trusted-keys trusted signed.star && ls signed
+downloaded file to signed/agent.txt
+agent.txt
+agent.txt.sig
 ```
 
 ### Download from AWS S3

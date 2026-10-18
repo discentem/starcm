@@ -314,6 +314,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							os.Stdout,
 							starcmdownload.WithStore(l.Store),
 							starcmdownload.StoreOnly(l.StoreOnly),
+							starcmdownload.WithKeyring(l.Keyring),
 						).Function(),
 					),
 					"s3_download": starlark.NewBuiltin(
@@ -324,6 +325,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							os.Stdout,
 							starcmdownload.WithStore(l.Store),
 							starcmdownload.StoreOnly(l.StoreOnly),
+							starcmdownload.WithKeyring(l.Keyring),
 						).Function(),
 					),
 					"write": starlark.NewBuiltin(
