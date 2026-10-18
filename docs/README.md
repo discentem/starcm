@@ -23,7 +23,7 @@ All of these functions can be enhanced by:
   `working_directory`, `what_if`) and the `starcm_result` they return.
 - [Loading additional files](loading.md): `load()`, the `starcm` and `stdlib` modules,
   and how paths resolve.
-- [Command line flags](cli.md): `--var`, `--trusted-keys`, `--max-expiry`, `-v`, `--timestamps`,
+- [Command line flags](cli.md): `--var`, `--trusted-keys`, `--max-expiry`, `--store-dir`, `--store-only`, `-v`, `--timestamps`,
   `starcm sign` and `starcm inspect`.
 
 
@@ -31,7 +31,7 @@ All of these functions can be enhanced by:
 
 | Function | Description |
 | --- | --- |
-| [download](functions/download.md) | Download a file and check its sha256. Does nothing if it's already there. |
+| [download](functions/download.md) | Download a file, to a path or into a local store, and check its sha256. Does nothing if it's already there. |
 | [exec](functions/exec.md) | Run a command, capture its output and check its exit code. |
 | [file](functions/file.md) | Create a file with given content, or delete it. |
 | [template](functions/template.md) | Render a Jinja2-style template to a file. |
