@@ -65,8 +65,9 @@ its arguments, return value and tested examples:
 
 - Manage the machine with [download](docs/functions/download.md) (to a
   path or into a local, hash-checked store),
-  [exec](docs/functions/exec.md), [file](docs/functions/file.md) and
-  [template](docs/functions/template.md).
+  [exec](docs/functions/exec.md), [file](docs/functions/file.md),
+  [template](docs/functions/template.md) and
+  [install_mac_pkg](docs/functions/install_mac_pkg.md).
 - Read information with [date](docs/functions/date.md),
   [read_file](docs/functions/read_file.md),
   [list_files](docs/functions/list_files.md),

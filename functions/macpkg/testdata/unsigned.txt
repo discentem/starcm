@@ -1,0 +1,2 @@
+Package "bazelisk-1.25.0.pkg":
+   Status: no signature
