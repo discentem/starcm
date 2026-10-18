@@ -86,7 +86,8 @@ scrut from the repository root:
 ```bash
 make install
 python3 -m http.server 8000 --bind 127.0.0.1 &
-scrut test --work-directory . README.md docs/ tests/
+scrut test --work-directory docs/fixtures/quickstart README.md
+scrut test --work-directory . docs/ tests/
 ```
 
 Fixtures for the examples live in [fixtures/](fixtures). Each page copies
