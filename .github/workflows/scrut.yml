@@ -14,14 +14,20 @@ jobs:
           - os: ubuntu-latest
             scrut_asset: scrut-v0.4.1-linux-x86_64.tar.gz
             scrut_sha256: f20a14b57ea05cd8f5b9f72005f446a3c0e896a0925e6ce1b94c956d353f54be
+            rustfs_asset: rustfs-linux-x86_64-musl-v1.0.3.zip
+            rustfs_sha256: 29a083f156fe1a246f0336afe16ff77fffe587628e97339448d8f4fba38dba54
             exe: ""
           - os: macos-latest
             scrut_asset: scrut-v0.4.1-macos-aarch64.tar.gz
             scrut_sha256: 97fd48a2dc5edcb029496188f87e94411179b3e1306c8200eaeb60d9e238de05
+            rustfs_asset: rustfs-macos-aarch64-v1.0.3.zip
+            rustfs_sha256: 9ec6f2ad89df88db9b8889f59e37bb27f6b67c61ee8a97968dd90aaa2ac4dd30
             exe: ""
           - os: windows-latest
             scrut_asset: scrut-v0.4.1-windows-x86_64.zip
             scrut_sha256: 0118e72c098557798cf2010e99dc5e11897bea45346743bf473253a486b94b7f
+            rustfs_asset: rustfs-windows-x86_64-v1.0.3.zip
+            rustfs_sha256: c72e573b8dbadd1b294d76b46a33ff296afde01a52c3c321da579e74edf5ed32
             exe: .exe
     runs-on: ${{ matrix.os }}
     defaults:
@@ -81,3 +87,35 @@ jobs:
           # README.md's quick start installs a real package with sudo, so it
           # runs in the macOS Install workflow instead.
           scrut test --work-directory . docs/ tests/
+
+      # A real S3-compatible server (rustfs), which checks request signatures,
+      # for the s3_download() tests in integration/s3/. Started in this step
+      # so it lives as long as the tests that use it.
+      - name: Run S3 integration tests against rustfs
+        env:
+          AWS_ACCESS_KEY_ID: starcm-test
+          AWS_SECRET_ACCESS_KEY: starcm-test-secret
+          AWS_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: "true"
+          STARCM_TEST_S3_ENDPOINT: http://127.0.0.1:9000
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/rustfs"
+          mkdir -p "$dir/data"
+          cd "$dir"
+          curl -fsSL -o rustfs.zip \
+            "https://github.com/rustfs/rustfs/releases/download/1.0.3/${{ matrix.rustfs_asset }}"
+          if command -v sha256sum >/dev/null; then sha256="sha256sum"; else sha256="shasum -a 256"; fi
+          echo "${{ matrix.rustfs_sha256 }}  rustfs.zip" | $sha256 -c -
+          unzip -q rustfs.zip -d bin
+          rustfs=$(find bin -name "rustfs${{ matrix.exe }}" -type f | head -1)
+          chmod +x "$rustfs"
+          "$rustfs" server "$dir/data" --address 127.0.0.1:9000 \
+            --access-key "$AWS_ACCESS_KEY_ID" --secret-key "$AWS_SECRET_ACCESS_KEY" > rustfs.log 2>&1 &
+          # Any HTTP answer (403 without credentials) means it's listening.
+          for _ in $(seq 30); do
+            curl -s -o /dev/null "$STARCM_TEST_S3_ENDPOINT/" && break
+            sleep 1
+          done
+          cd "$GITHUB_WORKSPACE"
+          scrut test --work-directory . integration/s3/ || { echo "--- rustfs log"; cat "$dir/rustfs.log"; exit 1; }

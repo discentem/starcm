@@ -150,3 +150,4 @@ s3_download(
 - [download](download.md) for HTTP(S), and for how the local store works.
 - [verify](verify.md) to check a download's signature as well as its hash.
 - [install_mac_pkg](install_mac_pkg.md) to install a downloaded `.pkg`.
+- [integration/s3/chain.md](../../integration/s3/chain.md) runs a signed fleet from a real S3-compatible server, [rustfs](https://github.com/rustfs/rustfs), in CI: credentials the server refuses, a tampered bucket and missing objects.
