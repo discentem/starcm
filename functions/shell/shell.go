@@ -158,8 +158,8 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 		[]base.ArgPair{
 			base.Arg[string]("cmd"),
 			base.Arg[*starlark.List]("args"),
-			base.Arg[starlark.Int]("expected_exit_code??"),
-			base.Arg[starlark.Bool]("live_output??"),
+			base.OptionalArgAllowNone[starlark.Int]("expected_exit_code"),
+			base.OptionalArgAllowNone[starlark.Bool]("live_output"),
 		},
 		a,
 	)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/discentem/starcm/libraries/logging"
@@ -14,7 +15,8 @@ import (
 	"go.starlark.net/starlark"
 )
 
-// ArgPair declares a function-specific argument. Create one with Arg.
+// ArgPair declares a function-specific argument. Create one with Arg,
+// OptionalArg or OptionalArgAllowNone.
 type ArgPair struct {
 	Key string
 	// newTarget returns a fresh pointer for starlark.UnpackArgs to write into,
@@ -22,10 +24,32 @@ type ArgPair struct {
 	newTarget func() any
 }
 
-// Arg declares a function-specific argument that must unpack into a T (any
-// type starlark.UnpackArgs accepts a pointer to). key uses UnpackArgs syntax:
-// "name", "name?" (optional) or "name??" (optional, None counts as unset).
-func Arg[T any](key string) ArgPair {
+// Arg declares a required function-specific argument that must unpack into
+// a T (any type starlark.UnpackArgs accepts a pointer to).
+func Arg[T any](name string) ArgPair {
+	if strings.HasSuffix(name, "?") {
+		panic(fmt.Sprintf("base.Arg(%q): use OptionalArg or OptionalArgAllowNone instead of a ? suffix", name))
+	}
+	return arg[T](name)
+}
+
+// OptionalArg declares an argument callers may leave out. Passing None is an
+// error unless T accepts None, as starlark.Value does.
+func OptionalArg[T any](name string) ArgPair {
+	return arg[T](name + "?")
+}
+
+// OptionalArgAllowNone declares an argument callers may leave out or pass as
+// None; None counts as leaving it out. Use it for arguments that callers
+// forward from their own optional parameters, which default to None.
+func OptionalArgAllowNone[T any](name string) ArgPair {
+	return arg[T](name + "??")
+}
+
+// arg builds an ArgPair whose key uses starlark.UnpackArgs syntax: "name",
+// "name?" (optional) or "name??" (optional, None counts as unset). Neither
+// suffix makes an argument keyword-only.
+func arg[T any](key string) ArgPair {
 	return ArgPair{Key: key, newTarget: func() any { return new(T) }}
 }
 

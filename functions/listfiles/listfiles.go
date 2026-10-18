@@ -78,8 +78,8 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 		ctx,
 		"list_files",
 		[]base.ArgPair{
-			base.Arg[string]("dir?"),
-			base.Arg[string]("pattern?"),
+			base.OptionalArg[string]("dir"),
+			base.OptionalArg[string]("pattern"),
 		},
 		&listFilesAction{fsys: fsys},
 	)

@@ -244,10 +244,10 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 		"file",
 		[]base.ArgPair{
 			base.Arg[string]("path"),
-			base.Arg[string]("content?"),
-			base.Arg[string]("action?"),
-			base.Arg[int64]("mode??"),
-			base.Arg[bool]("create_dirs??"),
+			base.OptionalArg[string]("content"),
+			base.OptionalArg[string]("action"),
+			base.OptionalArgAllowNone[int64]("mode"),
+			base.OptionalArgAllowNone[bool]("create_dirs"),
 		},
 		&fileAction{
 			fsys: fsys,

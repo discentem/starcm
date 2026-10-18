@@ -113,8 +113,8 @@ func newWithClock(ctx context.Context, now func() time.Time) *base.Module {
 		ctx,
 		"date",
 		[]base.ArgPair{
-			base.Arg[string]("format??"),
-			base.Arg[string]("timezone??"),
+			base.OptionalArgAllowNone[string]("format"),
+			base.OptionalArgAllowNone[string]("timezone"),
 		},
 		&dateAction{now: now},
 	)

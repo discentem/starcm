@@ -75,7 +75,7 @@ func New(ctx context.Context, fsys afero.Fs, deployed bool) *base.Module {
 			base.Arg[string]("path"),
 			base.Arg[string]("key"),
 			base.Arg[string]("expires"),
-			base.Arg[string]("key_id?"),
+			base.OptionalArg[string]("key_id"),
 		},
 		&signAction{fsys: fsys, deployed: deployed},
 	)
