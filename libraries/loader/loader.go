@@ -34,6 +34,7 @@ import (
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmsign "github.com/discentem/starcm/functions/sign"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
+	starcmtempdir "github.com/discentem/starcm/functions/tempdir"
 	starcmverify "github.com/discentem/starcm/functions/verify"
 	starcmwrite "github.com/discentem/starcm/functions/write"
 	starcmshelllib "github.com/discentem/starcm/libraries/shell"
@@ -376,6 +377,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						// Disabled under --trusted-keys: deployed runs never sign.
 						starcmsign.New(ctx, fsys, l.Keyring != nil).Function(),
 					),
+					"temp_dir": starcmtempdir.New(),
 					"json": starlarkjson.Module,
 					"vars": vars,
 				}, nil

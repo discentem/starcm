@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tempdir",
+    srcs = ["tempdir.go"],
+    importpath = "github.com/discentem/starcm/functions/tempdir",
+    visibility = ["//visibility:public"],
+    deps = ["@net_starlark_go//starlark"],
+)
+
+go_test(
+    name = "tempdir_test",
+    srcs = ["tempdir_test.go"],
+    embed = [":tempdir"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+    ],
+)

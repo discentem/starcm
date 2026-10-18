@@ -18,27 +18,43 @@ Starcm is intended to become a viable alternative for tools like [macadmins/inst
 # Quick start
 
 A configuration is a `.star` file that calls starcm's functions. This one
-makes sure a file has the right content, and shows it only when it changed:
+makes sure a file has the right content, and shows it only when it changed.
+
+Save the code below as `motd.star`, in any directory, and run the commands
+after it. (The same file is in this repository at
+[docs/fixtures/quickstart/motd.star](docs/fixtures/quickstart/motd.star).)
+`motd.star` calls [temp_dir()](docs/functions/temp_dir.md), which returns
+your system's temporary directory, so `motd.txt` goes into a
+`starcm-quickstart` folder there instead of the directory you run it from.
+
+Type the commands without the leading `$`; the lines after each one are its
+output. Skip this first command: it only sets up this README's automated test.
 
 ```scrut
-$ cp -R "$TESTDIR/docs/fixtures/quickstart/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/docs/fixtures/quickstart/." "$TMPDIR" && cd "$TMPDIR" && export TMP="$TMPDIR" TEMP="$TMPDIR"
 ```
+
+`motd.star`:
 
 <!-- fixture: docs/fixtures/quickstart/motd.star -->
 ```python
-load("starcm", "exec", "file")
+load("starcm", "exec", "file", "temp_dir")
+
+# A starcm-quickstart folder in the system's temporary directory.
+path = temp_dir("starcm-quickstart", "motd.txt")
 
 motd = file(
-    label   = "message of the day",
-    path    = "motd.txt",
-    content = "Managed by starcm. Changes will be overwritten.\n",
+    label       = "message of the day",
+    path        = path,
+    content     = "Managed by starcm. Changes will be overwritten.\n",
+    create_dirs = True,
 )
 print("motd: changed=%s" % motd.changed)
 
 exec(
     label   = "show motd",
     cmd     = "cat",
-    args    = ["motd.txt"],
+    args    = [path],
     only_if = motd.changed,
     live_output = True,
 )
