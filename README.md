@@ -55,7 +55,7 @@ Run it again and nothing changes:
 ```scrut
 $ starcm motd.star
 motd: changed=False
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[show motd\]: skipping shell\(label="show motd"\) because only_if was false (regex)
+INFO: [show motd]: skipping shell(label="show motd") because only_if was false
 ```
 
 # Documentation

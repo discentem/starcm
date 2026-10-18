@@ -49,14 +49,14 @@ None
 
 ## only_if / not_if
 
-Skipped calls log why; the timestamp varies so those lines are regex-matched.
+Skipped calls log why.
 
 ```scrut
 $ starcm conditions.star
 only_if True runs
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[only_if false\]: skipping write\(label="only_if false"\) because only_if was false (regex)
+INFO: [only_if false]: skipping write(label="only_if false") because only_if was false
 not_if False runs
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[not_if true\]: skipping write\(label="not_if true"\) because not_if was true (regex)
+INFO: [not_if true]: skipping write(label="not_if true") because not_if was true
 ```
 
 ## Errors

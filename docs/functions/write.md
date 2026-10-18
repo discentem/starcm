@@ -86,14 +86,14 @@ write("not production: %s" % env, label = "dev banner", not_if = env == "prod")
 
 ```scrut
 $ starcm conditional.star
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[prod banner\]: skipping write\(label="prod banner"\) because only_if was false (regex)
+INFO: [prod banner]: skipping write(label="prod banner") because only_if was false
 not production: dev
 ```
 
 ```scrut
 $ starcm --var env=prod conditional.star
 deploying to production
-INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[dev banner\]: skipping write\(label="dev banner"\) because not_if was true (regex)
+INFO: [dev banner]: skipping write(label="dev banner") because not_if was true
 ```
 
 ## See also
