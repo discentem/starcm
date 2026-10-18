@@ -1,0 +1,42 @@
+name: macOS Install
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  install-mac-pkg:
+    # Installs a real signed package with install_mac_pkg() as root, then
+    # removes it. Needs passwordless sudo and network access, so it runs
+    # separately from the regular scrut job.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install scrut
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/bin"
+          mkdir -p "$bin" "$RUNNER_TEMP/scrut"
+          cd "$RUNNER_TEMP/scrut"
+          asset=scrut-v0.4.1-macos-aarch64.tar.gz
+          curl -fsSL -o "$asset" "https://github.com/facebookincubator/scrut/releases/download/v0.4.1/$asset"
+          echo "97fd48a2dc5edcb029496188f87e94411179b3e1306c8200eaeb60d9e238de05  $asset" | shasum -a 256 -c -
+          tar -xzf "$asset"
+          mv scrut-*/scrut "$bin/"
+          echo "$bin" >> "$GITHUB_PATH"
+
+      - uses: bazel-contrib/setup-bazel@0.15.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Build binary
+        run: |
+          bazel build //:starcm
+          cp bazel-bin/starcm_/starcm "$RUNNER_TEMP/bin/"
+
+      - name: Install a signed package
+        run: scrut test --work-directory . integration/macos/
