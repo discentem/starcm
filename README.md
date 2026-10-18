@@ -24,8 +24,8 @@ makes sure a file has the right content, and shows it only when it changed:
 $ cp -R "$TESTDIR/docs/fixtures/quickstart/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```scrut
-$ cat motd.star
+<!-- fixture: docs/fixtures/quickstart/motd.star -->
+```python
 load("starcm", "exec", "file")
 
 motd = file(

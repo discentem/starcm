@@ -56,8 +56,8 @@ roles:
 $ cp -R "$TESTDIR/../fixtures/load_dynamic/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```scrut
-$ cat roles/web.star
+<!-- fixture: ../fixtures/load_dynamic/roles/web.star -->
+```python
 load("starcm", "write")
 
 PORT = 443
@@ -68,8 +68,8 @@ def configure():
 
 ### Pick a module with `--var`
 
-```scrut
-$ cat by_role.star
+<!-- fixture: ../fixtures/load_dynamic/by_role.star -->
+```python
 load("starcm", "load_dynamic", "vars")
 
 role = vars.get("role", "web")
@@ -95,8 +95,8 @@ configuring database on port 5432
 
 ### Load modules in a loop
 
-```scrut
-$ cat all_roles.star
+<!-- fixture: ../fixtures/load_dynamic/all_roles.star -->
+```python
 load("starcm", "load_dynamic")
 
 for role in ["db", "web"]:
@@ -114,8 +114,8 @@ web listens on 443
 
 A skipped call returns `value = None`.
 
-```scrut
-$ cat optional.star
+<!-- fixture: ../fixtures/load_dynamic/optional.star -->
+```python
 load("starcm", "load_dynamic", "vars")
 
 r = load_dynamic(

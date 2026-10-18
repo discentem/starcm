@@ -44,8 +44,8 @@ $ cp -R "$TESTDIR/fixtures/loading/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Share code between files
 
-```scrut
-$ cat lib/users.star
+<!-- fixture: fixtures/loading/lib/users.star -->
+```python
 load("starcm", "write")
 
 ADMINS = ["ada", "grace"]
@@ -54,8 +54,8 @@ def greet(name):
     write("hello, %s" % name, label = "greet " + name)
 ```
 
-```scrut
-$ cat main.star
+<!-- fixture: fixtures/loading/main.star -->
+```python
 load("starcm", "write", say = "write")
 load("lib/users.star", "ADMINS", "greet")
 
@@ -73,8 +73,8 @@ aliases work too
 
 ### Workspace-relative paths
 
-```scrut
-$ cat workspace.star
+<!-- fixture: fixtures/loading/workspace.star -->
+```python
 load("//lib/users.star", "greet")
 
 greet("workspace")

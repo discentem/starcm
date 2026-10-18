@@ -42,8 +42,8 @@ $ cp -R "$TESTDIR/../fixtures/read_file/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Read a text file
 
-```scrut
-$ cat read.star
+<!-- fixture: ../fixtures/read_file/read.star -->
+```python
 load("starcm", "read_file")
 
 r = read_file("notes.txt", label = "read notes")
@@ -61,13 +61,13 @@ success=True changed=False
 
 ### Read JSON settings
 
-```scrut
-$ cat settings.json
+<!-- fixture: ../fixtures/read_file/settings.json -->
+```json
 {"channel": "beta", "hosts": ["a", "b"]}
 ```
 
-```scrut
-$ cat json_config.star
+<!-- fixture: ../fixtures/read_file/json_config.star -->
+```python
 load("starcm", "json", "read_file")
 
 settings = json.decode(read_file(path = "settings.json", label = "read settings").value)
@@ -83,8 +83,8 @@ channel=beta hosts=["a", "b"]
 
 Here `HOME` points at the scratch directory, which has a `notes.txt`.
 
-```scrut
-$ cat home.star
+<!-- fixture: ../fixtures/read_file/home.star -->
+```python
 load("starcm", "read_file")
 
 print(read_file("~/notes.txt", label = "read from home").value.strip())

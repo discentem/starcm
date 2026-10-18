@@ -67,8 +67,8 @@ signed detached.star with key "release" until 2099-01-01T00:00:00Z -> detached.s
 
 ### Check files
 
-```scrut
-$ cat check.star
+<!-- fixture: ../fixtures/verify/check.star -->
+```python
 load("starcm", "verify")
 
 for f in ["agent.pkg", "unsigned.pkg"]:
@@ -87,8 +87,8 @@ unsigned.pkg: success=False key=None
 
 ### Refuse to install a tampered file
 
-```scrut
-$ cat must_verify.star
+<!-- fixture: ../fixtures/verify/must_verify.star -->
+```python
 load("starcm", "exec", "verify")
 
 check = verify("agent.pkg", label = "check agent signature")
@@ -122,8 +122,8 @@ Error in fail: fail: agent.pkg: key "release": signature expired at 2020-01-01T0
 
 ### Keep signatures somewhere else
 
-```scrut
-$ cat detached.star
+<!-- fixture: ../fixtures/verify/detached.star -->
+```python
 load("starcm", "verify")
 
 r = verify("agent.pkg", signature = "sigs/agent.pkg.sig", label = "check with a detached signature")

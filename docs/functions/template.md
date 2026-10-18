@@ -67,8 +67,8 @@ $ cp -R "$TESTDIR/../fixtures/template/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Render a file
 
-```scrut
-$ cat site/motd.tpl
+<!-- fixture: ../fixtures/template/site/motd.tpl -->
+```jinja
 Welcome to {{ hostname }}.
 {% if maintenance -%}
 Maintenance window: {{ maintenance }}
@@ -76,8 +76,8 @@ Maintenance window: {{ maintenance }}
 Admins: {{ admins | join(", ") }}
 ```
 
-```scrut
-$ cat site/motd.star
+<!-- fixture: ../fixtures/template/site/motd.star -->
+```python
 load("starcm", "template")
 
 r = template(
@@ -116,8 +116,8 @@ changed=False
 Loop over lists and dicts to build a config file. Dict loops run in
 alphabetical key order; use a list when order matters.
 
-```scrut
-$ cat site/ini.tpl
+<!-- fixture: ../fixtures/template/site/ini.tpl -->
+```jinja
 {% for section in sections -%}
 [{{ section.name }}]
 {% for key, value in section.settings -%}
@@ -126,8 +126,8 @@ $ cat site/ini.tpl
 {% endfor -%}
 ```
 
-```scrut
-$ cat site/preview.star
+<!-- fixture: ../fixtures/template/site/preview.star -->
+```python
 load("starcm", "template", "write")
 
 r = template(
@@ -159,14 +159,14 @@ level = info
 
 ### Filters
 
-```scrut
-$ cat site/upper.tpl
+<!-- fixture: ../fixtures/template/site/upper.tpl -->
+```jinja
 {{ name | upper }} has {{ items | length }} items; first is {{ items | first }}.
 {{ missing | default("no value") }}
 ```
 
-```scrut
-$ cat site/filters.star
+<!-- fixture: ../fixtures/template/site/filters.star -->
+```python
 load("starcm", "template", "write")
 
 r = template(

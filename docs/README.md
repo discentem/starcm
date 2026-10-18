@@ -90,3 +90,12 @@ scrut test --work-directory . README.md docs/ tests/
 Fixtures for the examples live in [fixtures/](fixtures). Each page copies
 its fixtures into a scratch directory, so running the examples leaves
 nothing behind.
+
+An example's source is shown in a plain code block after a
+`<!-- fixture: path -->` comment naming the file it runs. The Docs workflow
+runs [check_sources.py](check_sources.py) to make sure each such block still
+matches its file:
+
+```bash
+python3 docs/check_sources.py
+```

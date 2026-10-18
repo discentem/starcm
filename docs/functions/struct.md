@@ -28,8 +28,8 @@ name.
 $ cp -R "$TESTDIR/../fixtures/struct/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```scrut
-$ cat struct.star
+<!-- fixture: ../fixtures/struct/struct.star -->
+```python
 load("starcm", "write")
 load("stdlib", "struct")
 

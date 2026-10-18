@@ -48,8 +48,8 @@ $ cp -R "$TESTDIR/../fixtures/write/." "$TMPDIR" && cd "$TMPDIR"
 
 ### Write values
 
-```scrut
-$ cat write.star
+<!-- fixture: ../fixtures/write/write.star -->
+```python
 load("starcm", "write")
 
 write("hello from write", label = "greet")
@@ -75,8 +75,8 @@ value=written values are returned success=True changed=False
 
 A skipped call logs why it was skipped.
 
-```scrut
-$ cat conditional.star
+<!-- fixture: ../fixtures/write/conditional.star -->
+```python
 load("starcm", "write", "vars")
 
 env = vars.get("env", "dev")

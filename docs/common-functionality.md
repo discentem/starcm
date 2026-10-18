@@ -34,8 +34,8 @@ later calls.
 skipped call logs why and returns an empty result: `success = False`,
 `changed = False`, `label = ""` and `value = None`.
 
-```scrut
-$ cat conditions.star
+<!-- fixture: fixtures/common_functionality/conditions.star -->
+```python
 load("starcm", "exec", "write")
 
 installed = exec(label = "already installed?", cmd = "sh", args = ["-c", "exit 1"])
@@ -62,8 +62,8 @@ same condition. `only_if` / `not_if` keep the skip in the log.
 [exec](functions/exec.md) returns a failed result when its timeout expires;
 [download](functions/download.md) fails the run.
 
-```scrut
-$ cat timeout.star
+<!-- fixture: fixtures/common_functionality/timeout.star -->
+```python
 load("starcm", "exec")
 
 r = exec(label = "slow command", cmd = "sleep", args = ["2"], timeout = "500ms")
@@ -83,8 +83,8 @@ paths against the directory of the `.star` file that calls it. An explicit
 to the directory starcm runs in. Other functions resolve relative paths
 against the directory starcm runs in, whatever `working_directory` says.
 
-```scrut
-$ cat sub/render.star
+<!-- fixture: fixtures/common_functionality/sub/render.star -->
+```python
 load("starcm", "template")
 
 # By default, template and destination are relative to this file's directory...
@@ -113,8 +113,8 @@ reports `changed` as if it had written the file, but writes nothing.
 Other functions accept `what_if` and ignore it, so don't rely on it for a
 dry run of a whole configuration.
 
-```scrut
-$ cat what_if.star
+<!-- fixture: fixtures/common_functionality/what_if.star -->
+```python
 load("starcm", "template")
 
 r = template(
@@ -152,8 +152,8 @@ do: [exec](functions/exec.md) for unexpected exit codes and timeouts, and
 [verify](functions/verify.md) for files that don't verify. Call `fail()` to
 stop the run yourself.
 
-```scrut
-$ cat result.star
+<!-- fixture: fixtures/common_functionality/result.star -->
+```python
 load("starcm", "exec")
 
 r = exec(label = "print the date", cmd = "echo", args = ["2026-10-17"])

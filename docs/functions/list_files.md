@@ -42,18 +42,19 @@ Each example runs in a scratch copy of
 $ cp -R "$TESTDIR/../fixtures/list_files/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-```scrut
-$ find config -type f | sort
-config/lib/macos.star
-config/lib/windows.star
-config/main.star
-config/notes.txt
+```text
+config/
+├── lib/
+│   ├── macos.star
+│   └── windows.star
+├── main.star
+└── notes.txt
 ```
 
 ### List files by pattern
 
-```scrut
-$ cat list.star
+<!-- fixture: ../fixtures/list_files/list.star -->
+```python
 load("starcm", "list_files")
 
 print(list_files("config", label = "everything").value)
@@ -70,8 +71,8 @@ $ starcm list.star
 
 ### Build a manifest of hashes
 
-```scrut
-$ cat manifest.star
+<!-- fixture: ../fixtures/list_files/manifest.star -->
+```python
 load("starcm", "list_files", "sha256")
 
 for f in list_files("config", pattern = "*.star", label = "find config").value:
