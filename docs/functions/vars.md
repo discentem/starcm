@@ -4,7 +4,7 @@
 
 `vars` is a dict of the values passed on the command line with
 `--var name=value`. Use it to run the same configuration in different
-environments: a base URL, a release channel, a role. It's a value, not a
+environments: a base URL, a release channel, a platform. It's a value, not a
 function: it takes no `label` and returns nothing.
 
 ## Syntax

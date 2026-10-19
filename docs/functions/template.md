@@ -19,10 +19,10 @@ template's trailing newline is kept.
 load("starcm", "template")
 
 template(
-    label       = "motd",           # required
-    template    = "motd.tpl",       # required
-    data        = {"name": "ada"},  # required
-    destination = "/etc/motd",      # required unless what_if = True
+    label       = "agent launchd job",                               # required
+    template    = "agent.plist.tpl",                                 # required
+    data        = {"label": "com.example.agent"},                    # required
+    destination = "/Library/LaunchDaemons/com.example.agent.plist",  # required unless what_if = True
 )
 ```
 
@@ -65,49 +65,84 @@ Each example runs in a scratch copy of
 $ cp -R "$TESTDIR/../fixtures/template/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-### Render a file
+### Render a launchd job
 
-<!-- fixture: ../fixtures/template/site/motd.tpl -->
+A template for a launchd job, filled in from `data`:
+
+<!-- fixture: ../fixtures/template/site/agent.plist.tpl -->
 ```jinja
-Welcome to {{ hostname }}.
-{% if maintenance -%}
-Maintenance window: {{ maintenance }}
-{% endif -%}
-Admins: {{ admins | join(", ") }}
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{ label }}</string>
+    <key>ProgramArguments</key>
+    <array>
+{%- for arg in program %}
+        <string>{{ arg }}</string>
+{%- endfor %}
+    </array>
+    <key>StartInterval</key>
+    <integer>{{ interval_seconds }}</integer>
+{%- if run_at_load %}
+    <key>RunAtLoad</key>
+    <true/>
+{%- endif %}
+</dict>
+</plist>
 ```
 
-<!-- fixture: ../fixtures/template/site/motd.star -->
+<!-- fixture: ../fixtures/template/site/launchd.star -->
 ```python
 load("starcm", "template")
 
+# A launchd job that runs the agent's check-in every 15 minutes.
 r = template(
-    label       = "motd",
-    template    = "motd.tpl",
-    destination = "motd.txt",
+    label       = "agent launchd job",
+    template    = "agent.plist.tpl",
+    destination = "com.example.agent.plist",
     data        = {
-        "hostname":    "build-01",
-        "maintenance": "Sundays 02:00 UTC",
-        "admins":      ["ada", "grace"],
+        "label":            "com.example.agent",
+        "program":          ["/usr/local/bin/agent", "check-in"],
+        "interval_seconds": 900,
+        "run_at_load":      True,
     },
 )
 print("changed=%s" % r.changed)
 ```
 
-`motd.tpl` and `motd.txt` are found next to `motd.star`, wherever starcm runs
-from:
+`agent.plist.tpl` and `com.example.agent.plist` are found next to
+`launchd.star`, wherever starcm runs from. On a Mac, the destination would be
+`/Library/LaunchDaemons/com.example.agent.plist`; here it stays in the
+example's directory.
 
 ```scrut
-$ starcm site/motd.star && cat site/motd.txt
+$ starcm site/launchd.star && cat site/com.example.agent.plist
 changed=True
-Welcome to build-01.
-Maintenance window: Sundays 02:00 UTC
-Admins: ada, grace
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/agent</string>
+        <string>check-in</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>900</integer>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
 ```
 
 Rendering the same data again leaves the file alone:
 
 ```scrut
-$ (cd site && starcm motd.star)
+$ (cd site && starcm launchd.star)
 changed=False
 ```
 
