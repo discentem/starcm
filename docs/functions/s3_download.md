@@ -54,8 +54,8 @@ s3_download(
 ## Credentials
 
 Credentials never go in the `.star` file. starcm signs each request (AWS
-Signature Version 4) with credentials from the AWS SDK's standard chain. On a
-laptop, they come from one of these, checked in this order:
+Signature Version 4) with credentials from the AWS SDK's standard chain,
+checked in this order:
 
 1. The `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables,
    plus `AWS_SESSION_TOKEN` for temporary credentials.
@@ -63,10 +63,9 @@ laptop, they come from one of these, checked in this order:
    `~/.aws/config`), using the `default` profile or the one named by
    `AWS_PROFILE`. A profile can use SSO, or run a `credential_process`
    command that hands out short-lived credentials, so no long-lived key needs
-   to sit on the laptop.
-
-(On an AWS server, the SDK also finds the machine's instance role. That's
-why, when no credentials are found, the error mentions `EC2 IMDS`.)
+   to sit on the machine.
+3. On an AWS server, the machine's instance role. That's why, when no
+   credentials are found, the error mentions `EC2 IMDS`.
 
 `region` and `endpoint` aren't secret, so it's fine to set them in the `.star`
 file, or pass them in with [--var](vars.md). Without them, starcm uses the

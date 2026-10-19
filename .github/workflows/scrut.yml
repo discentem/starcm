@@ -117,5 +117,12 @@ jobs:
             curl -s -o /dev/null "$STARCM_TEST_S3_ENDPOINT/" && break
             sleep 1
           done
-          cd "$GITHUB_WORKSPACE"
-          scrut test --work-directory . integration/s3/ || { echo "--- rustfs log"; cat "$dir/rustfs.log"; exit 1; }
+          # chain.md keeps starcm's store in its scratch directory, which scrut
+          # creates in the work directory. starcm refuses a store on the
+          # Windows runners' D: drive (another account owns it), so there the
+          # work directory goes on C:.
+          work="$RUNNER_TEMP/s3-test"
+          if [ "$RUNNER_OS" = Windows ]; then work="$(cygpath -u "$LOCALAPPDATA")/starcm-s3-test"; fi
+          mkdir -p "$work"
+          scrut test --work-directory "$work" "$GITHUB_WORKSPACE/integration/s3/" ||
+            { echo "--- rustfs log"; cat "$dir/rustfs.log"; exit 1; }
