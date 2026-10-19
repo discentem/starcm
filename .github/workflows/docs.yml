@@ -7,9 +7,9 @@ on:
 
 jobs:
   fixture-sources:
-    # Code shown in the docs must match the fixtures their examples run.
+    # Code shown in the docs must match the example files it names.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check code blocks against fixtures
+      - name: Check shown code against the example files
         run: python3 docs/check_sources.py

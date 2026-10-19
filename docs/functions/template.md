@@ -62,18 +62,18 @@ Template syntax errors and missing files stop the run.
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/template/](../fixtures/template).
+[examples/template/](../../examples/template).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/template/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/template/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Render a launchd job
 
 A template for a launchd job, filled in from `data`:
 
-<!-- fixture: ../fixtures/template/site/agent.plist.tpl -->
 ```jinja
+{# examples/template/site/agent.plist.tpl #}
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -96,8 +96,8 @@ A template for a launchd job, filled in from `data`:
 </plist>
 ```
 
-<!-- fixture: ../fixtures/template/site/launchd.star -->
 ```python
+# examples/template/site/launchd.star
 load("starcm", "template")
 
 # A launchd job that runs the agent's check-in every 15 minutes.
@@ -155,8 +155,8 @@ A short template can be written straight into the `.star` file with
 `source`, as a triple-quoted string. The backslash after the opening `"""`
 skips the first newline, so the template starts at the left margin:
 
-<!-- fixture: ../fixtures/template/site/inline.star -->
 ```python
+# examples/template/site/inline.star
 load("starcm", "template")
 
 # A short template can live in the .star file instead of its own file.
@@ -193,8 +193,8 @@ feature.telemetry = on
 Loop over lists and dicts to build a config file. Dict loops run in
 alphabetical key order; use a list when order matters.
 
-<!-- fixture: ../fixtures/template/site/ini.tpl -->
 ```jinja
+{# examples/template/site/ini.tpl #}
 {% for section in sections -%}
 [{{ section.name }}]
 {% for key, value in section.settings -%}
@@ -203,8 +203,8 @@ alphabetical key order; use a list when order matters.
 {% endfor -%}
 ```
 
-<!-- fixture: ../fixtures/template/site/preview.star -->
 ```python
+# examples/template/site/preview.star
 load("starcm", "template", "write")
 
 r = template(
@@ -236,14 +236,14 @@ level = info
 
 ### Filters
 
-<!-- fixture: ../fixtures/template/site/upper.tpl -->
 ```jinja
+{# examples/template/site/upper.tpl #}
 {{ name | upper }} has {{ items | length }} items; first is {{ items | first }}.
 {{ missing | default("no value") }}
 ```
 
-<!-- fixture: ../fixtures/template/site/filters.star -->
 ```python
+# examples/template/site/filters.star
 load("starcm", "template", "write")
 
 r = template(
@@ -261,7 +261,202 @@ FLEET has 2 items; first is mac.
 no value
 ```
 
+### Fill a template from nested data
+
+`data` can hold nested dicts, lists, tuples and other functions' results,
+such as [date](date.md)'s:
+
+```jinja
+{# examples/template/nested/config.tpl #}
+[server]
+host = {{ server.host }}
+port = {{ server.port }}
+{% for user in users %}
+[user.{{ user.name }}]
+groups = {{ user.groups | join(", ") }}
+{%- if user.shell %}
+shell = {{ user.shell }}
+{%- endif %}
+{% endfor %}
+[build]
+date = {{ now.formatted }}
+```
+
+```python
+# examples/template/nested/nested.star
+load("starcm", "date", "template", "write")
+
+# data can hold nested dicts, lists, tuples, None and structs (including
+# results from other starcm functions). Templates reach into them with
+# dots or brackets: server.host, users[0]["name"], now.formatted.
+render = template(
+    label = "render config.tpl",
+    template = "config.tpl",
+    data = {
+        "server": {"host": "localhost", "port": 8080},
+        "users": [
+            {"name": "ada", "groups": ("admin", "dev"), "shell": "/bin/zsh"},
+            {"name": "bob", "groups": ["dev"], "shell": None},
+        ],
+        "now": date(label = "build date", format = "date", timezone = "UTC").value,
+    },
+    what_if = True,
+)
+write(render.message, label = "print config", end = "")
+```
+
+```scrut
+$ (cd nested && starcm nested.star)
+[server]
+host = localhost
+port = 8080
+
+[user.ada]
+groups = admin, dev
+shell = /bin/zsh
+
+[user.bob]
+groups = dev
+
+[build]
+date = \d{4}-\d{2}-\d{2} (re)
+```
+
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/template/edge/](../../examples/template/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### destination is required unless what_if
+
+```python
+# examples/template/edge/missing_destination.star
+load("starcm", "template")
+
+template(label = "nowhere", template = "hello.tpl", data = {"name": "world", "age": 42})
+```
+
+```scrut
+$ starcm missing_destination.star 2>&1
+Traceback (most recent call last):
+  missing_destination.star:3:9: in <toplevel>
+Error in template: destination is required in template() module if what_if is false
+[1]
+```
+
+### Nested data
+
+`data` can hold nested dicts, lists, tuples, `None` and structs, including
+results from other starcm functions. Dict loops (`for k, v in d`) run in
+alphabetical key order; use a list when order matters.
+
+```python
+# examples/template/edge/nested.star
+load("starcm", "template", "write")
+
+r = template(
+    label    = "nested",
+    template = "nested.tpl",
+    what_if  = True,
+    data     = {
+        "user": {
+            "name": "ada",
+            "address": {"city": "london"},
+            "pets": [{"kind": "cat", "name": "tom"}, {"kind": "dog", "name": "rex"}],
+        },
+        "env": {"ZED": "1", "ALPHA": "2"},
+        "point": (3, 4),
+        "nothing": None,
+        "greeting": write("hello", label = "greeting", end = ""),
+    },
+)
+print("")
+write(r.message, label = "show render", end = "")
+```
+
+```scrut
+$ starcm nested.star
+hello
+dots: ada lives in london
+brackets: ada rex
+list: cat=tom dog=rex 
+dict: ALPHA=2 ZED=1 
+tuple: 3,4
+none: [] unset
+struct: hello success=True
+```
+
+### Dict keys must be strings
+
+```python
+# examples/template/edge/non_string_key.star
+load("starcm", "template")
+
+template(label = "bad keys", template = "hello.tpl", what_if = True, data = {"name": "x", "age": {1: "one"}})
+```
+
+```scrut
+$ starcm non_string_key.star 2>&1
+Traceback (most recent call last):
+  non_string_key.star:3:9: in <toplevel>
+Error in template: template() data: "age": dict keys must be strings, got int key 1
+[1]
+```
+
+### Inline templates
+
+`source` is the template text itself, instead of a template file.
+
+```python
+# examples/template/edge/source.star
+load("starcm", "template", "write")
+
+r = template(label = "inline", source = "Hello {{ name | capitalize }}.\n", data = {"name": "world"}, what_if = True)
+write(r.message, label = "show", end = "")
+```
+
+```scrut
+$ starcm source.star
+Hello World.
+```
+
+Exactly one of `template` and `source` must be given.
+
+```python
+# examples/template/edge/both.star
+load("starcm", "template")
+
+template(label = "both", template = "hello.tpl", source = "Hello {{ name }}", data = {"name": "x"}, what_if = True)
+```
+
+```scrut
+$ starcm both.star 2>&1
+Traceback (most recent call last):
+  both.star:3:9: in <toplevel>
+Error in template: template() takes template or source, not both
+[1]
+```
+
+```python
+# examples/template/edge/neither.star
+load("starcm", "template")
+
+template(label = "neither", data = {"name": "x"}, what_if = True)
+```
+
+```scrut
+$ starcm neither.star 2>&1
+Traceback (most recent call last):
+  neither.star:3:9: in <toplevel>
+Error in template: template() needs template (a template file) or source (the template text)
+[1]
+```
+
 ## See also
 
 - [file](file.md) for content you build in Starlark.
-- [tests/template.md](../../tests/template.md) for nested data, structs and errors.

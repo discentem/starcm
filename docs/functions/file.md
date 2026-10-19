@@ -49,16 +49,16 @@ A [starcm_result](../common-functionality.md#starcm_result):
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/file/](../fixtures/file).
+[examples/file/](../../examples/file).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/file/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/file/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Create a file
 
-<!-- fixture: ../fixtures/file/create.star -->
 ```python
+# examples/file/create.star
 load("starcm", "file")
 
 r = file(
@@ -86,8 +86,8 @@ starcm_result(changed = False, error = "<nil>", label = "agent settings", messag
 
 `content` is the whole file, not a line to add.
 
-<!-- fixture: ../fixtures/file/update.star -->
 ```python
+# examples/file/update.star
 load("starcm", "file")
 
 r = file(
@@ -127,8 +127,8 @@ Inside a function, where the lines would be indented with the code, use
 
 ### Create parent directories and set the mode
 
-<!-- fixture: ../fixtures/file/create_dirs.star -->
 ```python
+# examples/file/create_dirs.star
 load("starcm", "file")
 
 r = file(
@@ -149,8 +149,8 @@ server = https://config.example.com
 
 Without `create_dirs`, a missing parent directory fails the run:
 
-<!-- fixture: ../fixtures/file/missing_dir.star -->
 ```python
+# examples/file/missing_dir.star
 load("starcm", "file")
 
 file(label = "no parent", path = "nowhere/file.txt", content = "x")
@@ -169,8 +169,8 @@ Error in file: directory ".*[/\\]nowhere" does not exist and create_dirs is fals
 Here `HOME` points at the scratch directory so the example doesn't touch your
 real home directory.
 
-<!-- fixture: ../fixtures/file/home.star -->
 ```python
+# examples/file/home.star
 load("starcm", "file")
 
 r = file(label = "dotfile", path = "~/.agentrc", content = "debug = false\n")
@@ -187,8 +187,8 @@ debug = false
 
 Deleting a file that's already gone succeeds with `changed = False`.
 
-<!-- fixture: ../fixtures/file/delete.star -->
 ```python
+# examples/file/delete.star
 load("starcm", "file")
 
 for i in range(2):
@@ -206,4 +206,3 @@ pass 2: changed=False message=file "*agent.conf" does not exist (glob)
 
 - [template](template.md) to render a file's content from a template.
 - [json](json.md) to write JSON content.
-- [tests/file.md](../../tests/file.md).

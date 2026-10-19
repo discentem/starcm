@@ -39,11 +39,11 @@ Options go before the file name.
 ## Examples
 
 ```scrut
-$ cp -R "$TESTDIR/fixtures/cli/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../examples/cli/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-<!-- fixture: fixtures/cli/hello.star -->
 ```python
+# examples/cli/hello.star
 load("starcm", "vars", "write")
 
 write("hello, %s" % vars.get("name", "world"), label = "greet")
@@ -75,13 +75,13 @@ same keys, and [sign()](functions/sign.md) is disabled. See
 [sign](functions/sign.md) for making keys and signatures.
 
 ```scrut
-$ mkdir trusted && cp "$TESTDIR/../tests/fixtures/signing/trusted/test.pub.pem" trusted/release.pub.pem && starcm --trusted-keys trusted hello.star 2>&1
+$ mkdir trusted && cp "$TESTDIR/keys/trusted/test.pub.pem" trusted/release.pub.pem && starcm --trusted-keys trusted hello.star 2>&1
 signature check failed for hello.star: no signature file hello.star.sig
 [1]
 ```
 
 ```scrut
-$ starcm sign --expires 30d --key "$TESTDIR/../tests/fixtures/signing/private/test.pem" --key-id release hello.star && starcm --trusted-keys trusted hello.star
+$ starcm sign --expires 30d --key "$TESTDIR/keys/private/test.pem" --key-id release hello.star && starcm --trusted-keys trusted hello.star
 signed hello.star with key "release" until * -> hello.star.sig (glob)
 hello, world
 ```
@@ -140,8 +140,8 @@ no store was created
 
 Skipped calls are always logged:
 
-<!-- fixture: fixtures/cli/skip.star -->
 ```python
+# examples/cli/skip.star
 load("starcm", "write")
 
 write("skipped", label = "skip me", only_if = False)
@@ -179,4 +179,5 @@ open missing\.star: (no such file or directory|The system cannot find the file s
 
 ## See also
 
-- [tests/vars.md](../tests/vars.md) and [tests/signing.md](../tests/signing.md).
+- [vars](functions/vars.md), [sign](functions/sign.md) and [verify](functions/verify.md).
+

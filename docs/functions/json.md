@@ -31,16 +31,16 @@ json.indent(text, prefix = "", indent = "\t")  # reformat a JSON string
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/json/](../fixtures/json).
+[examples/json/](../../examples/json).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/json/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/json/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Encode, decode and indent
 
-<!-- fixture: ../fixtures/json/json.star -->
 ```python
+# examples/json/json.star
 load("starcm", "json")
 
 doc = json.decode('{"name": "ada", "groups": ["admin", "dev"], "uid": 501, "active": true, "shell": null}')
@@ -68,8 +68,8 @@ ada ["admin", "dev"] 502 True None
 Because `json.encode` sorts keys, the same settings always produce the same
 file, and [file](file.md) reports `changed = False` when nothing changed.
 
-<!-- fixture: ../fixtures/json/write_json.star -->
 ```python
+# examples/json/write_json.star
 load("starcm", "file", "json")
 
 settings = {"channel": "beta", "auto_update": True, "hosts": ["a", "b"]}
@@ -102,4 +102,3 @@ changed=False
 ## See also
 
 - [read_file](read_file.md) has an example that decodes a settings file.
-- [tests/json.md](../../tests/json.md).

@@ -39,13 +39,13 @@ signature. To pick a file at runtime, use
 ## Examples
 
 ```scrut
-$ cp -R "$TESTDIR/fixtures/loading/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../examples/loading/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Share code between files
 
-<!-- fixture: fixtures/loading/lib/users.star -->
 ```python
+# examples/loading/lib/users.star
 load("starcm", "write")
 
 ADMINS = ["ada", "grace"]
@@ -54,8 +54,8 @@ def greet(name):
     write("hello, %s" % name, label = "greet " + name)
 ```
 
-<!-- fixture: fixtures/loading/main.star -->
 ```python
+# examples/loading/main.star
 load("starcm", "write", say = "write")
 load("lib/users.star", "ADMINS", "greet")
 
@@ -73,8 +73,8 @@ aliases work too
 
 ### Workspace-relative paths
 
-<!-- fixture: fixtures/loading/workspace.star -->
 ```python
+# examples/loading/workspace.star
 load("//lib/users.star", "greet")
 
 greet("workspace")
@@ -93,6 +93,81 @@ $ (cd lib && starcm ../workspace.star 2>&1 | tail -1)
 Error: cannot load //lib/users.star: loading module ".*lib[/\\]+lib[/\\]+users\.star": open .*lib[/\\]lib[/\\]users\.star: (no such file or directory|The system cannot find the (file|path) specified\.) (regex)
 ```
 
+### `if` and `for` at the top level
+
+```python
+# examples/loading/if_statements.star
+load("starcm", "exec")
+a = exec(
+    label               = "explicitly exit 2",
+    cmd                = "sh", 
+    args               = ["-c", "echo 'we expect to exit 2'; exit 2"],
+    expected_exit_code = 2,
+)
+if a.success == True:
+    print("party!")
+else:
+    print("no party :(")
+```
+
+```scrut
+$ starcm if_statements.star
+party!
+```
+
+### Load files in a loop
+
+```python
+# examples/loading/loop.star
+load("starcm", "load_dynamic")
+
+for f in ['nested_files/e.star', 'nested_files/subfolder/subfolder2/subfolder3/d.star']:
+    load_dynamic(f, label=f)
+```
+
+```scrut
+$ starcm loop.star
+hello from e.star
+hello from d.star
+```
+
+### A chain of nested files
+
+`b.star` loads `c.star` by a path relative to itself, which loads `d.star`
+the same way and `e.star` by a workspace-relative path:
+
+```python
+# examples/loading/nested_files/subfolder/b.star
+e = ""
+
+print('hello from b.star')
+
+load("starcm", "load_dynamic")
+load_dynamic("subfolder2/c.star", label="load c.star from b.star")
+```
+
+```python
+# examples/loading/nested_files/subfolder/subfolder2/c.star
+print("hello from c.star")
+
+load("starcm", "load_dynamic")
+
+load_dynamic("subfolder3/d.star", label="load d.star from c.star")
+
+load_dynamic("//examples/loading/nested_files/e.star", label="load e.star from c.star")
+```
+
+`//examples/loading/nested_files/e.star` resolves against the directory
+starcm runs in, so this runs from a directory laid out like the repository:
+
+```scrut
+$ mkdir -p repo/examples/loading && cp -R nested_files repo/examples/loading/ && (cd repo && starcm examples/loading/nested_files/subfolder/b.star)
+hello from b.star
+hello from c.star
+hello from d.star
+hello from e.star
+```
+
 ## See also
 
-- [examples/](../examples) and [tests/examples.md](../tests/examples.md) for nested loads and loads in loops.
+- [examples/loading/](../examples/loading), the files these examples run.

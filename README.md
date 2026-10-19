@@ -24,15 +24,13 @@ if it's signed by dockutil's developer and notarized by Apple.
 
 Save the code below as `install_dockutil.star`. (The same file is in this
 repository at
-[docs/fixtures/quickstart/install_dockutil.star](docs/fixtures/quickstart/install_dockutil.star).)
+[examples/quickstart/install_dockutil.star](examples/quickstart/install_dockutil.star).)
 The package is kept in starcm's
 [local store](docs/functions/download.md#the-local-store), so nothing is
 left in the directory you run it from.
 
-`install_dockutil.star`:
-
-<!-- fixture: docs/fixtures/quickstart/install_dockutil.star -->
 ```python
+# examples/quickstart/install_dockutil.star
 load("starcm", "download", "install_mac_pkg")
 
 # dockutil 3.1.3. download() checks the sha256 and keeps the package in

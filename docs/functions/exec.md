@@ -61,16 +61,16 @@ Log lines about skipped `exec` calls call it `shell(label=...)`, its internal na
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/exec/](../fixtures/exec).
+[examples/exec/](../../examples/exec).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/exec/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/exec/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Capture a command's output
 
-<!-- fixture: ../fixtures/exec/capture.star -->
 ```python
+# examples/exec/capture.star
 load("starcm", "exec")
 
 r = exec(label = "say hello", cmd = "echo", args = ["hello", "world"])
@@ -84,8 +84,8 @@ starcm_result(changed = True, error = "<nil>", label = "say hello", message = ""
 
 ### Use a shell for pipes and redirects
 
-<!-- fixture: ../fixtures/exec/shell.star -->
 ```python
+# examples/exec/shell.star
 load("starcm", "exec")
 
 # cmd is run directly, not through a shell. Ask for one to use pipes,
@@ -108,8 +108,8 @@ On Windows, use `cmd = "cmd.exe", args = ["/c", ...]` or
 
 ### Expect a non-zero exit code
 
-<!-- fixture: ../fixtures/exec/exit_codes.star -->
 ```python
+# examples/exec/exit_codes.star
 load("starcm", "exec")
 
 ok = exec(label = "grep finds nothing", cmd = "sh", args = ["-c", "exit 1"], expected_exit_code = 1)
@@ -130,8 +130,8 @@ handle the failure here, or stop the run with fail()
 
 ### Stream output while it runs
 
-<!-- fixture: ../fixtures/exec/live_output.star -->
 ```python
+# examples/exec/live_output.star
 load("starcm", "exec")
 
 exec(
@@ -150,8 +150,8 @@ step 2
 
 ### Give up after a timeout
 
-<!-- fixture: ../fixtures/exec/timeout.star -->
 ```python
+# examples/exec/timeout.star
 load("starcm", "exec")
 
 r = exec(label = "hangs", cmd = "sleep", args = ["2"], timeout = "500ms")
@@ -165,8 +165,8 @@ success=False error=context deadline exceeded
 
 ### Run a command only when a check fails
 
-<!-- fixture: ../fixtures/exec/chain.star -->
 ```python
+# examples/exec/chain.star
 load("starcm", "exec")
 
 check = exec(label = "is the tool installed?", cmd = "sh", args = ["-c", "command -v not-a-real-tool"])
@@ -195,13 +195,13 @@ store goes under `%LocalAppData%`:
 $ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-docs.XXXXXX") && store="$store_root/store" ;; esac
 ```
 
-<!-- fixture: ../fixtures/exec/stored.star -->
 ```python
+# examples/exec/stored.star
 load("starcm", "download", "exec")
 
 agent = download(
     label  = "fetch agent",
-    url    = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url    = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
 
@@ -216,13 +216,13 @@ agent v1.2.0
 
 If the stored file changes after `download` checked it, `exec` refuses to run:
 
-<!-- fixture: ../fixtures/exec/stored_changed.star -->
 ```python
+# examples/exec/stored_changed.star
 load("starcm", "download", "exec")
 
 agent = download(
     label  = "fetch agent",
-    url    = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url    = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
 
@@ -245,8 +245,34 @@ Error in exec: exec(label="install agent"): *agent-1.2.0.txt in the store has sh
 $ rm -rf "$store" ${store_root:+"$store_root"}
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/exec/edge/](../../examples/exec/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### args is required
+
+```python
+# examples/exec/edge/missing_args.star
+load("starcm", "exec")
+
+exec(label = "no args", cmd = "true")
+```
+
+```scrut
+$ starcm missing_args.star 2>&1
+Traceback (most recent call last):
+  missing_args.star:3:5: in <toplevel>
+Error in exec: no args: missing argument for args
+[1]
+```
+
 ## See also
 
 - [download](download.md#the-local-store) for the local store.
 - [Common functionality](../common-functionality.md) for `only_if`, `not_if` and `timeout`.
-- [tests/exec.md](../../tests/exec.md) for argument errors.

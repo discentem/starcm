@@ -36,10 +36,10 @@ listed.
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/list_files/](../fixtures/list_files), which has:
+[examples/list_files/](../../examples/list_files), which has:
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/list_files/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/list_files/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ```text
@@ -53,8 +53,8 @@ config/
 
 ### List files by pattern
 
-<!-- fixture: ../fixtures/list_files/list.star -->
 ```python
+# examples/list_files/list.star
 load("starcm", "list_files")
 
 print(list_files("config", label = "everything").value)
@@ -71,8 +71,8 @@ $ starcm list.star
 
 ### Build a manifest of hashes
 
-<!-- fixture: ../fixtures/list_files/manifest.star -->
 ```python
+# examples/list_files/manifest.star
 load("starcm", "list_files", "sha256")
 
 for f in list_files("config", pattern = "*.star", label = "find config").value:
@@ -87,8 +87,33 @@ cbdeb467b4cb  lib/macos.star
 2377a494b815  main.star
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/list_files/edge/](../../examples/list_files/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### An invalid pattern stops the run
+
+```python
+# examples/list_files/edge/bad_pattern.star
+load("starcm", "list_files")
+list_files("tree", pattern = "[", label = "bad pattern")
+```
+
+```scrut
+$ starcm bad_pattern.star 2>&1
+Traceback (most recent call last):
+  bad_pattern.star:2:11: in <toplevel>
+Error in list_files: invalid pattern "[": syntax error in pattern
+[1]
+```
+
 ## See also
 
 - [sign](sign.md) has an example that signs every `.star` file `list_files` finds.
 - [inspect](inspect.md) has an example that checks every file against a policy.
-- [tests/list_files.md](../../tests/list_files.md) for invalid patterns.

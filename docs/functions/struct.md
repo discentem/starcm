@@ -25,11 +25,11 @@ name.
 ## Examples
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/struct/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/struct/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-<!-- fixture: ../fixtures/struct/struct.star -->
 ```python
+# examples/struct/struct.star
 load("starcm", "write")
 load("stdlib", "struct")
 

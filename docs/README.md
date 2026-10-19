@@ -77,33 +77,44 @@ These take no `label` and don't return a `starcm_result`.
 Starlark's built-ins, such as `print`, `fail`, `len`, `range` and `sorted`,
 are always available.
 
-## Docs and tests
+## These pages are tests
 
-The pages here show typical use. [tests/](../tests) holds the edge cases:
-error paths, tampered signatures, arguments leaking between calls and so on.
-Both run in the same scrut CI job. To run them locally, build starcm, put it
-on your `PATH`, start the HTTP server the download examples use, and run
-scrut from the repository root:
+Every page here is also a [scrut](https://github.com/facebookincubator/scrut)
+test. CI runs every ```` ```scrut ```` code block and checks that the command
+prints exactly the output shown, on Linux, macOS and Windows, so the examples
+can't go out of date.
+
+- **Examples** come first on each page and show typical use.
+- **Errors and edge cases**, at the bottom of a page, are there mostly as
+  tests: error messages, tampered signatures, arguments that must not leak
+  between calls, and so on.
+
+The `.star` files the pages run live in [examples/](../examples), one folder
+per page (`examples/download/` for [download](functions/download.md), and so
+on), so you can browse and copy them. The files only the "Errors and edge
+cases" section uses are in that folder's `edge/` subfolder. Each page copies
+its folder into a scratch directory before running anything, so the examples
+never change the files in `examples/`. The test-only signing keys the
+signature examples use are in [keys/](keys).
+
+Where a page shows an example's source, the first line of the code block is
+a comment naming the file, such as `# examples/download/basic.star`. The
+Docs workflow runs [check_sources.py](check_sources.py) to make sure each such
+block still matches its file.
+
+To run the pages locally, build starcm, put it on your `PATH`, start the HTTP
+server the download examples use, and run scrut from the repository root:
 
 ```bash
 make install
 python3 -m http.server 8000 --bind 127.0.0.1 &
-scrut test --work-directory . docs/ tests/
-```
-
-The quick start in the top-level README.md installs a real package with
-`sudo`, so it isn't part of that run. The macOS Install workflow runs it on a
-CI runner and removes the package afterwards.
-
-Fixtures for the examples live in [fixtures/](fixtures). Each page copies
-its fixtures into a scratch directory, so running the examples leaves
-nothing behind.
-
-An example's source is shown in a plain code block after a
-`<!-- fixture: path -->` comment naming the file it runs. The Docs workflow
-runs [check_sources.py](check_sources.py) to make sure each such block still
-matches its file:
-
-```bash
+scrut test --work-directory . docs/
 python3 docs/check_sources.py
 ```
+
+Two sets of tests need more than that, so they run in their own CI jobs:
+
+- The quick start in the top-level README.md installs a real package with
+  `sudo` (the macOS Install workflow).
+- [integration/s3/chain.md](../integration/s3/chain.md) runs a chain of
+  `.star` files from a real S3-compatible server, rustfs.

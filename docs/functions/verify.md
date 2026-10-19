@@ -50,11 +50,11 @@ Running without `--trusted-keys` stops the run.
 ## Examples
 
 The examples use the test-only key from
-[tests/fixtures/signing/](../../tests/fixtures/signing). Every `.star` file
+[docs/keys/](../keys). Every `.star` file
 and `agent.pkg` are signed first; `unsigned.pkg` isn't.
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/verify/." "$TMPDIR" && cd "$TMPDIR" && mkdir trusted && cp "$TESTDIR/../../tests/fixtures/signing/private/test.pem" release.pem && cp "$TESTDIR/../../tests/fixtures/signing/trusted/test.pub.pem" trusted/release.pub.pem
+$ cp -R "$TESTDIR/../../examples/verify/." "$TMPDIR" && cd "$TMPDIR" && mkdir trusted && cp "$TESTDIR/../keys/private/test.pem" release.pem && cp "$TESTDIR/../keys/trusted/test.pub.pem" trusted/release.pub.pem
 ```
 
 ```scrut
@@ -67,8 +67,8 @@ signed detached.star with key "release" until 2099-01-01T00:00:00Z -> detached.s
 
 ### Check files
 
-<!-- fixture: ../fixtures/verify/check.star -->
 ```python
+# examples/verify/check.star
 load("starcm", "verify")
 
 for f in ["agent.pkg", "unsigned.pkg"]:
@@ -87,8 +87,8 @@ unsigned.pkg: success=False key=None
 
 ### Refuse to install a tampered file
 
-<!-- fixture: ../fixtures/verify/must_verify.star -->
 ```python
+# examples/verify/must_verify.star
 load("starcm", "exec", "verify")
 
 check = verify("agent.pkg", label = "check agent signature")
@@ -122,8 +122,8 @@ Error in fail: fail: agent.pkg: key "release": signature expired at 2020-01-01T0
 
 ### Keep signatures somewhere else
 
-<!-- fixture: ../fixtures/verify/detached.star -->
 ```python
+# examples/verify/detached.star
 load("starcm", "verify")
 
 r = verify("agent.pkg", signature = "sigs/agent.pkg.sig", label = "check with a detached signature")
@@ -149,4 +149,3 @@ Error in verify: verify() needs trusted keys: run starcm with --trusted-keys
 
 - [sign](sign.md) for keys and signing.
 - [download](download.md) to fetch the file first.
-- [tests/signing.md](../../tests/signing.md).

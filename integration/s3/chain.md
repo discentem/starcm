@@ -25,8 +25,8 @@ s3://config/
 
 `bootstrap.star`, the file starcm runs:
 
-<!-- fixture: fixtures/bootstrap.star -->
 ```python
+# integration/s3/fixtures/bootstrap.star
 load("starcm", "load_dynamic", "s3_download", "vars")
 
 # The only configuration on the machine to start with. main.star comes from
@@ -45,8 +45,8 @@ load_dynamic(main, label = "run main.star")
 
 `main.star`, in the bucket:
 
-<!-- fixture: fixtures/config/main.star -->
 ```python
+# integration/s3/fixtures/config/main.star
 load("starcm", "exec", "load_dynamic", "s3_download", "vars")
 
 # bootstrap.star fetches this file from s3://config and runs it. Everything
@@ -71,8 +71,8 @@ exec(label = "install agent", cmd = "sh", args = [fetch("scripts/install-agent.s
 
 `lib/settings.star`, in the bucket:
 
-<!-- fixture: fixtures/config/lib/settings.star -->
 ```python
+# integration/s3/fixtures/config/lib/settings.star
 load("starcm", "dedent", "file")
 
 def apply():
@@ -91,8 +91,8 @@ def apply():
 
 `scripts/install-agent.sh`, in the bucket:
 
-<!-- fixture: fixtures/config/scripts/install-agent.sh -->
 ```sh
+# integration/s3/fixtures/config/scripts/install-agent.sh
 #!/bin/sh
 # Stands in for a real installer: it only prints which version it installed.
 echo "agent 1.0 installed"
@@ -110,12 +110,12 @@ Copy the files above into scrut's scratch directory and work there:
 $ cp -R "$TESTDIR/fixtures/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-Signing uses the test-only keys from `tests/fixtures/signing/`:
+Signing uses the test-only keys from `docs/keys/`:
 `keys/test.pem` signs the configuration, `trusted/` holds its public half for
 `--trusted-keys`, and `keys/untrusted.pem` is a key starcm doesn't trust.
 
 ```scrut
-$ mkdir keys trusted && cp "$TESTDIR"/../../tests/fixtures/signing/private/test.pem "$TESTDIR"/../../tests/fixtures/signing/private/untrusted.pem keys/ && cp "$TESTDIR"/../../tests/fixtures/signing/trusted/test.pub.pem trusted/
+$ mkdir keys trusted && cp "$TESTDIR"/../../docs/keys/private/test.pem "$TESTDIR"/../../docs/keys/private/untrusted.pem keys/ && cp "$TESTDIR"/../../docs/keys/trusted/test.pub.pem trusted/
 ```
 
 ## Publish the configuration to the bucket

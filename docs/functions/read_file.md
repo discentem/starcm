@@ -34,16 +34,16 @@ file that can't be read stops the run.
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/read_file/](../fixtures/read_file).
+[examples/read_file/](../../examples/read_file).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/read_file/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/read_file/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Read a text file
 
-<!-- fixture: ../fixtures/read_file/read.star -->
 ```python
+# examples/read_file/read.star
 load("starcm", "read_file")
 
 r = read_file("notes.txt", label = "read notes")
@@ -61,13 +61,14 @@ success=True changed=False
 
 ### Read JSON settings
 
-<!-- fixture: ../fixtures/read_file/settings.json -->
+`examples/read_file/settings.json`:
+
 ```json
 {"channel": "beta", "hosts": ["a", "b"]}
 ```
 
-<!-- fixture: ../fixtures/read_file/json_config.star -->
 ```python
+# examples/read_file/json_config.star
 load("starcm", "json", "read_file")
 
 settings = json.decode(read_file(path = "settings.json", label = "read settings").value)
@@ -83,8 +84,8 @@ channel=beta hosts=["a", "b"]
 
 Here `HOME` points at the scratch directory, which has a `notes.txt`.
 
-<!-- fixture: ../fixtures/read_file/home.star -->
 ```python
+# examples/read_file/home.star
 load("starcm", "read_file")
 
 print(read_file("~/notes.txt", label = "read from home").value.strip())
@@ -96,7 +97,32 @@ line one
 line two
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/read_file/edge/](../../examples/read_file/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### A missing file stops the run
+
+```python
+# examples/read_file/edge/missing.star
+load("starcm", "read_file")
+read_file("missing.txt", label = "missing")
+```
+
+```scrut
+$ starcm missing.star 2>&1
+Traceback (most recent call last):
+  missing.star:2:10: in <toplevel>
+Error in read_file: failed to read file "missing\.txt": open .*[/\\]missing\.txt: (no such file or directory|The system cannot find the file specified\.) (regex)
+[1]
+```
+
 ## See also
 
 - [json](json.md), [sha256](sha256.md), [list_files](list_files.md).
-- [tests/read_file.md](../../tests/read_file.md) for missing files.

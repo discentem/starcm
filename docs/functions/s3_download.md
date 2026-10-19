@@ -91,26 +91,25 @@ mismatch all stop the run with an error.
 ## Examples
 
 Here CI's local HTTP server stands in for an S3-compatible store, through
-`endpoint`. The bucket `docs` and key `fixtures/download/files/agent-1.2.0.txt`
-become the path `/docs/fixtures/download/files/agent-1.2.0.txt` on that
-server. It doesn't check credentials, but starcm still signs the request with
+`endpoint`. The bucket `examples` and key `download/files/agent-1.2.0.txt`
+become the path `/examples/download/files/agent-1.2.0.txt` on that server. It doesn't check credentials, but starcm still signs the request with
 the ones in the environment. The example runs in a scratch copy of
-[docs/fixtures/s3_download/](../fixtures/s3_download).
+[examples/s3_download/](../../examples/s3_download).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/s3_download/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/s3_download/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Download from an S3-compatible store
 
-<!-- fixture: ../fixtures/s3_download/fetch.star -->
 ```python
+# examples/s3_download/fetch.star
 load("starcm", "s3_download")
 
 r = s3_download(
     label    = "fetch agent from S3",
-    bucket   = "docs",
-    key      = "fixtures/download/files/agent-1.2.0.txt",
+    bucket   = "examples",
+    key      = "download/files/agent-1.2.0.txt",
     sha256   = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
     save_to  = "agent-1.2.0.txt",
     # An S3-compatible store; leave this out for AWS S3.
@@ -139,19 +138,19 @@ The signature is fetched from the same bucket and checked against
 The signature is saved next to the file.
 
 ```scrut
-$ mkdir -p trusted && cp "$TESTDIR/../../tests/fixtures/signing/trusted/test.pub.pem" trusted/ && starcm sign --expires 2099-01-01 --key "$TESTDIR/../../tests/fixtures/signing/private/test.pem" signed.star >/dev/null
+$ mkdir -p trusted && cp "$TESTDIR/../keys/trusted/test.pub.pem" trusted/ && starcm sign --expires 2099-01-01 --key "$TESTDIR/../keys/private/test.pem" signed.star >/dev/null
 ```
 
-<!-- fixture: ../fixtures/s3_download/signed.star -->
 ```python
+# examples/s3_download/signed.star
 load("starcm", "s3_download")
 
 # The signature is another object in the same bucket.
 r = s3_download(
     label     = "fetch signed agent from S3",
-    bucket    = "docs",
-    key       = "fixtures/download/files/agent-1.2.0.txt",
-    signature = "fixtures/download/files/agent-1.2.0.txt.sig",
+    bucket    = "examples",
+    key       = "download/files/agent-1.2.0.txt",
+    signature = "download/files/agent-1.2.0.txt.sig",
     save_to   = "signed/agent.txt",
     endpoint  = "http://localhost:8000",
 )
