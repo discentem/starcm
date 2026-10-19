@@ -2,6 +2,7 @@ package template
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -77,19 +78,32 @@ func (a *templateAction) writeTemplate(path string, data []byte, opts writeTempl
 }
 
 type parsedArgs struct {
+	// templatePath is the template file, or "" when source is given.
 	templatePath string
-	data         map[string]any
-	destination  string
-	whatIf       bool
+	// source is the template text itself, when given instead of a file.
+	source      *string
+	data        map[string]any
+	destination string
+	whatIf      bool
 }
 
 func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*parsedArgs, error) {
-	template, err := starlarkhelpers.FindValueinKwargs(kwargs, "template")
+	template, err := optionalString(kwargs, "template")
 	if err != nil {
 		return nil, err
 	}
-	if template == nil {
-		return nil, fmt.Errorf("template is required in template() module")
+	source, err := optionalString(kwargs, "source")
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case template != nil && source != nil:
+		return nil, fmt.Errorf("template() takes template or source, not both")
+	case template == nil && source == nil:
+		return nil, fmt.Errorf("template() needs template (a template file) or source (the template text)")
+	case template == nil:
+		empty := ""
+		template = &empty
 	}
 	keyWordStr := "data"
 
@@ -125,6 +139,7 @@ func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*
 
 	return &parsedArgs{
 		templatePath: *template,
+		source:       source,
 		data:         gokv,
 		destination:  *destination,
 		whatIf:       whatIf,
@@ -151,14 +166,19 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		return nil, fmt.Errorf("destination must be a file, not a directory")
 	}
 
-	f, err := a.fsys.Open(filepath.Join(workingDirectory, template))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	b, err := afero.ReadAll(f)
-	if err != nil {
-		return nil, err
+	var b []byte
+	if parsedArgs.source != nil {
+		b = []byte(*parsedArgs.source)
+		template = "source"
+	} else {
+		f, err := a.fsys.Open(filepath.Join(workingDirectory, template))
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		if b, err = afero.ReadAll(f); err != nil {
+			return nil, err
+		}
 	}
 	logging.Log(moduleName, deck.V(2), "info", "%v before rendering: %v", template, string(b))
 	logging.Log(moduleName, deck.V(2), "info", "data: %v", gokv)
@@ -275,7 +295,8 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 		ctx,
 		"template",
 		[]base.ArgPair{
-			base.Arg[string]("template"),
+			base.OptionalArg[string]("template"),
+			base.OptionalArg[string]("source"),
 			base.Arg[*starlark.Dict]("data"),
 			base.OptionalArg[string]("destination"),
 		},
@@ -283,4 +304,17 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 			fsys: fsys,
 		},
 	)
+}
+
+// optionalString returns the value of key in kwargs, or nil if it wasn't
+// passed.
+func optionalString(kwargs []starlark.Tuple, key string) (*string, error) {
+	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, key)
+	if errors.Is(err, starlarkhelpers.ErrIndexNotFound) || idx == starlarkhelpers.IndexNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return starlarkhelpers.FindValueFromIndexInKwargs(kwargs, idx)
 }

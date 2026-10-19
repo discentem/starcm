@@ -26,7 +26,7 @@ file(
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `path` | string | required | The file to manage. A leading `~` expands to the home directory (`$HOME`); other relative paths are relative to the directory starcm runs in. |
-| `content` | string | `""` | The file's full content (`action = "create"` only). |
+| `content` | string | `""` | The file's full content (`action = "create"` only). For several lines, use a triple-quoted string; see [Multi-line content](#multi-line-content). |
 | `action` | string | `"create"` | `"create"` makes the file match `content`; `"delete"` removes it. |
 | `mode` | int | `0o644` | Permissions for a newly created file. An existing file's permissions are left alone. |
 | `create_dirs` | bool | `False` | Create missing parent directories. Without it, a missing parent directory fails the run. |
@@ -93,7 +93,10 @@ load("starcm", "file")
 r = file(
     label   = "agent settings",
     path    = "agent.conf",
-    content = "server = https://config.example.com\nchannel = beta\n",
+    content = """\
+server = https://config.example.com
+channel = beta
+""",
 )
 print("changed=%s" % r.changed)
 ```
@@ -104,6 +107,23 @@ changed=True
 server = https://config.example.com
 channel = beta
 ```
+
+### Multi-line content
+
+Write multi-line content as a triple-quoted string, as in the example above.
+A backslash right after the opening `"""` skips the first newline, so the
+content starts on the next line at the left margin, exactly as it will be in
+the file:
+
+```python
+content = """\
+server = https://config.example.com
+channel = beta
+""",
+```
+
+Inside a function, where the lines would be indented with the code, use
+[dedent](dedent.md) to take the indentation off.
 
 ### Create parent directories and set the mode
 

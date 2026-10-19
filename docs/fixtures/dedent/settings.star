@@ -1,0 +1,13 @@
+load("starcm", "dedent", "file")
+
+def agent_settings(channel):
+    # Indented with the code; dedent() takes the indentation off.
+    return dedent("""
+        server = https://config.example.com
+        channel = %s
+        [logging]
+            level = info
+        """ % channel)
+
+r = file(label = "agent settings", path = "agent.conf", content = agent_settings("beta"))
+print("changed=%s" % r.changed)

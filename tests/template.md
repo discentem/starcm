@@ -66,3 +66,30 @@ Traceback (most recent call last):
 Error in template: template() data: "age": dict keys must be strings, got int key 1
 [1]
 ```
+
+## Inline templates
+
+`source` is the template text itself, instead of a template file.
+
+```scrut
+$ starcm source.star
+Hello World.
+```
+
+Exactly one of `template` and `source` must be given.
+
+```scrut
+$ starcm both.star 2>&1
+Traceback (most recent call last):
+  both.star:3:9: in <toplevel>
+Error in template: template() takes template or source, not both
+[1]
+```
+
+```scrut
+$ starcm neither.star 2>&1
+Traceback (most recent call last):
+  neither.star:3:9: in <toplevel>
+Error in template: template() needs template (a template file) or source (the template text)
+[1]
+```

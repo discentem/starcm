@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//functions/checksum",
         "//functions/date",
+        "//functions/dedent",
         "//functions/download",
         "//functions/dynamic_loading",
         "//functions/file",

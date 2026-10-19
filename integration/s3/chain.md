@@ -73,14 +73,17 @@ exec(label = "install agent", cmd = "sh", args = [fetch("scripts/install-agent.s
 
 <!-- fixture: fixtures/config/lib/settings.star -->
 ```python
-load("starcm", "file")
+load("starcm", "dedent", "file")
 
 def apply():
     """Writes the agent's settings file and reports whether it changed."""
     r = file(
         label       = "agent settings",
         path        = "managed/agent.conf",
-        content     = "server = https://config.example.com\nchannel = stable\n",
+        content     = dedent("""
+            server = https://config.example.com
+            channel = stable
+            """),
         create_dirs = True,
     )
     print("agent settings: changed=%s" % r.changed)
@@ -174,13 +177,13 @@ after its sha256, with its signature next to it:
 
 ```scrut
 $ ls store/sha256/*/
-store/sha256/aa300caaad96103497a5dc9cef50a3840600f979cbe4283475ec21ad2aa2478a/:
-settings.star
-settings.star.sig
-
 store/sha256/ac2c374ce948e9994baff90748c8fb577ee7244bff12c287d782686fa5947f5b/:
 main.star
 main.star.sig
+
+store/sha256/b4ef42f0602b30edd49326051dbdab600937b8bd7a3273353a748efd3b3ad96b/:
+settings.star
+settings.star.sig
 
 store/sha256/fde98a8ca07d684f266eb29ca7a62e4b7e28dcd5f5b130916e343837b311af4a/:
 install-agent.sh
