@@ -1,0 +1,49 @@
+name: Set up starcm and scrut
+description: Installs a pinned scrut and builds starcm with Bazel, putting both on PATH.
+inputs:
+  scrut-asset:
+    description: The scrut release file for this runner.
+    required: true
+  scrut-sha256:
+    description: The sha256 of scrut-asset.
+    required: true
+  exe:
+    description: The executable suffix, ".exe" on Windows.
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install scrut
+      shell: bash
+      run: |
+        set -euo pipefail
+        bin="$RUNNER_TEMP/bin"
+        mkdir -p "$bin" "$RUNNER_TEMP/scrut"
+        cd "$RUNNER_TEMP/scrut"
+        curl -fsSL -o "${{ inputs.scrut-asset }}" \
+          "https://github.com/facebookincubator/scrut/releases/download/v0.4.1/${{ inputs.scrut-asset }}"
+        # Git Bash on Windows has sha256sum but no shasum; macOS may lack sha256sum.
+        if command -v sha256sum >/dev/null; then sha256="sha256sum"; else sha256="shasum -a 256"; fi
+        echo "${{ inputs.scrut-sha256 }}  ${{ inputs.scrut-asset }}" | $sha256 -c -
+        case "${{ inputs.scrut-asset }}" in
+          *.zip) unzip -q "${{ inputs.scrut-asset }}" ;;
+          *) tar -xzf "${{ inputs.scrut-asset }}" ;;
+        esac
+        mv scrut-*/scrut${{ inputs.exe }} "$bin/"
+        chmod +x "$bin/scrut${{ inputs.exe }}"
+        echo "$bin" >> "$GITHUB_PATH"
+
+    - uses: bazel-contrib/setup-bazel@0.15.0
+      with:
+        # Avoid downloading Bazel every time.
+        bazelisk-cache: true
+        # Store build cache per workflow and OS.
+        disk-cache: ${{ github.workflow }}-${{ runner.os }}
+        # Share repository cache between workflows.
+        repository-cache: true
+
+    - name: Build starcm
+      shell: bash
+      run: |
+        bazel build //:starcm
+        cp "bazel-bin/starcm_/starcm${{ inputs.exe }}" "$RUNNER_TEMP/bin/"

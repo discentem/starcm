@@ -53,16 +53,16 @@ exit 1).
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/inspect/](../fixtures/inspect).
+[examples/inspect/](../../examples/inspect).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/inspect/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/inspect/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Report from the command line
 
-<!-- fixture: ../fixtures/inspect/sneaky.star -->
 ```python
+# examples/inspect/sneaky.star
 load("starcm", run = "exec")
 
 run(label = "innocent", cmd = "sh", args = ["-c", "echo pwned"])
@@ -102,8 +102,8 @@ $ starcm inspect sneaky.star
 platform from a fixed path, and loads the settings for the platform it runs
 on from a path built from `--var platform`:
 
-<!-- fixture: ../fixtures/inspect/bootstrap.star -->
 ```python
+# examples/inspect/bootstrap.star
 load("starcm", "download", "load_dynamic", "vars")
 
 download(
@@ -133,14 +133,15 @@ $ starcm inspect bootstrap.star | jq -c '[.[].values[] | [.function, .line]]'
 
 ### Enforce a policy in Starlark
 
-<!-- fixture: ../fixtures/inspect/policy.star -->
 ```python
+# examples/inspect/policy.star
 load("starcm", "inspect", "list_files")
 
 ALLOWED = ["download", "load_dynamic"]
 
 for f in list_files(".", pattern = "*.star", label = "find config").value:
-    if f == "policy.star":
+    # Only this folder's configuration files, not this script or subfolders.
+    if f == "policy.star" or "/" in f:
         continue
     report = inspect(f, label = "inspect " + f).value
     bad = [c["function"] for c in report["calls"] if c["function"] not in ALLOWED]
@@ -153,7 +154,89 @@ bootstrap.star: ok
 sneaky.star: uses exec
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/inspect/edge/](../../examples/inspect/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+```python
+# examples/inspect/edge/main.star
+load("starcm", "load_dynamic", "vars", run = "exec")
+load("lib.star", "greet")
+
+run(label = "list", cmd = "ls", args = [])
+load_dynamic("lib.star", label = "literal path")
+load_dynamic(vars["next"], label = "computed path")
+greet("ada")
+```
+
+```python
+# examples/inspect/edge/lib.star
+def greet(name):
+    print("hello, " + name)
+```
+
+```scrut
+$ starcm inspect main.star lib.star | jq -c '.[] | {file, loads: [.loads[] | [.module, .names]]}'
+{"file":"main.star","loads":[["starcm",{"load_dynamic":"load_dynamic","run":"exec","vars":"vars"}],["lib.star",{"greet":"greet"}]]}
+{"file":"lib.star","loads":[]}
+```
+```scrut
+$ starcm inspect main.star | jq -c '.[0].calls[], .[0].values[]'
+{"module":"starcm","function":"exec","line":4}
+{"module":"starcm","function":"load_dynamic","line":5,"path":"lib.star"}
+{"module":"starcm","function":"load_dynamic","line":6,"path":null}
+{"module":"lib.star","function":"greet","line":7}
+{"module":"starcm","function":"vars","line":6}
+```
+
+### Nothing runs
+
+```scrut
+$ starcm inspect main.star | grep -c hello
+0
+[1]
+```
+
+### Errors
+
+```python
+# examples/inspect/edge/broken.star
+def (
+```
+
+```scrut
+$ starcm inspect broken.star 2>&1
+inspect: broken.star:1:6: not an identifier
+[1]
+```
+
+### inspect()
+
+The same report, as a Starlark value.
+
+```python
+# examples/inspect/edge/inspect_fn.star
+load("starcm", "inspect")
+
+r = inspect("main.star", label = "inspect main.star").value
+print([c["function"] for c in r["calls"]])
+print([c.get("path") for c in r["calls"] if c["function"] == "load_dynamic"])
+print(r["loads"][0]["names"]["run"])
+```
+
+```scrut
+$ starcm inspect_fn.star
+["exec", "load_dynamic", "load_dynamic", "greet"]
+["lib.star", None]
+exec
+```
+
 ## See also
 
 - [sign](sign.md): inspect configuration, then sign what passes.
-- [tests/inspect.md](../../tests/inspect.md) for aliases across files and parse errors.

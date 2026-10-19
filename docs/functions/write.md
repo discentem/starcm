@@ -40,16 +40,16 @@ A [starcm_result](../common-functionality.md#starcm_result):
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/write/](../fixtures/write).
+[examples/write/](../../examples/write).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/write/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/write/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Write values
 
-<!-- fixture: ../fixtures/write/write.star -->
 ```python
+# examples/write/write.star
 load("starcm", "write")
 
 write("hello from write", label = "greet")
@@ -75,8 +75,8 @@ value=written values are returned success=True changed=False
 
 A skipped call logs why it was skipped.
 
-<!-- fixture: ../fixtures/write/conditional.star -->
 ```python
+# examples/write/conditional.star
 load("starcm", "write", "vars")
 
 env = vars.get("env", "dev")
@@ -96,6 +96,108 @@ deploying to production
 INFO: [dev banner]: skipping write(label="dev banner") because not_if was true
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/write/edge/](../../examples/write/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### Strings print as plain text, like print()
+
+Other values print their Starlark representation.
+
+```python
+# examples/write/edge/plain_text.star
+load("starcm", "write")
+
+# Strings print as plain text, like print(): no quotes, escapes applied.
+write("hello world", label = "string")
+write('she said "hi"', label = "embedded quotes")
+write("tab\there", label = "tab")
+
+# Other values print their Starlark representation.
+write(42, label = "int")
+write(["a", "b"], label = "list")
+write({"k": "v"}, label = "dict")
+write(None, label = "none")
+```
+
+```scrut
+$ starcm plain_text.star
+hello world
+she said "hi"
+tab\there (escaped)
+42
+["a", "b"]
+{"k": "v"}
+None
+```
+
+### Errors
+
+```python
+# examples/write/edge/no_value.star
+load("starcm", "write")
+
+write(label = "nothing to write")
+```
+
+```scrut
+$ starcm no_value.star 2>&1
+Traceback (most recent call last):
+  no_value.star:3:6: in <toplevel>
+Error in write: write requires a value, either positionally or as str=
+[1]
+```
+
+```python
+# examples/write/edge/too_many.star
+load("starcm", "write")
+
+write("a", "b", label = "two values")
+```
+
+```scrut
+$ starcm too_many.star 2>&1
+Traceback (most recent call last):
+  too_many.star:3:6: in <toplevel>
+Error in write: write takes at most one positional argument, got 2
+[1]
+```
+
+```python
+# examples/write/edge/both.star
+load("starcm", "write")
+
+write("positional", str = "and str", label = "both")
+```
+
+```scrut
+$ starcm both.star 2>&1
+Traceback (most recent call last):
+  both.star:3:6: in <toplevel>
+Error in write: both: got multiple values for keyword argument "str"
+[1]
+```
+
+```python
+# examples/write/edge/missing_label.star
+load("starcm", "write")
+
+write("every starcm function requires a label")
+```
+
+```scrut
+$ starcm missing_label.star 2>&1
+Traceback (most recent call last):
+  missing_label.star:3:6: in <toplevel>
+Error in write: "label" not found in kwargs
+[1]
+```
+
 ## See also
 
-- [tests/write.md](../../tests/write.md) for argument errors.

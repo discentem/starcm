@@ -49,15 +49,15 @@ run.
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/load_dynamic/](../fixtures/load_dynamic), which has a settings
+[examples/load_dynamic/](../../examples/load_dynamic), which has a settings
 file per platform:
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/load_dynamic/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/load_dynamic/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-<!-- fixture: ../fixtures/load_dynamic/platforms/macos.star -->
 ```python
+# examples/load_dynamic/platforms/macos.star
 load("starcm", "write")
 
 SCREEN_LOCK_SECONDS = 300
@@ -66,8 +66,8 @@ def configure():
     write("macOS: require a password %d seconds after the screen saver starts" % SCREEN_LOCK_SECONDS, label = "macOS screen lock")
 ```
 
-<!-- fixture: ../fixtures/load_dynamic/platforms/windows.star -->
 ```python
+# examples/load_dynamic/platforms/windows.star
 load("starcm", "write")
 
 SCREEN_LOCK_SECONDS = 600
@@ -78,8 +78,8 @@ def configure():
 
 ### Pick a module with `--var`
 
-<!-- fixture: ../fixtures/load_dynamic/by_platform.star -->
 ```python
+# examples/load_dynamic/by_platform.star
 load("starcm", "load_dynamic", "vars")
 
 platform = vars.get("platform", "macos")
@@ -105,8 +105,8 @@ Windows: lock the screen after 600 seconds idle
 
 ### Load modules in a loop
 
-<!-- fixture: ../fixtures/load_dynamic/all_platforms.star -->
 ```python
+# examples/load_dynamic/all_platforms.star
 load("starcm", "load_dynamic")
 
 for platform in ["macos", "windows"]:
@@ -124,8 +124,8 @@ windows locks the screen after 600 seconds
 
 A skipped call returns `value = None`.
 
-<!-- fixture: ../fixtures/load_dynamic/optional.star -->
 ```python
+# examples/load_dynamic/optional.star
 load("starcm", "load_dynamic", "vars")
 
 r = load_dynamic(
@@ -150,8 +150,34 @@ $ starcm --var developer=yes optional.star
 installing developer tools
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/load_dynamic/edge/](../../examples/load_dynamic/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### Missing module fails the run
+
+```python
+# examples/load_dynamic/edge/missing.star
+load("starcm", "load_dynamic")
+
+load_dynamic("nope.star", label = "missing module")
+```
+
+```scrut
+$ starcm missing.star 2>&1
+Traceback (most recent call last):
+  missing.star:3:13: in <toplevel>
+Error in load_dynamic: loading module "nope\.star": open nope\.star: (no such file or directory|The system cannot find the file specified\.) (regex)
+[1]
+```
+
 ## See also
 
 - [Loading files](../loading.md) for `load()` and how paths resolve.
 - [inspect](inspect.md) reports each `load_dynamic` call's path, or `null` when it's computed.
-- [tests/load_dynamic.md](../../tests/load_dynamic.md) for missing modules.

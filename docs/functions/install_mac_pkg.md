@@ -121,8 +121,8 @@ macOS and Windows. On Linux and Windows the same calls fail because
 `install_mac_pkg` re-hashes it there before checking its signature. With `id`
 and `version`, later runs do nothing once 1.2.0 is installed.
 
-<!-- fixture: ../fixtures/install_mac_pkg/install.star -->
 ```python
+# examples/install_mac_pkg/install.star
 load("starcm", "download", "install_mac_pkg")
 
 pkg = download(
@@ -144,8 +144,8 @@ print("%s (changed=%s)" % (r.message, r.changed))
 
 ### Check a package without installing it
 
-<!-- fixture: ../fixtures/install_mac_pkg/preview.star -->
 ```python
+# examples/install_mac_pkg/preview.star
 load("starcm", "install_mac_pkg", "vars")
 
 r = install_mac_pkg(
@@ -182,15 +182,15 @@ Error in install_mac_pkg: install_mac_pkg(label="check Tailscale-1.98.8-macos.pk
 ### Unsigned packages are refused
 
 These examples run in a scratch copy of
-[docs/fixtures/install_mac_pkg/](../fixtures/install_mac_pkg). On macOS,
+[examples/install_mac_pkg/](../../examples/install_mac_pkg). On macOS,
 `pkgbuild` makes an unsigned package; elsewhere any file will do.
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/install_mac_pkg/." "$TMPDIR" && cd "$TMPDIR" && if command -v pkgbuild >/dev/null; then pkgbuild --nopayload --identifier com.example.unsigned --version 1.0 unsigned.pkg >/dev/null 2>&1; else echo not a pkg > unsigned.pkg; fi
+$ cp -R "$TESTDIR/../../examples/install_mac_pkg/." "$TMPDIR" && cd "$TMPDIR" && if command -v pkgbuild >/dev/null; then pkgbuild --nopayload --identifier com.example.unsigned --version 1.0 unsigned.pkg >/dev/null 2>&1; else echo not a pkg > unsigned.pkg; fi
 ```
 
-<!-- fixture: ../fixtures/install_mac_pkg/unsigned.star -->
 ```python
+# examples/install_mac_pkg/unsigned.star
 load("starcm", "install_mac_pkg")
 
 install_mac_pkg(
@@ -211,8 +211,8 @@ Error in install_mac_pkg: install_mac_pkg\(label="unsigned"\): (unsigned\.pkg: n
 
 ### A signer is required
 
-<!-- fixture: ../fixtures/install_mac_pkg/empty_signer.star -->
 ```python
+# examples/install_mac_pkg/empty_signer.star
 load("starcm", "install_mac_pkg")
 
 install_mac_pkg("agent.pkg", signer = "", label = "no signer")
@@ -226,8 +226,39 @@ Error in install_mac_pkg: install_mac_pkg(label="no signer"): signer must name t
 [1]
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/install_mac_pkg/edge/](../../examples/install_mac_pkg/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### id and version go together
+
+```python
+# examples/install_mac_pkg/edge/id_without_version.star
+load("starcm", "install_mac_pkg")
+
+install_mac_pkg(
+    "agent.pkg",
+    signer = "Developer ID Installer: Example Corp (ABCDE12345)",
+    id     = "com.example.agent",
+    label  = "no version",
+)
+```
+
+```scrut
+$ starcm id_without_version.star 2>&1
+Traceback (most recent call last):
+  id_without_version.star:3:16: in <toplevel>
+Error in install_mac_pkg: install_mac_pkg(label="no version"): id and version must be given together
+[1]
+```
+
 ## See also
 
 - [download](download.md) to fetch the package first.
 - [verify](verify.md) to check files signed with `starcm sign` instead.
-- [tests/install_mac_pkg.md](../../tests/install_mac_pkg.md).

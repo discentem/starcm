@@ -35,17 +35,17 @@ The path as a string, with no trailing separator.
 ## Examples
 
 The examples run in a scratch copy of
-[docs/fixtures/temp_dir/](../fixtures/temp_dir), with the temporary directory
+[examples/temp_dir/](../../examples/temp_dir), with the temporary directory
 pointed at scrut's scratch directory.
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/temp_dir/." "$TMPDIR" && cd "$TMPDIR" && export TMP="$TMPDIR" TEMP="$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/temp_dir/." "$TMPDIR" && cd "$TMPDIR" && export TMP="$TMPDIR" TEMP="$TMPDIR"
 ```
 
 ### Keep a scratch file in the temporary directory
 
-<!-- fixture: ../fixtures/temp_dir/scratch.star -->
 ```python
+# examples/temp_dir/scratch.star
 load("starcm", "file", "read_file", "temp_dir")
 
 print(temp_dir())

@@ -68,18 +68,18 @@ the formatted time and whose `value` is a `date` struct:
 
 The time changes on every run, so most expected output here is a regular
 expression. Each example runs in a scratch copy of
-[docs/fixtures/date/](../fixtures/date).
+[examples/date/](../../examples/date).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/date/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/date/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### The current time
 
 `TZ=UTC` pins the local timezone for this example.
 
-<!-- fixture: ../fixtures/date/now.star -->
 ```python
+# examples/date/now.star
 load("starcm", "date")
 
 r = date(label = "now")
@@ -95,8 +95,8 @@ message:   \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (regex)
 
 ### Named formats and Go layouts
 
-<!-- fixture: ../fixtures/date/formats.star -->
 ```python
+# examples/date/formats.star
 load("starcm", "date")
 
 for fmt in ["date", "datetime", "kitchen", "iso8601basic", "2006/01/02"]:
@@ -114,8 +114,8 @@ iso8601basic: \d{8}T\d{6}Z (regex)
 
 ### Fields in another timezone
 
-<!-- fixture: ../fixtures/date/fields.star -->
 ```python
+# examples/date/fields.star
 load("starcm", "date")
 
 d = date(label = "tokyo", timezone = "Asia/Tokyo").value
@@ -133,8 +133,8 @@ unix=\d+ (regex)
 
 ### Record when a run happened
 
-<!-- fixture: ../fixtures/date/stamp_file.star -->
 ```python
+# examples/date/stamp_file.star
 load("starcm", "date", "file")
 
 today = date(label = "today", format = "date", timezone = "UTC").value.formatted
@@ -148,6 +148,55 @@ changed=True
 matches the system clock
 ```
 
+### Several formats and timezones at once
+
+`TZ=UTC` pins the local timezone for this example.
+
+```python
+# examples/date/date.star
+load("starcm", "date")
+load("starcm", "write")
+
+now = date(label = "current time").value
+write("local: " + now.formatted, label = "print local")
+
+utc = date(label = "utc date", format = "date", timezone = "UTC").value
+write("utc date: %s (%s, day %d of the year)" % (utc.formatted, utc.weekday, utc.yearday), label = "print utc")
+
+la = date(label = "custom layout", format = "Mon Jan 2 15:04 MST", timezone = "America/Los_Angeles").value
+write("los angeles: " + la.formatted, label = "print la")
+```
+
+```scrut
+$ TZ=UTC starcm date.star
+local: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (regex)
+utc date: \d{4}-\d{2}-\d{2} \((Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day, day \d{1,3} of the year\) (regex)
+los angeles: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2} \d{2}:\d{2} P[DS]T (regex)
+```
+
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show.
+
+### An unknown timezone stops the run
+
+```python
+# examples/date/invalid_timezone.star
+load("starcm", "date")
+
+# An unknown IANA timezone stops the run with an error instead of
+# returning a failed result.
+date(label = "bad timezone", timezone = "Not/AZone")
+```
+
+```scrut
+$ starcm invalid_timezone.star 2>&1
+Traceback (most recent call last):
+  invalid_timezone.star:5:5: in <toplevel>
+Error in date: invalid timezone "Not/AZone": unknown time zone Not/AZone
+[1]
+```
+
 ## See also
 
-- [tests/date.md](../../tests/date.md) for invalid timezones.

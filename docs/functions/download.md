@@ -125,21 +125,21 @@ instead of returning a result.
 These examples download from the HTTP server that serves the repository root
 on port 8000 (CI starts one with
 `python3 -m http.server 8000 --bind 127.0.0.1`). Each runs in a scratch copy
-of [docs/fixtures/download/](../fixtures/download).
+of [examples/download/](../../examples/download).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/download/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/download/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Download a file and verify its hash
 
-<!-- fixture: ../fixtures/download/basic.star -->
 ```python
+# examples/download/basic.star
 load("starcm", "download")
 
 r = download(
     label   = "fetch agent",
-    url     = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url     = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     save_to = "agent-1.2.0.txt",
     sha256  = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
@@ -160,13 +160,13 @@ starcm_result(changed = False, error = "<nil>", label = "fetch agent", message =
 
 ### Save into a directory that doesn't exist yet
 
-<!-- fixture: ../fixtures/download/nested.star -->
 ```python
+# examples/download/nested.star
 load("starcm", "download")
 
 r = download(
     label   = "fetch agent into a cache directory",
-    url     = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url     = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     save_to = "cache/agent/1.2.0/agent.txt",
     sha256  = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
@@ -184,8 +184,8 @@ agent v1.2.0
 Keep the version and hash in the configuration and pass the environment in
 with [--var](vars.md):
 
-<!-- fixture: ../fixtures/download/from_var.star -->
 ```python
+# examples/download/from_var.star
 load("starcm", "download", "vars")
 
 VERSION = "1.2.0"
@@ -201,14 +201,14 @@ print("%s: success=%s changed=%s" % (r.label, r.success, r.changed))
 ```
 
 ```scrut
-$ rm agent-1.2.0.txt && starcm --var base_url=http://localhost:8000/docs/fixtures/download/files from_var.star
+$ rm agent-1.2.0.txt && starcm --var base_url=http://localhost:8000/examples/download/files from_var.star
 fetch agent 1.2.0: success=True changed=True
 ```
 
 ### Pin a hash computed with `sha256()`
 
-<!-- fixture: ../fixtures/download/pin_with_sha256.star -->
 ```python
+# examples/download/pin_with_sha256.star
 load("starcm", "download", "sha256")
 
 # Hash a copy you trust once, then pin that hash in your configuration.
@@ -217,7 +217,7 @@ print(pinned)
 
 r = download(
     label   = "fetch manifest",
-    url     = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.json",
+    url     = "http://localhost:8000/examples/download/files/agent-1.2.0.json",
     save_to = "manifest.json",
     sha256  = pinned,
 )
@@ -233,25 +233,25 @@ success=True changed=True
 ### Pin by signature
 
 These examples use the test-only key from
-[tests/fixtures/signing/](../../tests/fixtures/signing), and a signature
+[docs/keys/](../keys), and a signature
 made with it,
-[agent-1.2.0.txt.sig](../fixtures/download/files/agent-1.2.0.txt.sig). Under
+[agent-1.2.0.txt.sig](../../examples/download/files/agent-1.2.0.txt.sig). Under
 `--trusted-keys`, the `.star` file itself must be signed too.
 
 ```scrut
-$ mkdir -p trusted && cp "$TESTDIR/../../tests/fixtures/signing/trusted/test.pub.pem" trusted/ && starcm sign --expires 2099-01-01 --key "$TESTDIR/../../tests/fixtures/signing/private/test.pem" signed.star >/dev/null
+$ mkdir -p trusted && cp "$TESTDIR/../keys/trusted/test.pub.pem" trusted/ && starcm sign --expires 2099-01-01 --key "$TESTDIR/../keys/private/test.pem" signed.star >/dev/null
 ```
 
-<!-- fixture: ../fixtures/download/signed.star -->
 ```python
+# examples/download/signed.star
 load("starcm", "download")
 
 # No sha256 here: the signature, checked against --trusted-keys, says which
 # sha256 the file must have.
 r = download(
     label     = "fetch signed agent",
-    url       = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
-    signature = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt.sig",
+    url       = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
+    signature = "http://localhost:8000/examples/download/files/agent-1.2.0.txt.sig",
     save_to   = "signed/agent.txt",
 )
 print(r.message)
@@ -276,13 +276,13 @@ Error in download: download(label="fetch signed agent"): signature needs trusted
 
 The mismatching download is deleted, and nothing after the call runs.
 
-<!-- fixture: ../fixtures/download/wrong_hash.star -->
 ```python
+# examples/download/wrong_hash.star
 load("starcm", "download")
 
 download(
     label   = "fetch agent",
-    url     = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url     = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     save_to = "tampered.txt",
     sha256  = "0000000000000000000000000000000000000000000000000000000000000000",
 )
@@ -316,13 +316,13 @@ there the store goes under `%LocalAppData%`:
 $ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-docs.XXXXXX") && store="$store_root/store" ;; esac
 ```
 
-<!-- fixture: ../fixtures/download/store.star -->
 ```python
+# examples/download/store.star
 load("starcm", "download")
 
 r = download(
     label  = "fetch agent into the store",
-    url    = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url    = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
 print("changed=%s" % r.changed)
@@ -353,13 +353,13 @@ agent v1.2.0
 
 The name comes from the URL unless `file_name` is given:
 
-<!-- fixture: ../fixtures/download/store_named.star -->
 ```python
+# examples/download/store_named.star
 load("starcm", "download")
 
 r = download(
     label     = "fetch agent under another name",
-    url       = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url       = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     sha256    = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
     file_name = "agent.txt",
 )
@@ -373,13 +373,13 @@ $ starcm --store-dir "$store" store_named.star
 
 ### Require the store with `--store-only`
 
-<!-- fixture: ../fixtures/download/store_only.star -->
 ```python
+# examples/download/store_only.star
 load("starcm", "download")
 
 download(
     label   = "fetch agent to a path",
-    url     = "http://localhost:8000/docs/fixtures/download/files/agent-1.2.0.txt",
+    url     = "http://localhost:8000/examples/download/files/agent-1.2.0.txt",
     save_to = "agent-1.2.0.txt",
     sha256  = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
@@ -397,9 +397,220 @@ Error in download: download(label="fetch agent to a path"): save_to is disabled 
 $ rm -rf "$store" ${store_root:+"$store_root"}
 ```
 
+### Download from the internet
+
+This one downloads a real release, Ghostty 1.2.3 for macOS (about 30 MB):
+
+```python
+# examples/download/a_file.star
+load("starcm", "download")
+
+print(download(
+    label = "Downloading Ghostty 1.2.3",
+    url = "https://release.files.ghostty.org/1.2.3/Ghostty.dmg",
+    save_to = "Ghostty-1.2.3.dmg",
+    sha256 = "f35ee91f116e28027ab9f8def45098c7575b44b407ff883a2dcd2985c483206b",
+    live_progress = False
+))
+```
+
+```scrut
+$ starcm a_file.star
+starcm_result(changed = True, error = "<nil>", label = "Downloading Ghostty 1.2.3", message = "downloaded file to Ghostty-1.2.3.dmg", success = True, value = None)
+```
+
+### Fetch a `.star` file from a server and run it
+
+A small macro wraps `download` and [load_dynamic](load_dynamic.md):
+
+```python
+# examples/download/load_remote/load_remote_macro.star
+load("starcm", "load_dynamic")
+load("starcm", "download")
+
+def load_remote(url, sha256):
+    fname = url.split("/")[-1]
+    d = download(
+        label = "downloading {}".format(fname),
+        url = url,
+        save_to = fname,
+        sha256 = sha256
+    )
+    load_dynamic(fname, label = "loading {}".format(fname))
+```
+
+```python
+# examples/download/load_remote/load_remote.star
+load("load_remote_macro.star", "load_remote")
+
+# use the load_remote macro to download and load the remote file.
+# Served by `python3 -m http.server 8000` from the repo root.
+load_remote(
+    url = "http://localhost:8000/examples/loading/nested_files/e.star",
+    sha256 = "6a6afe8b43b89e345842f74d84cf92e280862d648f01f8f0fa356a9d4c6e8796"
+)
+```
+
+The second run finds the file already downloaded, and runs it again:
+
+```scrut
+$ (cd load_remote && starcm load_remote.star && starcm load_remote.star)
+hello from e.star
+hello from e.star
+```
+
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/download/edge/](../../examples/download/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+```scrut
+$ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-scrut.XXXXXX") && store="$store_root/store" ;; esac
+```
+
+### Downloads once, then verifies the existing file
+
+```python
+# examples/download/edge/download.star
+load("starcm", "download")
+
+# Served by the python http.server that the scrut CI job runs from the repo root.
+URL = "http://localhost:8000/examples/download/edge/payload.txt"
+SHA256 = "77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314"
+
+def show(r):
+    print("%s: success=%s changed=%s message=%s" % (r.label, r.success, r.changed, r.message))
+
+show(download(label = "first download", url = URL, save_to = "downloaded.txt", sha256 = SHA256))
+show(download(label = "already present", url = URL, save_to = "downloaded.txt", sha256 = SHA256))
+```
+
+```scrut
+$ starcm download.star
+first download: success=True changed=True message=downloaded file to downloaded.txt
+already present: success=True changed=False message="downloaded.txt" already present and sha256 verified
+```
+
+```scrut
+$ cat downloaded.txt
+starcm download fixture
+```
+
+The download is written to a temporary file and renamed into place once its
+sha256 matches, so nothing is left behind next to it.
+
+```scrut
+$ ls -a | grep -c '\.tmp-'
+0
+[1]
+```
+
+### HTTP errors fail the run
+
+```python
+# examples/download/edge/not_found.star
+load("starcm", "download")
+
+download(
+    label   = "404",
+    url     = "http://localhost:8000/examples/download/edge/does-not-exist.txt",
+    save_to = "nope.txt",
+    sha256  = "0000000000000000000000000000000000000000000000000000000000000000",
+)
+```
+
+```scrut
+$ starcm not_found.star 2>&1
+Traceback (most recent call last):
+  not_found.star:3:9: in <toplevel>
+Error in download: failed to download file "http://localhost:8000/examples/download/edge/does-not-exist.txt": 404 File not found
+[1]
+```
+
+### Without save_to, downloads go into the store
+
+Files are stored as `<store>/sha256/<hash>/<name>`, named after the URL unless
+`file_name` is given, and `value` is the stored path. A stored file is
+re-hashed whenever `download()` finds it already in the store, and whenever
+`exec()` is given its path.
+
+```python
+# examples/download/edge/store.star
+load("starcm", "download")
+
+# Without save_to, download() saves into the store (--store-dir) and returns
+# the stored file's path as value.
+URL = "http://localhost:8000/examples/download/edge/payload.txt"
+SHA256 = "77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314"
+
+def show(r):
+    print("%s: changed=%s value=%s" % (r.label, r.changed, r.value.replace("\\", "/")))
+
+show(download(label = "into the store", url = URL, sha256 = SHA256))
+show(download(label = "already stored", url = URL, sha256 = SHA256))
+show(download(label = "named", url = URL, sha256 = SHA256, file_name = "renamed.txt"))
+```
+
+```scrut
+$ starcm --store-dir "$store" store.star
+into the store: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
+already stored: changed=False value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
+named: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/renamed.txt (glob)
+```
+
+```scrut
+$ cat "$store"/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt
+starcm download fixture
+```
+
+### A changed file in the store is refused
+
+```scrut
+$ f="$store"/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt && chmod u+w "$f" && echo edited >> "$f" && starcm --store-dir "$store" store.star 2>&1
+Traceback (most recent call last):
+  store.star:11:14: in <toplevel>
+Error in download: *payload.txt in the store has sha256 *; it was changed after it was stored (glob)
+[1]
+```
+
+### --store-only refuses save_to
+
+```python
+# examples/download/edge/store_only.star
+load("starcm", "download")
+
+download(
+    label   = "to a path",
+    url     = "http://localhost:8000/examples/download/edge/payload.txt",
+    save_to = "downloaded.txt",
+    sha256  = "77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314",
+)
+```
+
+```scrut
+$ starcm --store-only store_only.star 2>&1
+Traceback (most recent call last):
+  store_only.star:3:9: in <toplevel>
+Error in download: download(label="to a path"): save_to is disabled by --store-only; omit it to download into the store
+[1]
+```
+
+```scrut
+$ rm -rf "$store" && starcm --store-only --store-dir "$store" store.star | head -1
+into the store: changed=True value=*/store/sha256/77343010f71b589c625b217d4a544a08dbcf49ab1ba1e99b369c4a6c378bf314/payload.txt (glob)
+```
+
+```scrut
+$ rm -rf "$store" ${store_root:+"$store_root"}
+```
+
 ## See also
 
 - [sha256](sha256.md) to compute the hash to pin.
 - [exec](exec.md) re-checks stored files before running them.
 - [verify](verify.md) to check a download's signature as well as its hash.
-- [tests/download.md](../../tests/download.md) for HTTP errors, changed stored files and other edge cases.

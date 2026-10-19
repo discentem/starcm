@@ -8,10 +8,10 @@ the behaviour on this page: the same [common arguments](#common-arguments),
 and the same kind of return value, a [starcm_result](#starcm_result).
 
 The examples run in a scratch copy of
-[docs/fixtures/common_functionality/](fixtures/common_functionality).
+[examples/common_functionality/](../examples/common_functionality).
 
 ```scrut
-$ cp -R "$TESTDIR/fixtures/common_functionality/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../examples/common_functionality/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ## Common arguments
@@ -34,8 +34,8 @@ later calls.
 skipped call logs why and returns an empty result: `success = False`,
 `changed = False`, `label = ""` and `value = None`.
 
-<!-- fixture: fixtures/common_functionality/conditions.star -->
 ```python
+# examples/common_functionality/conditions.star
 load("starcm", "exec", "write")
 
 installed = exec(label = "already installed?", cmd = "sh", args = ["-c", "exit 1"])
@@ -62,8 +62,8 @@ same condition. `only_if` / `not_if` keep the skip in the log.
 [exec](functions/exec.md) returns a failed result when its timeout expires;
 [download](functions/download.md) fails the run.
 
-<!-- fixture: fixtures/common_functionality/timeout.star -->
 ```python
+# examples/common_functionality/timeout.star
 load("starcm", "exec")
 
 r = exec(label = "slow command", cmd = "sleep", args = ["2"], timeout = "500ms")
@@ -83,8 +83,8 @@ paths against the directory of the `.star` file that calls it. An explicit
 to the directory starcm runs in. Other functions resolve relative paths
 against the directory starcm runs in, whatever `working_directory` says.
 
-<!-- fixture: fixtures/common_functionality/sub/render.star -->
 ```python
+# examples/common_functionality/sub/render.star
 load("starcm", "template")
 
 # By default, template and destination are relative to this file's directory...
@@ -113,8 +113,8 @@ reports `changed` as if it had written the file, but writes nothing.
 Other functions accept `what_if` and ignore it, so don't rely on it for a
 dry run of a whole configuration.
 
-<!-- fixture: fixtures/common_functionality/what_if.star -->
 ```python
+# examples/common_functionality/what_if.star
 load("starcm", "template")
 
 r = template(
@@ -152,8 +152,8 @@ do: [exec](functions/exec.md) for unexpected exit codes and timeouts, and
 [verify](functions/verify.md) for files that don't verify. Call `fail()` to
 stop the run yourself.
 
-<!-- fixture: fixtures/common_functionality/result.star -->
 ```python
+# examples/common_functionality/result.star
 load("starcm", "exec")
 
 r = exec(label = "print the date", cmd = "echo", args = ["2026-10-17"])
@@ -167,6 +167,102 @@ starcm_result(changed = True, error = "<nil>", label = "print the date", message
 print the date: success=True changed=True
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/common_functionality/edge/](../examples/common_functionality/edge).
+
+They guard two bugs starcm once had with the common arguments:
+
+- **Values leaking between calls.** starcm used to keep the common
+  arguments in variables shared by every call. A `timeout` or
+  `working_directory` given to one call then also applied to later calls
+  that didn't pass it, even calls in other files.
+- **Errors blaming the wrong call.** An argument error used to be reported
+  under an earlier call's label.
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### Argument errors name the failing call
+
+The error is prefixed with the failing call's label, not an earlier call's.
+
+```python
+# examples/common_functionality/edge/error_prefix.star
+load("starcm", "write")
+
+write("first call", label = "previous")
+write("second call", end = 42, label = "current")
+```
+
+```scrut
+$ starcm error_prefix.star 2>&1 | grep -v "^  "
+first call
+Traceback (most recent call last):
+Error in write: current: for parameter "end": got int, want string
+```
+
+### timeout applies only to its own call
+
+```python
+# examples/common_functionality/edge/timeout.star
+load("starcm", "exec")
+
+exec(label = "short timeout", cmd = "true", args = [], timeout = "1ms")
+r = exec(label = "no timeout", cmd = "sleep", args = ["0.2"])
+print("no timeout: success=%s" % r.success)
+```
+
+```scrut
+$ starcm timeout.star
+no timeout: success=True
+```
+
+The starcm module is shared by every loaded file, so this holds across files
+too: a timeout set in a loaded file doesn't apply to the caller's later calls.
+
+```python
+# examples/common_functionality/edge/cross_file.star
+load("starcm", "exec")
+load("lib.star", "call_with_timeout")
+
+call_with_timeout()
+r = exec(label = "main call, no timeout", cmd = "sleep", args = ["1"])
+print("main call: success=%s" % r.success)
+```
+
+```scrut
+$ starcm cross_file.star
+main call: success=True
+```
+
+### working_directory applies only to its own call
+
+```python
+# examples/common_functionality/edge/working_directory.star
+load("starcm", "template")
+
+def render(label, name, **kwargs):
+    template(
+        label       = label,
+        template    = "hello.tpl",
+        data        = {"name": name, "age": 1},
+        destination = "out.txt",
+        **kwargs
+    )
+
+render("elsewhere", "sub", working_directory = "sub")
+render("here", "top")
+```
+
+```scrut
+$ starcm working_directory.star && echo "sub/out.txt: $(cat sub/out.txt)" && echo "out.txt: $(cat out.txt)"
+sub/out.txt: Hello Sub, you are 1 years old.
+out.txt: Hello Top, you are 1 years old.
+```
+
 ## See also
 
-- [tests/common_args.md](../tests/common_args.md) checks that arguments don't leak between calls.

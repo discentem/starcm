@@ -45,13 +45,13 @@ characters, so mix them consistently.
 ## Examples
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/dedent/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/dedent/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
 ### Write a settings file from a function
 
-<!-- fixture: ../fixtures/dedent/settings.star -->
 ```python
+# examples/dedent/settings.star
 load("starcm", "dedent", "file")
 
 def agent_settings(channel):

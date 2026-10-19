@@ -33,14 +33,14 @@ starcm --var base_url=https://config.example.com --var channel=beta main.star
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/vars/](../fixtures/vars).
+[examples/vars/](../../examples/vars).
 
 ```scrut
-$ cp -R "$TESTDIR/../fixtures/vars/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/vars/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-<!-- fixture: ../fixtures/vars/vars.star -->
 ```python
+# examples/vars/vars.star
 load("starcm", "vars")
 
 print(vars)
@@ -71,8 +71,33 @@ $ starcm --var channel vars.star 2>&1
 [1]
 ```
 
+## Errors and edge cases
+
+These are here mostly as tests: CI runs them to check error messages and
+behaviour that the examples above don't show. They run in the copy of
+[examples/vars/edge/](../../examples/vars/edge).
+
+```scrut
+$ cd "$TMPDIR/edge"
+```
+
+### Values are kept whole: commas, URLs and empty values
+
+```python
+# examples/vars/edge/vars.star
+load("starcm", "vars")
+
+print(vars)
+print("base=%s" % vars.get("base", "unset"))
+```
+
+```scrut
+$ starcm --var base=http://localhost:8000/stable --var list=a,b --var empty= vars.star
+{"base": "http://localhost:8000/stable", "empty": "", "list": "a,b"}
+base=http://localhost:8000/stable
+```
+
 ## See also
 
 - [Command line](../cli.md).
 - [download](download.md) and [load_dynamic](load_dynamic.md) have examples that use `vars`.
-- [tests/vars.md](../../tests/vars.md).

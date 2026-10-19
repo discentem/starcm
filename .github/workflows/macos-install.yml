@@ -46,7 +46,7 @@ jobs:
       - name: Test the README quick start
         run: |
           sudo cp "$RUNNER_TEMP/bin/starcm" /usr/local/bin/starcm
-          scrut test --work-directory docs/fixtures/quickstart README.md
+          scrut test --work-directory examples/quickstart README.md
 
       - name: Remove what the quick start installed
         if: always()
