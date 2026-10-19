@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dedent",
+    srcs = ["dedent.go"],
+    importpath = "github.com/discentem/starcm/functions/dedent",
+    visibility = ["//visibility:public"],
+    deps = ["@net_starlark_go//starlark"],
+)
+
+go_test(
+    name = "dedent_test",
+    srcs = ["dedent_test.go"],
+    embed = [":dedent"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@net_starlark_go//starlark",
+    ],
+)

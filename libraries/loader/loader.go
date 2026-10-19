@@ -24,6 +24,7 @@ import (
 
 	starcmchecksum "github.com/discentem/starcm/functions/checksum"
 	starcmdate "github.com/discentem/starcm/functions/date"
+	starcmdedent "github.com/discentem/starcm/functions/dedent"
 	starcmdownload "github.com/discentem/starcm/functions/download"
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmFile "github.com/discentem/starcm/functions/file"
@@ -389,6 +390,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						// Disabled under --trusted-keys: deployed runs never sign.
 						starcmsign.New(ctx, fsys, l.Keyring != nil).Function(),
 					),
+					"dedent":   starcmdedent.New(),
 					"temp_dir": starcmtempdir.New(),
 					"json":     starlarkjson.Module,
 					"vars":     vars,

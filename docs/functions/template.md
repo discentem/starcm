@@ -20,7 +20,8 @@ load("starcm", "template")
 
 template(
     label       = "agent launchd job",                               # required
-    template    = "agent.plist.tpl",                                 # required
+    template    = "agent.plist.tpl",                                 # template or source is required
+    source      = """...""",                                         # the template text, instead of a file
     data        = {"label": "com.example.agent"},                    # required
     destination = "/Library/LaunchDaemons/com.example.agent.plist",  # required unless what_if = True
 )
@@ -30,12 +31,14 @@ template(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `template` | string | required | Path to the template file. |
+| `template` | string | `template` or `source` | Path to the template file. |
+| `source` | string | `template` or `source` | The template text itself, instead of a file. A triple-quoted string keeps it readable; see [Render an inline template](#render-an-inline-template). |
 | `data` | dict | required | Values the template can use. Keys must be strings; values can be strings, numbers, bools, `None`, lists, tuples, nested dicts and structs (including other functions' results). |
 | `destination` | string | required unless `what_if` | The file to write. Its parent directories are created. |
 
-Relative `template` and `destination` paths are relative to the directory of
-the `.star` file that calls `template`, not the directory starcm runs in. Set
+Give exactly one of `template` and `source`. Relative `template` and
+`destination` paths are relative to the directory of the `.star` file that
+calls `template`, not the directory starcm runs in. Set
 [working_directory](../common-functionality.md#working_directory) to use a
 different base directory.
 
@@ -144,6 +147,45 @@ Rendering the same data again leaves the file alone:
 ```scrut
 $ (cd site && starcm launchd.star)
 changed=False
+```
+
+### Render an inline template
+
+A short template can be written straight into the `.star` file with
+`source`, as a triple-quoted string. The backslash after the opening `"""`
+skips the first newline, so the template starts at the left margin:
+
+<!-- fixture: ../fixtures/template/site/inline.star -->
+```python
+load("starcm", "template")
+
+# A short template can live in the .star file instead of its own file.
+r = template(
+    label       = "agent settings",
+    source      = """\
+server = {{ server }}
+channel = {{ channel }}
+{% for name in features -%}
+feature.{{ name }} = on
+{% endfor -%}
+""",
+    data        = {
+        "server":   "https://config.example.com",
+        "channel":  "beta",
+        "features": ["updates", "telemetry"],
+    },
+    destination = "agent.conf",
+)
+print("changed=%s" % r.changed)
+```
+
+```scrut
+$ starcm site/inline.star && cat site/agent.conf
+changed=True
+server = https://config.example.com
+channel = beta
+feature.updates = on
+feature.telemetry = on
 ```
 
 ### Preview with `what_if`
