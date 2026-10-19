@@ -18,8 +18,8 @@ valid signature, like any other `.star` file.
 ```python
 load("starcm", "load_dynamic")
 
-load_dynamic("roles/web.star", label = "load web role")
-load_dynamic(module = "roles/web.star", label = "load web role")
+load_dynamic("platforms/macos.star", label = "load macOS settings")
+load_dynamic(module = "platforms/macos.star", label = "load macOS settings")
 ```
 
 ## Arguments
@@ -49,65 +49,75 @@ run.
 ## Examples
 
 Each example runs in a scratch copy of
-[docs/fixtures/load_dynamic/](../fixtures/load_dynamic), which has two
-roles:
+[docs/fixtures/load_dynamic/](../fixtures/load_dynamic), which has a settings
+file per platform:
 
 ```scrut
 $ cp -R "$TESTDIR/../fixtures/load_dynamic/." "$TMPDIR" && cd "$TMPDIR"
 ```
 
-<!-- fixture: ../fixtures/load_dynamic/roles/web.star -->
+<!-- fixture: ../fixtures/load_dynamic/platforms/macos.star -->
 ```python
 load("starcm", "write")
 
-PORT = 443
+SCREEN_LOCK_SECONDS = 300
 
 def configure():
-    write("configuring web server on port %d" % PORT, label = "web")
+    write("macOS: require a password %d seconds after the screen saver starts" % SCREEN_LOCK_SECONDS, label = "macOS screen lock")
+```
+
+<!-- fixture: ../fixtures/load_dynamic/platforms/windows.star -->
+```python
+load("starcm", "write")
+
+SCREEN_LOCK_SECONDS = 600
+
+def configure():
+    write("Windows: lock the screen after %d seconds idle" % SCREEN_LOCK_SECONDS, label = "Windows screen lock")
 ```
 
 ### Pick a module with `--var`
 
-<!-- fixture: ../fixtures/load_dynamic/by_role.star -->
+<!-- fixture: ../fixtures/load_dynamic/by_platform.star -->
 ```python
 load("starcm", "load_dynamic", "vars")
 
-role = vars.get("role", "web")
-r = load_dynamic("roles/%s.star" % role, label = "load role %s" % role)
+platform = vars.get("platform", "macos")
+r = load_dynamic("platforms/%s.star" % platform, label = "load %s settings" % platform)
 print("success=%s changed=%s" % (r.success, r.changed))
 print(sorted(r.value.keys()))
 r.value["configure"]()
 ```
 
 ```scrut
-$ starcm by_role.star
+$ starcm by_platform.star
 success=True changed=False
-["PORT", "configure"]
-configuring web server on port 443
+["SCREEN_LOCK_SECONDS", "configure"]
+macOS: require a password 300 seconds after the screen saver starts
 ```
 
 ```scrut
-$ starcm --var role=db by_role.star
+$ starcm --var platform=windows by_platform.star
 success=True changed=False
-["PORT", "configure"]
-configuring database on port 5432
+["SCREEN_LOCK_SECONDS", "configure"]
+Windows: lock the screen after 600 seconds idle
 ```
 
 ### Load modules in a loop
 
-<!-- fixture: ../fixtures/load_dynamic/all_roles.star -->
+<!-- fixture: ../fixtures/load_dynamic/all_platforms.star -->
 ```python
 load("starcm", "load_dynamic")
 
-for role in ["db", "web"]:
-    mod = load_dynamic(module = "roles/%s.star" % role, label = "load " + role).value
-    print("%s listens on %d" % (role, mod["PORT"]))
+for platform in ["macos", "windows"]:
+    settings = load_dynamic(module = "platforms/%s.star" % platform, label = "load " + platform).value
+    print("%s locks the screen after %d seconds" % (platform, settings["SCREEN_LOCK_SECONDS"]))
 ```
 
 ```scrut
-$ starcm all_roles.star
-db listens on 5432
-web listens on 443
+$ starcm all_platforms.star
+macos locks the screen after 300 seconds
+windows locks the screen after 600 seconds
 ```
 
 ### Load a module only when it's needed
@@ -119,25 +129,25 @@ A skipped call returns `value = None`.
 load("starcm", "load_dynamic", "vars")
 
 r = load_dynamic(
-    "roles/db.star",
-    label   = "database role",
-    only_if = vars.get("with_db") == "yes",
+    "extras/developer_tools.star",
+    label   = "developer tools",
+    only_if = vars.get("developer") == "yes",
 )
 if r.value:
     r.value["configure"]()
 else:
-    print("database role skipped")
+    print("developer tools skipped")
 ```
 
 ```scrut
 $ starcm optional.star
-INFO: [database role]: skipping load(label="database role") because only_if was false
-database role skipped
+INFO: [developer tools]: skipping load(label="developer tools") because only_if was false
+developer tools skipped
 ```
 
 ```scrut
-$ starcm --var with_db=yes optional.star
-configuring database on port 5432
+$ starcm --var developer=yes optional.star
+installing developer tools
 ```
 
 ## See also

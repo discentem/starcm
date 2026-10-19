@@ -62,24 +62,24 @@ $ cp -R "$TESTDIR/../fixtures/file/." "$TMPDIR" && cd "$TMPDIR"
 load("starcm", "file")
 
 r = file(
-    label   = "hosts allow list",
-    path    = "hosts.allow",
-    content = "sshd: 10.0.0.0/8\n",
+    label   = "agent settings",
+    path    = "agent.conf",
+    content = "server = https://config.example.com\n",
 )
 print(r)
 ```
 
 ```scrut
-$ starcm create.star && cat hosts.allow
-starcm_result(changed = True, error = "<nil>", label = "hosts allow list", message = "created file \"*hosts.allow\"", success = True, value = None) (glob)
-sshd: 10.0.0.0/8
+$ starcm create.star && cat agent.conf
+starcm_result(changed = True, error = "<nil>", label = "agent settings", message = "created file \"*agent.conf\"", success = True, value = None) (glob)
+server = https://config.example.com
 ```
 
 The second run finds the right content and doesn't touch the file:
 
 ```scrut
 $ starcm create.star
-starcm_result(changed = False, error = "<nil>", label = "hosts allow list", message = "file \"*hosts.allow\" already exists with correct content", success = True, value = None) (glob)
+starcm_result(changed = False, error = "<nil>", label = "agent settings", message = "file \"*agent.conf\" already exists with correct content", success = True, value = None) (glob)
 ```
 
 ### Replace the content
@@ -91,18 +91,18 @@ starcm_result(changed = False, error = "<nil>", label = "hosts allow list", mess
 load("starcm", "file")
 
 r = file(
-    label   = "hosts allow list",
-    path    = "hosts.allow",
-    content = "sshd: 10.0.0.0/8\nsshd: 192.168.0.0/16\n",
+    label   = "agent settings",
+    path    = "agent.conf",
+    content = "server = https://config.example.com\nchannel = beta\n",
 )
 print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm update.star && cat hosts.allow
+$ starcm update.star && cat agent.conf
 changed=True
-sshd: 10.0.0.0/8
-sshd: 192.168.0.0/16
+server = https://config.example.com
+channel = beta
 ```
 
 ### Create parent directories and set the mode
@@ -172,14 +172,14 @@ Deleting a file that's already gone succeeds with `changed = False`.
 load("starcm", "file")
 
 for i in range(2):
-    r = file(label = "remove old config", path = "hosts.allow", action = "delete")
+    r = file(label = "remove agent settings", path = "agent.conf", action = "delete")
     print("pass %d: changed=%s message=%s" % (i + 1, r.changed, r.message))
 ```
 
 ```scrut
 $ starcm delete.star
-pass 1: changed=True message=deleted file "*hosts.allow" (glob)
-pass 2: changed=False message=file "*hosts.allow" does not exist (glob)
+pass 1: changed=True message=deleted file "*agent.conf" (glob)
+pass 2: changed=False message=file "*agent.conf" does not exist (glob)
 ```
 
 ## See also

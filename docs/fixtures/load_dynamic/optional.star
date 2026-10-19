@@ -1,11 +1,11 @@
 load("starcm", "load_dynamic", "vars")
 
 r = load_dynamic(
-    "roles/db.star",
-    label   = "database role",
-    only_if = vars.get("with_db") == "yes",
+    "extras/developer_tools.star",
+    label   = "developer tools",
+    only_if = vars.get("developer") == "yes",
 )
 if r.value:
     r.value["configure"]()
 else:
-    print("database role skipped")
+    print("developer tools skipped")
