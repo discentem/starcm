@@ -39,7 +39,7 @@ jobs:
           cp bazel-bin/starcm_/starcm "$RUNNER_TEMP/bin/"
 
       - name: Install a signed package
-        run: scrut test --work-directory . integration/macos/
+        run: scrut test --work-directory . tests/integration/macos/
 
       # README.md's quick start runs `sudo starcm`, so starcm must be on
       # sudo's PATH. It installs dockutil from the example where it lives.

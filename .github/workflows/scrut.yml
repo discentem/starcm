@@ -58,7 +58,7 @@ jobs:
           # runs in the macOS Install workflow instead.
           scrut test --work-directory . docs/
 
-  # Runs integration/s3/chain.md: a chain of .star files fetched from a real
+  # Runs tests/integration/s3/chain.md: a chain of .star files fetched from a real
   # S3-compatible server.
   s3-chain:
     strategy:
@@ -99,7 +99,7 @@ jobs:
 
       # A real S3-compatible server (rustfs), which checks request signatures.
       # Started in this step so it lives as long as the test that uses it.
-      - name: Run integration/s3/chain.md against rustfs
+      - name: Run tests/integration/s3/chain.md against rustfs
         env:
           AWS_ACCESS_KEY_ID: starcm-test
           AWS_SECRET_ACCESS_KEY: starcm-test-secret
@@ -132,5 +132,5 @@ jobs:
           work="$RUNNER_TEMP/s3-test"
           if [ "$RUNNER_OS" = Windows ]; then work="$(cygpath -u "$LOCALAPPDATA")/starcm-s3-test"; fi
           mkdir -p "$work"
-          scrut test --work-directory "$work" "$GITHUB_WORKSPACE/integration/s3/" ||
+          scrut test --work-directory "$work" "$GITHUB_WORKSPACE/tests/integration/s3/" ||
             { echo "--- rustfs log"; cat "$dir/rustfs.log"; exit 1; }

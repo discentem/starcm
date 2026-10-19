@@ -74,8 +74,7 @@ dockutil.cli.tool 3.1.3 is already installed
 **[docs/](docs/README.md)** lists every function starcm provides, each with
 its arguments, return value and tested examples:
 
-- Manage the machine with [download](docs/functions/download.md) (to a
-  path or into a local, hash-checked store),
+- Manage the machine with [download](docs/functions/download.md),
   [s3_download](docs/functions/s3_download.md),
   [exec](docs/functions/exec.md), [file](docs/functions/file.md),
   [template](docs/functions/template.md) and
@@ -91,3 +90,24 @@ its arguments, return value and tested examples:
 - Pass values in with [--var](docs/functions/vars.md), and split
   configuration across files with [load()](docs/loading.md) and
   [load_dynamic](docs/functions/load_dynamic.md).
+
+# Tests
+
+The docs double as tests: every page in [docs/](docs/README.md) is a
+[scrut](https://github.com/facebookincubator/scrut) test, and CI runs every
+command on it on Linux, macOS and Windows and checks the output shown. The
+`.star` files the pages run are in [examples/](examples), one folder per
+function.
+
+[tests/integration/](tests/integration) holds the tests that need more than
+that, which only run in CI:
+
+- **[tests/integration/s3/chain.md](tests/integration/s3/chain.md)** is worth
+  reading through as a walkthrough. It publishes a few signed `.star` files
+  and a script to an S3 bucket on a real S3-compatible server, then runs
+  them with `starcm` from a single local `bootstrap.star`. Along the way it
+  shows a new release being picked up, and tampered files and bad
+  credentials being refused.
+- **[tests/integration/macos/](tests/integration/macos)** installs a real
+  signed package with `install_mac_pkg`, and this README's quick start
+  installs dockutil, on a macOS runner.

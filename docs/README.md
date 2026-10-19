@@ -116,5 +116,5 @@ Two sets of tests need more than that, so they run in their own CI jobs:
 
 - The quick start in the top-level README.md installs a real package with
   `sudo` (the macOS Install workflow).
-- [integration/s3/chain.md](../integration/s3/chain.md) runs a chain of
+- [tests/integration/s3/chain.md](../tests/integration/s3/chain.md) runs a chain of
   `.star` files from a real S3-compatible server, rustfs.

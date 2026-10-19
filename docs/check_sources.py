@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check that code shown in the docs matches the files the examples run.
 
-A code block in README.md, docs/ or integration/ whose first line names a
+A code block in README.md, docs/ or tests/ whose first line names a
 file in the repository shows that file, and must match it exactly:
 
     ```python
@@ -24,7 +24,7 @@ import re
 import sys
 
 # A path the docs show files from.
-PATH = r"(?:examples|integration)/\S+"
+PATH = r"(?:examples|tests)/\S+"
 # ```lang, then a first line naming the file, then the content.
 COMMENT_BLOCK = re.compile(r"^```[^\n]*\n(?:# (" + PATH + r")|\{# (" + PATH + r") #\})\n(.*?)^```$", re.S | re.M)
 # `path`: on its own line, a blank line, then the block.
@@ -33,7 +33,7 @@ LABEL_BLOCK = re.compile(r"^`(" + PATH + r")`:\n\n```[^\n]*\n(.*?)^```$", re.S |
 
 def pages():
     yield "README.md"
-    for top in ("docs", "integration"):
+    for top in ("docs", "tests"):
         for path in sorted(glob.glob(top + "/**/*.md", recursive=True)):
             if os.sep + "fixtures" + os.sep not in path:
                 yield path
