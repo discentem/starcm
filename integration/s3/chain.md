@@ -1,47 +1,140 @@
-# s3_download(): setting up a laptop from a real S3 server
+# Running a chain of `.star` files from an S3 bucket
 
-Runs a starcm deployment end to end against a real S3-compatible server,
-[rustfs](https://github.com/rustfs/rustfs), which checks every request's
-signature. This runs only in the scrut CI workflow
-(`.github/workflows/scrut.yml`). That workflow starts rustfs, then sets
-`STARCM_TEST_S3_ENDPOINT` and test credentials in `AWS_ACCESS_KEY_ID` and
-`AWS_SECRET_ACCESS_KEY`. It isn't part of the regular `tests/` run.
+This md file is actually a [scrut](https://github.com/facebookincubator/scrut)
+test. The code blocks are executed by `scrut` in CI to test the following
+things.
 
-It plays a laptop being set up from configuration in an S3 bucket. The
-laptop starts with only `bootstrap.star`. That file fetches `main.star` from
-the `config` bucket into the local store and runs it. `main.star` fetches two
-more files the same way:
+It retrieves a chain of `.star` files from an emulated S3 bucket and runs the
+workflow. The bucket is served by [rustfs](https://github.com/rustfs/rustfs),
+an S3-compatible server that checks credentials on every request, like real
+S3. CI (`.github/workflows/scrut.yml`) starts rustfs on `127.0.0.1:9000` and sets
+test credentials before running this file.
 
-- `lib/settings.star`, a module that writes the agent's settings file;
-- `scripts/install-agent.sh`, a script it runs to install the agent.
+The chain:
 
-Everything runs under `--trusted-keys`. No file is pinned by sha256: each is
-pinned by its signature, `<key>.sig` in the same bucket, so a new release
-only needs new files and signatures in the bucket.
-
-## Set up the bucket
-
-Act as the admin publishing the configuration: sign each file with
-`starcm sign`, which writes a `.sig` next to it, then upload the files and
-signatures to the bucket. The key is the test-only one in
-`tests/fixtures/signing/`; the laptop trusts its public half
-(`--trusted-keys trusted`). The local copy is then removed, so everything has
-to come from the bucket.
-
-```scrut
-$ cp -R "$TESTDIR/fixtures/." "$TMPDIR" && cd "$TMPDIR" && mkdir trusted && cp "$TESTDIR/../../tests/fixtures/signing/trusted/test.pub.pem" trusted/ && key="$TESTDIR/../../tests/fixtures/signing/private/test.pem" && untrusted="$TESTDIR/../../tests/fixtures/signing/private/untrusted.pem"
+```text
+bootstrap.star                 local; starcm runs this. It fetches main.star
+                               from the bucket and runs it.
+s3://config/
+  main.star                    fetches the two files below and uses them
+  lib/settings.star            writes the agent's settings file
+  scripts/install-agent.sh     installs the agent
 ```
 
+## The files
+
+`bootstrap.star`, the file starcm runs:
+
+<!-- fixture: fixtures/bootstrap.star -->
+```python
+load("starcm", "load_dynamic", "s3_download", "vars")
+
+# The only configuration on the machine to start with. main.star comes from
+# s3://config into the local store, pinned by its signature, and runs from
+# there: its .sig is stored next to it for --trusted-keys.
+main = s3_download(
+    label     = "fetch main.star",
+    bucket    = "config",
+    key       = "main.star",
+    signature = "main.star.sig",
+    endpoint  = vars["s3_endpoint"],
+).value
+
+load_dynamic(main, label = "run main.star")
+```
+
+`main.star`, in the bucket:
+
+<!-- fixture: fixtures/config/main.star -->
+```python
+load("starcm", "exec", "load_dynamic", "s3_download", "vars")
+
+# bootstrap.star fetches this file from s3://config and runs it. Everything
+# it fetches is pinned by its signature, so a new release only needs new
+# files and .sig files in the bucket, not a change here.
+
+def fetch(key):
+    """Fetches key and its signature, key.sig, into the local store."""
+    return s3_download(
+        label     = "fetch " + key,
+        bucket    = "config",
+        key       = key,
+        signature = key + ".sig",
+        endpoint  = vars["s3_endpoint"],
+    ).value
+
+settings = load_dynamic(fetch("lib/settings.star"), label = "load settings").value
+settings["apply"]()
+
+exec(label = "install agent", cmd = "sh", args = [fetch("scripts/install-agent.sh")], live_output = True)
+```
+
+`lib/settings.star`, in the bucket:
+
+<!-- fixture: fixtures/config/lib/settings.star -->
+```python
+load("starcm", "file")
+
+def apply():
+    """Writes the agent's settings file and reports whether it changed."""
+    r = file(
+        label       = "agent settings",
+        path        = "managed/agent.conf",
+        content     = "server = https://config.example.com\nchannel = stable\n",
+        create_dirs = True,
+    )
+    print("agent settings: changed=%s" % r.changed)
+```
+
+`scripts/install-agent.sh`, in the bucket:
+
+<!-- fixture: fixtures/config/scripts/install-agent.sh -->
+```sh
+#!/bin/sh
+# Stands in for a real installer: it only prints which version it installed.
+echo "agent 1.0 installed"
+```
+
+starcm runs with `--trusted-keys`, so every `.star` file must be signed by a
+trusted key. Each download is pinned by its signature (`<file>.sig`, next to
+it in the bucket) rather than by a sha256.
+
+## Set up
+
+Copy the files above into scrut's scratch directory and work there:
+
 ```scrut
-$ (cd config && starcm sign --expires 30d --key "$key" main.star lib/settings.star scripts/install-agent.sh) && starcm sign --expires 30d --key "$key" bootstrap.star
+$ cp -R "$TESTDIR/fixtures/." "$TMPDIR" && cd "$TMPDIR"
+```
+
+Signing uses the test-only keys from `tests/fixtures/signing/`:
+`keys/test.pem` signs the configuration, `trusted/` holds its public half for
+`--trusted-keys`, and `keys/untrusted.pem` is a key starcm doesn't trust.
+
+```scrut
+$ mkdir keys trusted && cp "$TESTDIR"/../../tests/fixtures/signing/private/test.pem "$TESTDIR"/../../tests/fixtures/signing/private/untrusted.pem keys/ && cp "$TESTDIR"/../../tests/fixtures/signing/trusted/test.pub.pem trusted/
+```
+
+## Publish the configuration to the bucket
+
+```scrut
+$ aws --endpoint-url http://127.0.0.1:9000 s3 mb s3://config
+make_bucket: config
+```
+
+Sign each file in `config/`, which writes a `.sig` next to it:
+
+```scrut
+$ (cd config && starcm sign --expires 30d --key ../keys/test.pem main.star lib/settings.star scripts/install-agent.sh)
 signed main.star with key "test" until * -> main.star.sig (glob)
 signed lib/settings.star with key "test" until * -> lib/settings.star.sig (glob)
 signed scripts/install-agent.sh with key "test" until * -> scripts/install-agent.sh.sig (glob)
-signed bootstrap.star with key "test" until * -> bootstrap.star.sig (glob)
 ```
 
+Upload the folder, files and signatures, to the bucket:
+
 ```scrut
-$ s3() { aws --endpoint-url "$STARCM_TEST_S3_ENDPOINT" s3 "$@"; } && s3 mb s3://config >/dev/null && s3 sync --quiet config s3://config && rm -rf config && s3 ls --recursive s3://config | awk '{print $4}' | sort
+$ aws --endpoint-url http://127.0.0.1:9000 s3 sync --quiet config s3://config && aws --endpoint-url http://127.0.0.1:9000 s3 ls --recursive s3://config | awk '{print $4}' | sort
 lib/settings.star
 lib/settings.star.sig
 main.star
@@ -50,117 +143,142 @@ scripts/install-agent.sh
 scripts/install-agent.sh.sig
 ```
 
-Fetched files go into a local store. On the Windows CI runners, starcm
-refuses a store under `D:\` (where `$TMPDIR` is) because another account owns
-the drive, so there the store goes under `%LocalAppData%`.
+`bootstrap.star` isn't downloaded, it's already here. But because starcm runs
+with `--trusted-keys`, it has to be signed like every other `.star` file:
 
 ```scrut
-$ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=$(mktemp -d "$(cygpath -u "$LOCALAPPDATA")/starcm-s3.XXXXXX") && store="$store_root/store" ;; esac; run() { starcm --trusted-keys trusted --store-dir "$store" --var "s3_endpoint=$STARCM_TEST_S3_ENDPOINT" bootstrap.star; }
+$ starcm sign --expires 30d --key keys/test.pem bootstrap.star
+signed bootstrap.star with key "test" until * -> bootstrap.star.sig (glob)
 ```
 
-## The laptop gets set up
+## Run the chain
 
 ```scrut
-$ run
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
 agent settings: changed=True
 agent 1.0 installed
 ```
 
-The only thing created where it ran is the settings file (the store sits
-there too on macOS and Linux, so it's left out of the listing):
+## See what happened
+
+`lib/settings.star` wrote the agent's settings file:
 
 ```scrut
-$ ls | grep -vx store && cat managed/agent.conf
-bootstrap.star
-bootstrap.star.sig
-managed
-trusted
+$ cat managed/agent.conf
 server = https://config.example.com
 channel = stable
 ```
 
-Each fetched file is in the store, with its signature next to it, which is
-how `--trusted-keys` checked `main.star` and `settings.star` before loading
-them:
+Each downloaded file is in starcm's local store, `store/`, in a folder named
+after its sha256, with its signature next to it:
 
 ```scrut
-$ find "$store" -type f | sed 's|.*[/\\]||' | sort
-install-agent.sh
-install-agent.sh.sig
-main.star
-main.star.sig
+$ ls store/sha256/*/
+store/sha256/aa300caaad96103497a5dc9cef50a3840600f979cbe4283475ec21ad2aa2478a/:
 settings.star
 settings.star.sig
+
+store/sha256/ac2c374ce948e9994baff90748c8fb577ee7244bff12c287d782686fa5947f5b/:
+main.star
+main.star.sig
+
+store/sha256/fde98a8ca07d684f266eb29ca7a62e4b7e28dcd5f5b130916e343837b311af4a/:
+install-agent.sh
+install-agent.sh.sig
 ```
 
-A second run finds every file in the store with its signed sha256, so it
-only fetches the signatures again, and the settings file is already right:
+## Running it again changes nothing
+
+Every file is already in the store, so starcm only fetches the signatures
+again:
 
 ```scrut
-$ run
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
 agent settings: changed=False
 agent 1.0 installed
 ```
 
-## A new release needs no configuration change
+## A new release only needs a new upload
 
-Publish agent 2.0: upload the new install script and its new signature.
-Nothing on the laptop changes.
+Publish agent 2.0. Nothing in `bootstrap.star` or `main.star` changes:
 
 ```scrut
-$ printf '#!/bin/sh\necho "agent 2.0 installed"\n' > install-agent.sh && starcm sign --expires 30d --key "$key" install-agent.sh >/dev/null && s3 cp --quiet install-agent.sh s3://config/scripts/install-agent.sh && s3 cp --quiet install-agent.sh.sig s3://config/scripts/install-agent.sh.sig && run
+$ printf 'echo "agent 2.0 installed"\n' > config/scripts/install-agent.sh && starcm sign --expires 30d --key keys/test.pem config/scripts/install-agent.sh
+signed config/scripts/install-agent.sh with key "test" until * -> config/scripts/install-agent.sh.sig (glob)
+```
+
+```scrut
+$ aws --endpoint-url http://127.0.0.1:9000 s3 cp --quiet config/scripts/install-agent.sh s3://config/scripts/install-agent.sh && aws --endpoint-url http://127.0.0.1:9000 s3 cp --quiet config/scripts/install-agent.sh.sig s3://config/scripts/install-agent.sh.sig
+```
+
+```scrut
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
 agent settings: changed=False
 agent 2.0 installed
 ```
 
-## A tampered bucket is refused
+## Tampering is refused
 
-Someone with write access to the bucket swaps in an install script that the
-signature doesn't cover. While the signed release is already in the store,
-that one runs and the swap changes nothing:
+Someone with access to the bucket replaces the install script, without a
+valid signature:
 
 ```scrut
-$ printf '#!/bin/sh\necho pwned\n' > evil.sh && s3 cp --quiet evil.sh s3://config/scripts/install-agent.sh && run
+$ printf 'echo pwned\n' > evil.sh && aws --endpoint-url http://127.0.0.1:9000 s3 cp --quiet evil.sh s3://config/scripts/install-agent.sh
+```
+
+Agent 2.0 is already in the store, so starcm keeps using it:
+
+```scrut
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
 agent settings: changed=False
 agent 2.0 installed
 ```
 
-On a laptop that doesn't have it yet, the download doesn't match the sha256
-the signature records, so it's refused before it's stored or run:
+With an empty store, starcm downloads the replaced script and refuses it,
+because it doesn't match the sha256 its signature records:
 
 ```scrut
-$ rm -rf "$store" && run 2>&1 | tail -1
+$ rm -rf store && starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | tail -1
 Error in s3_download: expected sha256 hash *, got * (glob)
 ```
 
-Signing the swap with a key the machine doesn't trust doesn't help:
+Signing the replacement with a key starcm doesn't trust doesn't help:
 
 ```scrut
-$ starcm sign --expires 30d --key "$untrusted" evil.sh >/dev/null && s3 cp --quiet evil.sh.sig s3://config/scripts/install-agent.sh.sig && run 2>&1 | tail -1
+$ starcm sign --expires 30d --key keys/untrusted.pem evil.sh && aws --endpoint-url http://127.0.0.1:9000 s3 cp --quiet evil.sh.sig s3://config/scripts/install-agent.sh.sig
+signed evil.sh with key "untrusted" until * -> evil.sh.sig (glob)
+```
+
+```scrut
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | tail -1
 Error in s3_download: s3_download(label="fetch scripts/install-agent.sh"): signature scripts/install-agent.sh.sig: key "untrusted" is not trusted
 ```
 
 ## The server checks credentials
 
+A wrong secret key:
+
 ```scrut
-$ AWS_SECRET_ACCESS_KEY=wrong run 2>&1 | tail -1
-Error in s3_download: s3_download(label="fetch main.star"): fetching signature: failed to download s3://config/main.star.sig: operation error S3: GetObject, https response error StatusCode: 403, RequestID: *, HostID: , api error SignatureDoesNotMatch: * (glob)
+$ AWS_SECRET_ACCESS_KEY=wrong starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | grep -o 'api error [A-Za-z]*'
+api error SignatureDoesNotMatch
 ```
 
+A key the server doesn't know:
+
 ```scrut
-$ AWS_ACCESS_KEY_ID=nobody run 2>&1 | tail -1
-Error in s3_download: s3_download(label="fetch main.star"): fetching signature: failed to download s3://config/main.star.sig: operation error S3: GetObject, https response error StatusCode: 403, RequestID: *, HostID: , api error InvalidAccessKeyId: * (glob)
+$ AWS_ACCESS_KEY_ID=nobody starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | grep -o 'api error [A-Za-z]*'
+api error InvalidAccessKeyId
 ```
 
-## A missing object fails the run
+## A missing file fails the run
 
 ```scrut
-$ s3 rm --quiet s3://config/main.star.sig && run 2>&1 | tail -1
-Error in s3_download: s3_download(label="fetch main.star"): fetching signature: failed to download s3://config/main.star.sig: operation error S3: GetObject, https response error StatusCode: 404, RequestID: *, HostID: , NoSuchKey: * (glob)
+$ aws --endpoint-url http://127.0.0.1:9000 s3 rm --quiet s3://config/main.star.sig && starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | grep -o 'NoSuchKey'
+NoSuchKey
 ```
 
 ## Clean up
 
 ```scrut
-$ s3 rb --force s3://config >/dev/null && rm -rf "$store" ${store_root:+"$store_root"}
+$ aws --endpoint-url http://127.0.0.1:9000 s3 rb --force s3://config >/dev/null
 ```

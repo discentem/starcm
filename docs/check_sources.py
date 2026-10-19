@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check that code shown in the docs matches the fixtures the examples run.
 
-A code block in README.md or docs/ that follows a comment like
+A code block in README.md, docs/ or integration/ that follows a comment like
 
     <!-- fixture: ../fixtures/download/basic.star -->
 
@@ -20,9 +20,10 @@ BLOCK = re.compile(r"<!-- fixture: (\S+) -->\n```[^\n]*\n(.*?)^```$", re.S | re.
 
 def pages():
     yield "README.md"
-    for path in sorted(glob.glob("docs/**/*.md", recursive=True)):
-        if not path.startswith(os.path.join("docs", "fixtures") + os.sep):
-            yield path
+    for top in ("docs", "integration"):
+        for path in sorted(glob.glob(top + "/**/*.md", recursive=True)):
+            if os.sep + "fixtures" + os.sep not in path:
+                yield path
 
 
 def main():
