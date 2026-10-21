@@ -4,8 +4,9 @@
 
 Use `exec` to run a command. Its output (stdout and stderr together) is
 returned as the result's `value`, and its exit code decides `success`. A
-command that exits with an unexpected code doesn't stop the run: check
-`success` and decide what to do, or call `fail()`.
+command that exits with an unexpected code doesn't stop the run by default:
+check `success` and decide what to do, or call `fail()`. Pass `check = True`
+to stop the run instead.
 
 ## Syntax
 
@@ -18,6 +19,7 @@ exec(
     args               = ["-pkg", "agent.pkg", "-target", "/"],  # required, may be []
     expected_exit_code = 0,
     live_output        = False,
+    check              = False,
 )
 ```
 
@@ -29,6 +31,7 @@ exec(
 | `args` | list of strings | required | Arguments to pass. Use `[]` for none. |
 | `expected_exit_code` | int | `0` | The exit code that counts as success. |
 | `live_output` | bool | `False` | Also stream the command's output to starcm's stdout as it runs. |
+| `check` | bool | `False` | When `True`, stop the run if the command can't start or exits with a code other than `expected_exit_code`. The error includes the command's output. |
 
 `exec` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
 (required), `only_if`, `not_if`, `timeout`, `working_directory` and `what_if`.
@@ -50,7 +53,7 @@ A [starcm_result](../common-functionality.md#starcm_result):
 
 | Field | Value |
 | --- | --- |
-| `success` | `True` when the exit code equals `expected_exit_code` |
+| `success` | `True` when the exit code equals `expected_exit_code`. With `check = True` a result is only returned when this is `True`. |
 | `changed` | Always `True`: starcm can't tell whether a command changed anything |
 | `value` | The command's stdout and stderr, as a string |
 | `error` | `"<nil>"` for exit code 0, otherwise e.g. `"exit status 3"` (even when that code was expected), or `"context deadline exceeded"` after a `timeout` |
@@ -126,6 +129,28 @@ $ starcm exit_codes.star
 expected 1: success=True error=exit status 1
 unexpected: success=False error=exit status 3 value="oops\n"
 handle the failure here, or stop the run with fail()
+```
+
+### Stop the run when a command fails
+
+With `check = True`, a command that exits with an unexpected code, or can't
+start, stops the run. Nothing after it runs:
+
+```python
+# examples/exec/check.star
+load("starcm", "exec")
+
+exec(label = "installer", cmd = "sh", args = ["-c", "echo installing; exit 3"], check = True)
+print("this line never runs")
+```
+
+```scrut
+$ starcm check.star 2>&1
+Traceback (most recent call last):
+  check.star:3:5: in <toplevel>
+Error in exec: exec(label="installer"): sh exited with status 3, expected 0
+installing
+[1]
 ```
 
 ### Stream output while it runs
