@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sysinfo",
+    srcs = ["sysinfo.go"],
+    importpath = "github.com/discentem/starcm/functions/sysinfo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)
+
+go_test(
+    name = "sysinfo_test",
+    srcs = ["sysinfo_test.go"],
+    embed = [":sysinfo"],
+    deps = [
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)

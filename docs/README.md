@@ -73,6 +73,9 @@ These take no `label` and don't return a `starcm_result`.
 | [vars](functions/vars.md) | The `--var name=value` values, as a dict. |
 | [dedent](functions/dedent.md) | Take the shared indentation off a triple-quoted string. |
 | [temp_dir](functions/temp_dir.md) | The system's temporary directory, with optional path parts joined on. |
+| [platform](functions/platform.md) | The machine's operating system and CPU architecture, as `os` and `arch`. |
+| [env](functions/env.md) | An environment variable's value, or a default when it isn't set. |
+| [home_dir](functions/home_dir.md) | The user's home directory, with optional path parts joined on. |
 | [struct](functions/struct.md) | Build a record with named fields. Load it from `stdlib`: `load("stdlib", "struct")`. |
 
 Starlark's built-ins, such as `print`, `fail`, `len`, `range` and `sorted`,

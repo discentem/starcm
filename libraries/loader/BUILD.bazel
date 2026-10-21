@@ -17,6 +17,7 @@ go_library(
         "//functions/macpkg",
         "//functions/readfile",
         "//functions/shell",
+        "//functions/sysinfo",
         "//functions/sign",
         "//functions/tempdir",
         "//functions/template",
