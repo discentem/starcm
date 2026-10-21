@@ -341,7 +341,12 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					),
 					"file": starlark.NewBuiltin(
 						"file",
-						starcmFile.New(ctx, fsys).Function(),
+						starcmFile.New(
+							ctx,
+							fsys,
+							starcmFile.WithStoreCheck(l.StoreCheck),
+							starcmFile.WithExecutor(ex),
+						).Function(),
 					),
 					"template": starlark.NewBuiltin(
 						"template",
