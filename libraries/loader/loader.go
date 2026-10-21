@@ -34,6 +34,7 @@ import (
 	starcmreadfile "github.com/discentem/starcm/functions/readfile"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmsign "github.com/discentem/starcm/functions/sign"
+	starcmsysinfo "github.com/discentem/starcm/functions/sysinfo"
 	starcmtempdir "github.com/discentem/starcm/functions/tempdir"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmverify "github.com/discentem/starcm/functions/verify"
@@ -387,6 +388,9 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					),
 					"dedent":   starcmdedent.New(),
 					"temp_dir": starcmtempdir.New(),
+					"platform": starcmsysinfo.Platform(),
+					"env":      starcmsysinfo.Env(),
+					"home_dir": starcmsysinfo.HomeDir(),
 					"json":     starlarkjson.Module,
 					"vars":     vars,
 				}, nil
