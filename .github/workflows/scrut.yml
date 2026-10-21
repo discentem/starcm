@@ -58,6 +58,10 @@ jobs:
           # runs in the macOS Install workflow instead.
           scrut test --work-directory . docs/
 
+      - name: Show starcm's output
+        if: always()
+        run: cat "$STARCM_TRANSCRIPT" 2>/dev/null || echo "starcm never ran"
+
   # Runs tests/integration/s3/chain.md: a chain of .star files fetched from a real
   # S3-compatible server.
   s3-chain:
@@ -134,3 +138,7 @@ jobs:
           mkdir -p "$work"
           scrut test --work-directory "$work" "$GITHUB_WORKSPACE/tests/integration/s3/" ||
             { echo "--- rustfs log"; cat "$dir/rustfs.log"; exit 1; }
+
+      - name: Show starcm's output
+        if: always()
+        run: cat "$STARCM_TRANSCRIPT" 2>/dev/null || echo "starcm never ran"

@@ -47,3 +47,18 @@ runs:
       run: |
         bazel build //:starcm
         cp "bazel-bin/starcm_/starcm${{ inputs.exe }}" "$RUNNER_TEMP/bin/"
+
+    # scrut prints only a summary when every test passes. This `starcm`, ahead
+    # of the real one on PATH, copies each run's command and output into
+    # $STARCM_TRANSCRIPT; the workflow prints it after the tests.
+    - name: Record starcm's output
+      shell: bash
+      run: |
+        set -euo pipefail
+        wrap="$RUNNER_TEMP/starcm-transcript"
+        mkdir -p "$wrap"
+        cp "${{ github.action_path }}/starcm-transcript.sh" "$wrap/starcm"
+        chmod +x "$wrap/starcm"
+        echo "$wrap" >> "$GITHUB_PATH"
+        echo "STARCM_REAL=$RUNNER_TEMP/bin/starcm${{ inputs.exe }}" >> "$GITHUB_ENV"
+        echo "STARCM_TRANSCRIPT=$RUNNER_TEMP/starcm-transcript.log" >> "$GITHUB_ENV"
