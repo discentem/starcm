@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "packageRules": [
+    {
+      "description": "One PR for the AWS SDK modules, which release together.",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/aws/aws-sdk-go-v2{/,}**"],
+      "groupName": "AWS SDK for Go"
+    },
+    {
+      "description": "rules_go and gazelle have to work together; update them in one PR.",
+      "matchManagers": ["bazel-module"],
+      "matchPackageNames": ["rules_go", "gazelle"],
+      "groupName": "Bazel Go rules"
+    },
+    {
+      "description": "One PR for minor and patch updates of GitHub Actions.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}
