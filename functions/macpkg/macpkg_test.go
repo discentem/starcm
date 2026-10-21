@@ -16,8 +16,9 @@ import (
 )
 
 // tailscaleSigner and tailscaleSHA256 are the installer certificate in
-// testdata/developer-id-notarized.txt, real `pkgutil --check-signature`
-// output for a Developer ID signed, notarized package.
+// libraries/macsig/testdata/developer-id-notarized.txt, real
+// `pkgutil --check-signature` output for a Developer ID signed, notarized
+// package.
 // pkgBytesSHA256 is the sha256 of "pkg bytes", the content writePkg uses.
 const pkgBytesSHA256 = "fed2df1114f653c1184c3484ef40aea482f9634f49189b7ea5be36c204b8a1ca"
 
@@ -28,74 +29,9 @@ const (
 
 func readTestdata(t *testing.T, name string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", name))
+	b, err := os.ReadFile(filepath.Join("..", "..", "libraries", "macsig", "testdata", name))
 	require.NoError(t, err)
 	return string(b)
-}
-
-func TestParseCheckSignature(t *testing.T) {
-	sig, err := ParseCheckSignature(readTestdata(t, "developer-id-notarized.txt"))
-	require.NoError(t, err)
-	assert.Equal(t, "signed by a developer certificate issued by Apple for distribution", sig.Status)
-	assert.True(t, sig.Notarized)
-	require.Len(t, sig.Chain, 3)
-	assert.Equal(t, "Developer ID Installer: Tailscale Inc. (W5364U7YZB)", sig.Chain[0].Name)
-	assert.Equal(t, tailscaleSHA256, sig.Chain[0].SHA256)
-	assert.Equal(t, "Apple Root CA", sig.Chain[2].Name)
-	assert.Equal(t, "b0b1730ecbc7ff4505142c49f1295e6eda6bcaed7e2c68c5be91b5a11001f024", sig.Chain[2].SHA256)
-
-	unsigned, err := ParseCheckSignature(readTestdata(t, "unsigned.txt"))
-	require.NoError(t, err)
-	assert.Equal(t, "no signature", unsigned.Status)
-	assert.Empty(t, unsigned.Chain)
-
-	_, err = ParseCheckSignature("garbage")
-	assert.Error(t, err)
-}
-
-func TestSignatureCheck(t *testing.T) {
-	sig, err := ParseCheckSignature(readTestdata(t, "developer-id-notarized.txt"))
-	require.NoError(t, err)
-	assert.NoError(t, sig.Check(tailscaleSigner, true))
-
-	// Another developer's certificate, or a near miss, is refused.
-	for _, other := range []string{
-		"Developer ID Installer: Some Other Co (ABCDE12345)",
-		"Developer ID Installer: Tailscale Inc. (ABCDE12345)",
-		"Developer ID Installer: Tailscale Inc.",
-		"W5364U7YZB",
-		"developer id installer: tailscale inc. (w5364u7yzb)",
-	} {
-		assert.ErrorContains(t, sig.Check(other, true), `signed by "`+tailscaleSigner+`", not the expected "`+other+`"`)
-	}
-
-	// Naming an intermediate or the root isn't enough: only the leaf counts.
-	assert.Error(t, sig.Check("Developer ID Certification Authority", true))
-	assert.Error(t, sig.Check("Apple Root CA", true))
-
-	notNotarized := *sig
-	notNotarized.Notarized = false
-	assert.ErrorContains(t, notNotarized.Check(tailscaleSigner, true), "not notarized")
-	assert.NoError(t, notNotarized.Check(tailscaleSigner, false))
-
-	// Only certificates Apple issued count, even if macOS trusts the
-	// certificate: a private CA could issue one with any name.
-	for _, status := range []string{
-		"no signature",
-		"signed by untrusted certificate",
-		"signed by a certificate that has since expired",
-		"signed by a developer certificate issued by Apple (Development)",
-		"signed by a certificate trusted by macOS",
-	} {
-		s := *sig
-		s.Status = status
-		assert.ErrorContains(t, s.Check(tailscaleSigner, false), "not signed with a certificate Apple issued for distribution: "+status)
-	}
-
-	// A chain that doesn't end at Apple's root is refused.
-	forged := *sig
-	forged.Chain = append([]Certificate{}, sig.Chain[:2]...)
-	assert.ErrorContains(t, forged.Check(tailscaleSigner, false), "certificate chain doesn't end at Apple Root CA")
 }
 
 // fakeMac is a shelllib.Executor that records commands and answers pkgutil

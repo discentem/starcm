@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "macsig",
+    srcs = ["macsig.go"],
+    importpath = "github.com/discentem/starcm/libraries/macsig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/sha256",
+        "//libraries/shell",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)
+
+# Real pkgutil and codesign output, also read by //functions/macpkg's tests.
+filegroup(
+    name = "testdata",
+    srcs = glob(["testdata/**"]),
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "macsig_test",
+    srcs = ["macsig_test.go"],
+    data = [":testdata"],
+    embed = [":macsig"],
+    deps = [
+        "//libraries/shell",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
