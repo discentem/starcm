@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/diffutils"
+	shelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/afero"
@@ -16,6 +18,12 @@ import (
 
 type fileAction struct {
 	fsys afero.Fs
+	// executor runs pkgutil and codesign for file(signer = ...).
+	executor shelllib.Executor
+	goos     string
+	// checkStored verifies source if it names a file in the local store.
+	// Nil means no store.
+	checkStored func(path string) error
 }
 
 var _ base.Runnable = (*fileAction)(nil)
@@ -36,6 +44,14 @@ func (a *fileAction) Run(
 
 	if *action == "delete" {
 		return a.runDelete(ctx, workingDirectory, label, thread, args, kwargs)
+	}
+	if starlarkhelpers.FindOptionalValueInKwargs(kwargs, "source") != nil {
+		return a.runCopy(label, kwargs)
+	}
+	for _, name := range []string{"sha256", "signer"} {
+		if starlarkhelpers.FindOptionalValueInKwargs(kwargs, name) != nil {
+			return nil, fmt.Errorf("file(label=%q): %s needs source", label, name)
+		}
 	}
 
 	return a.runCreate(ctx, workingDirectory, label, thread, args, kwargs)
@@ -238,7 +254,36 @@ func (a *fileAction) runDelete(
 	}, nil
 }
 
-func New(ctx context.Context, fsys afero.Fs) *base.Module {
+// Option configures file().
+type Option func(*fileAction)
+
+// WithStoreCheck makes file(source = ...) call check on source first, so a
+// file from the local store is re-hashed before it's copied.
+func WithStoreCheck(check func(path string) error) Option {
+	return func(a *fileAction) { a.checkStored = check }
+}
+
+// WithExecutor replaces the executor file(signer = ...) runs pkgutil and
+// codesign with, for tests.
+func WithExecutor(executor shelllib.Executor) Option {
+	return func(a *fileAction) { a.executor = executor }
+}
+
+// WithGOOS replaces the operating system file() thinks it runs on, for
+// tests.
+func WithGOOS(goos string) Option {
+	return func(a *fileAction) { a.goos = goos }
+}
+
+func New(ctx context.Context, fsys afero.Fs, opts ...Option) *base.Module {
+	a := &fileAction{
+		fsys:     fsys,
+		executor: &shelllib.RealExecutor{},
+		goos:     runtime.GOOS,
+	}
+	for _, opt := range opts {
+		opt(a)
+	}
 	return base.NewModule(
 		ctx,
 		"file",
@@ -248,9 +293,11 @@ func New(ctx context.Context, fsys afero.Fs) *base.Module {
 			base.OptionalArg[string]("action"),
 			base.OptionalArgAllowNone[int64]("mode"),
 			base.OptionalArgAllowNone[bool]("create_dirs"),
+			base.OptionalArgAllowNone[string]("source"),
+			base.OptionalArgAllowNone[string]("sha256"),
+			base.OptionalArgAllowNone[string]("signer"),
+			base.OptionalArgAllowNone[bool]("require_notarized"),
 		},
-		&fileAction{
-			fsys: fsys,
-		},
+		a,
 	)
 }

@@ -1,16 +1,38 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "file",
-    srcs = ["file.go"],
+    srcs = [
+        "copy.go",
+        "file.go",
+    ],
     importpath = "github.com/discentem/starcm/functions/file",
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
         "//libraries/diffutils",
+        "//libraries/fileutils",
+        "//libraries/macsig",
+        "//libraries/sha256",
+        "//libraries/shell",
         "//starlark-helpers",
         "@com_github_mitchellh_go_homedir//:go-homedir",
         "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)
+
+go_test(
+    name = "file_test",
+    srcs = ["copy_test.go"],
+    data = ["//libraries/macsig:testdata"],
+    embed = [":file"],
+    deps = [
+        "//libraries/shell",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@net_starlark_go//starlark",
     ],
 )
