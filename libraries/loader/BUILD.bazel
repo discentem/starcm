@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/discentem/starcm/libraries/loader",
     visibility = ["//visibility:public"],
     deps = [
+        "//functions/checkmacsig",
         "//functions/checksum",
         "//functions/date",
         "//functions/dedent",

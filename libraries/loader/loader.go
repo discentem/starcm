@@ -22,6 +22,7 @@ import (
 	"go.starlark.net/starlarkstruct"
 	"go.starlark.net/syntax"
 
+	starcmcheckmacsig "github.com/discentem/starcm/functions/checkmacsig"
 	starcmchecksum "github.com/discentem/starcm/functions/checksum"
 	starcmdate "github.com/discentem/starcm/functions/date"
 	starcmdedent "github.com/discentem/starcm/functions/dedent"
@@ -379,6 +380,14 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						starcmextract.New(
 							ctx,
 							starcmextract.WithStoreCheck(l.StoreCheck),
+						).Function(),
+					),
+					"check_mac_signature": starlark.NewBuiltin(
+						"check_mac_signature",
+						starcmcheckmacsig.New(
+							ctx,
+							ex,
+							starcmcheckmacsig.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
 					"sha256": starlark.NewBuiltin(

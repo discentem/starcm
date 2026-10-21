@@ -76,6 +76,40 @@ func (r *Reader) ReadPkg(path string) (*Signature, error) {
 	return sig, nil
 }
 
+// The kinds of file Read reads.
+const (
+	KindAuto = "auto" // KindPkg for a .pkg, KindCode otherwise
+	KindPkg  = "pkg"  // an installer package, read with ReadPkg
+	KindCode = "code" // a Mach-O binary or .app bundle, read with ReadCode
+)
+
+// ResolveKind turns KindAuto into KindPkg or KindCode for path, and
+// returns an error for an unknown kind.
+func ResolveKind(path, kind string) (string, error) {
+	switch kind {
+	case KindPkg, KindCode:
+		return kind, nil
+	case KindAuto, "":
+		if strings.EqualFold(filepath.Ext(path), ".pkg") {
+			return KindPkg, nil
+		}
+		return KindCode, nil
+	}
+	return "", fmt.Errorf("kind must be %q, %q or %q, not %q", KindAuto, KindPkg, KindCode, kind)
+}
+
+// Read reads the signature of path as kind (see ResolveKind).
+func (r *Reader) Read(path, kind string) (*Signature, error) {
+	kind, err := ResolveKind(path, kind)
+	if err != nil {
+		return nil, err
+	}
+	if kind == KindPkg {
+		return r.ReadPkg(path)
+	}
+	return r.ReadCode(path)
+}
+
 // codesign is the codesign binary ReadCode runs.
 const codesign = "/usr/bin/codesign"
 
