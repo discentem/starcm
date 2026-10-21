@@ -77,7 +77,7 @@ its arguments, return value and tested examples:
 - Manage the machine with [download](docs/functions/download.md),
   [s3_download](docs/functions/s3_download.md),
   [exec](docs/functions/exec.md), [file](docs/functions/file.md),
-  [template](docs/functions/template.md) and
+  [extract](docs/functions/extract.md), [template](docs/functions/template.md) and
   [install_mac_pkg](docs/functions/install_mac_pkg.md).
 - Read information with [date](docs/functions/date.md),
   [read_file](docs/functions/read_file.md),

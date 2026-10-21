@@ -35,6 +35,7 @@ All of these functions can be enhanced by:
 | [s3_download](functions/s3_download.md) | The same, for an object in S3 or an S3-compatible store, with AWS credentials. |
 | [exec](functions/exec.md) | Run a command, capture its output and check its exit code. |
 | [file](functions/file.md) | Create a file with given content, or delete it. |
+| [extract](functions/extract.md) | Unpack a `.zip`, `.tar.gz` or `.tgz` archive, refusing entries that would escape the destination. |
 | [template](functions/template.md) | Render a Jinja2-style template to a file. |
 | [install_mac_pkg](functions/install_mac_pkg.md) | Install a macOS `.pkg` only if it's signed by the certificate you pin. |
 
