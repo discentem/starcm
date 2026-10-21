@@ -6,3 +6,4 @@ def show(r):
 show(sign(path = "payload.txt", key = "private/untrusted.pem", key_id = "other", expires = "30d", label = "other key"))
 show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", label = "test key"))
 show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", label = "unchanged"))
+show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", release = "2026.10", label = "release"))

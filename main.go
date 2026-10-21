@@ -41,6 +41,10 @@ func main() {
 				Usage: "with --trusted-keys, also refuse signatures that expire more than `DURATION` (e.g. 30d) from now",
 			},
 			&cli.StringFlag{
+				Name:  "release",
+				Usage: "with --trusted-keys, refuse signatures not made for release `ID` (starcm sign --release)",
+			},
+			&cli.StringFlag{
 				Name:  "trusted-keys",
 				Usage: "directory of *.pem public keys; when set, every .star file must have a valid <file>.sig signed by one of them, and verify() is enabled",
 			},
@@ -125,9 +129,12 @@ func main() {
 					}
 					keyring.SetMaxExpiry(d)
 				}
+				keyring.SetRelease(c.String("release"))
 				opts = append(opts, loader.WithKeyring(keyring))
 			} else if c.String("max-expiry") != "" {
 				return cli.Exit("--max-expiry needs --trusted-keys", 1)
+			} else if c.String("release") != "" {
+				return cli.Exit("--release needs --trusted-keys", 1)
 			}
 
 			starcmLoader := loader.Default(

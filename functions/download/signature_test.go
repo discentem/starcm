@@ -35,7 +35,7 @@ func testKey(t *testing.T) (*signing.Keyring, func(data []byte) []byte) {
 	k, err := signing.LoadKeyring(fsys, "trusted")
 	require.NoError(t, err)
 	return k, func(data []byte) []byte {
-		sig, err := signing.Sign(priv, "release", time.Now().Add(time.Hour), data)
+		sig, err := signing.Sign(priv, "release", "", time.Now().Add(time.Hour), data)
 		require.NoError(t, err)
 		return sig.Bytes()
 	}

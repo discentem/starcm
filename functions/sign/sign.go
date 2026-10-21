@@ -3,7 +3,6 @@ package sign
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/discentem/starcm/functions/base"
@@ -46,6 +45,10 @@ func (a *signAction) Run(ctx context.Context, workingDirectory string, moduleNam
 	if err != nil {
 		return nil, err
 	}
+	release, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "release", "")
+	if err != nil {
+		return nil, err
+	}
 	expiresArg, err := starlarkhelpers.FindValueinKwargs(kwargs, "expires")
 	if err != nil {
 		return nil, err
@@ -54,12 +57,11 @@ func (a *signAction) Run(ctx context.Context, workingDirectory string, moduleNam
 	if err != nil {
 		return nil, err
 	}
-	sig, changed, err := signing.SignFile(a.fsys, *keyPath, *keyID, p, expires)
+	sig, changed, err := signing.SignFile(a.fsys, *keyPath, *keyID, *release, p, expires)
 	if err != nil {
 		return nil, err
 	}
-	sigPath := p + signing.SignatureSuffix
-	msg := fmt.Sprintf("signed %s with key %q until %s -> %s", p, sig.KeyID, sig.Expires.Format(time.RFC3339), sigPath)
+	msg := signing.Describe(p, sig)
 	return &base.Result{Label: moduleName, Success: true, Changed: changed, Message: &msg, Return: starlark.String(sig.KeyID)}, nil
 }
 
@@ -76,6 +78,7 @@ func New(ctx context.Context, fsys afero.Fs, deployed bool) *base.Module {
 			base.Arg[string]("key"),
 			base.Arg[string]("expires"),
 			base.OptionalArg[string]("key_id"),
+			base.OptionalArg[string]("release"),
 		},
 		&signAction{fsys: fsys, deployed: deployed},
 	)

@@ -1,13 +1,17 @@
 // Package signing creates and checks detached signatures for files starcm runs
 // or handles. A file's signature lives next to it in <file>.sig, as one line:
 //
-//	ed25519 key=2026-a expires=2026-11-14T00:00:00Z sig=<base64>
+//	ed25519 key=2026-a expires=2026-11-14T00:00:00Z release=2026.10.21 sha256=<hex> sig=<base64>
 //
 // The algorithm selects a Verifier and key names a public key in a Keyring.
 // Every signature expires: what's signed is Message, which covers the
-// algorithm, key id, expiry and the file's sha256, so none of them can be
-// changed without breaking the signature, and Keyring refuses signatures past
-// their expiry.
+// algorithm, key id, expiry, release and the file's sha256, so none of them
+// can be changed without breaking the signature, and Keyring refuses
+// signatures past their expiry.
+//
+// release is optional. It names the set of files signed together, so a
+// Keyring that requires one (SetRelease) refuses files from an older release,
+// or from none, even while their signatures are unexpired.
 // Keys are PEM files as written by openssl:
 //
 //	openssl genpkey -algorithm ed25519 -out 2026-a.pem
@@ -70,19 +74,29 @@ type Signature struct {
 	KeyID     string
 	// Expires is when the signature stops being valid, in UTC to the second.
 	Expires time.Time
+	// Release is the release the file was signed for, or "" for none.
+	Release string
 	// SHA256 is the signed file's sha256, lowercase hex. It's part of what's
 	// signed, so a verified signature is also a trusted sha256 pin.
 	SHA256 string
 	Value  []byte
 }
 
-const signatureFormat = `"<algorithm> key=<id> expires=<RFC 3339 time> sha256=<hex> sig=<base64>"`
+const signatureFormat = `"<algorithm> key=<id> expires=<RFC 3339 time> [release=<id>] sha256=<hex> sig=<base64>"`
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ParseSignature parses a signature file.
 func ParseSignature(b []byte) (Signature, error) {
 	fields := strings.Fields(string(b))
+	var release string
+	if len(fields) == 6 && strings.HasPrefix(fields[3], "release=") {
+		release = strings.TrimPrefix(fields[3], "release=")
+		if release == "" {
+			return Signature{}, errors.New("malformed signature file: empty release")
+		}
+		fields = append(fields[:3], fields[4:]...)
+	}
 	if len(fields) != 5 ||
 		!strings.HasPrefix(fields[1], "key=") ||
 		!strings.HasPrefix(fields[2], "expires=") ||
@@ -106,27 +120,37 @@ func ParseSignature(b []byte) (Signature, error) {
 	if err != nil {
 		return Signature{}, fmt.Errorf("malformed signature file: %w", err)
 	}
-	return Signature{Algorithm: fields[0], KeyID: keyID, Expires: expires.UTC(), SHA256: sum, Value: value}, nil
+	return Signature{Algorithm: fields[0], KeyID: keyID, Expires: expires.UTC(), Release: release, SHA256: sum, Value: value}, nil
 }
 
 // Bytes formats s as a signature file.
 func (s Signature) Bytes() []byte {
-	return []byte(fmt.Sprintf("%s key=%s expires=%s sha256=%s sig=%s\n",
-		s.Algorithm, s.KeyID, formatTime(s.Expires), s.SHA256, base64.StdEncoding.EncodeToString(s.Value)))
+	var release string
+	if s.Release != "" {
+		release = " release=" + s.Release
+	}
+	return []byte(fmt.Sprintf("%s key=%s expires=%s%s sha256=%s sig=%s\n",
+		s.Algorithm, s.KeyID, formatTime(s.Expires), release, s.SHA256, base64.StdEncoding.EncodeToString(s.Value)))
 }
 
-// Message is what a signature by keyID with this algorithm and expiry signs
-// for data. Signing the file's sha256 rather than the file keeps verifying
-// large files cheap.
-func Message(algorithm, keyID string, expires time.Time, data []byte) []byte {
+// Message is what a signature by keyID with this algorithm, expiry and
+// release ("" for none) signs for data. Signing the file's sha256 rather than
+// the file keeps verifying large files cheap.
+func Message(algorithm, keyID string, expires time.Time, release string, data []byte) []byte {
 	sum, _ := starcmsha256.FromReader(bytes.NewReader(data)) // reading memory can't fail
-	return digestMessage(algorithm, keyID, expires, sum)
+	return digestMessage(algorithm, keyID, expires, release, sum)
 }
 
-// digestMessage is Message for a file whose sha256 is sum.
-func digestMessage(algorithm, keyID string, expires time.Time, sum string) []byte {
-	return []byte(fmt.Sprintf("starcm-signature\nalgorithm=%s\nkey=%s\nexpires=%s\nsha256=%s\n",
-		algorithm, keyID, formatTime(expires), sum))
+// digestMessage is Message for a file whose sha256 is sum. Without a release
+// the message has no release line, so signatures made before releases existed
+// still verify, and one can't be turned into the other.
+func digestMessage(algorithm, keyID string, expires time.Time, release, sum string) []byte {
+	var releaseLine string
+	if release != "" {
+		releaseLine = "release=" + release + "\n"
+	}
+	return []byte(fmt.Sprintf("starcm-signature\nalgorithm=%s\nkey=%s\nexpires=%s\n%ssha256=%s\n",
+		algorithm, keyID, formatTime(expires), releaseLine, sum))
 }
 
 func formatTime(t time.Time) string {
@@ -211,11 +235,14 @@ func ParsePrivateKey(pemBytes []byte) (crypto.Signer, error) {
 	return signer, nil
 }
 
-// Sign signs data with key until expires, recording keyID so verifiers can
-// find the matching public key.
-func Sign(key crypto.Signer, keyID string, expires time.Time, data []byte) (Signature, error) {
+// Sign signs data with key until expires, for release ("" for none),
+// recording keyID so verifiers can find the matching public key.
+func Sign(key crypto.Signer, keyID, release string, expires time.Time, data []byte) (Signature, error) {
 	if keyID == "" || strings.ContainsAny(keyID, " \t\r\n") {
 		return Signature{}, fmt.Errorf("invalid key id %q: must be non-empty with no spaces", keyID)
+	}
+	if strings.ContainsAny(release, " \t\r\n") {
+		return Signature{}, fmt.Errorf("invalid release %q: must have no spaces", release)
 	}
 	if expires.IsZero() {
 		return Signature{}, errors.New("signatures must have an expiry")
@@ -224,20 +251,20 @@ func Sign(key crypto.Signer, keyID string, expires time.Time, data []byte) (Sign
 	switch k := key.(type) {
 	case ed25519.PrivateKey:
 		sum, _ := starcmsha256.FromReader(bytes.NewReader(data)) // reading memory can't fail
-		msg := digestMessage("ed25519", keyID, expires, sum)
-		return Signature{Algorithm: "ed25519", KeyID: keyID, Expires: expires, SHA256: sum, Value: ed25519.Sign(k, msg)}, nil
+		msg := digestMessage("ed25519", keyID, expires, release, sum)
+		return Signature{Algorithm: "ed25519", KeyID: keyID, Expires: expires, Release: release, SHA256: sum, Value: ed25519.Sign(k, msg)}, nil
 	default:
 		return Signature{}, fmt.Errorf("signing with %s keys is not supported", keyType(key.Public()))
 	}
 }
 
 // SignFile signs the file at path with the PEM private key at keyPath, valid
-// until expires, and writes path + SignatureSuffix. keyPath may start with ~.
+// until expires, for release ("" for none), and writes path + SignatureSuffix. keyPath may start with ~.
 // keyID defaults to KeyIDFromPath(keyPath).
 // changed is false when the signature file already had this content (ed25519
 // signatures are deterministic, so only for the same content, key and
-// expiry), in which case it isn't rewritten.
-func SignFile(fsys afero.Fs, keyPath, keyID, path string, expires time.Time) (sig Signature, changed bool, err error) {
+// expiry and release), in which case it isn't rewritten.
+func SignFile(fsys afero.Fs, keyPath, keyID, release, path string, expires time.Time) (sig Signature, changed bool, err error) {
 	if keyPath, err = homedir.Expand(keyPath); err != nil {
 		return Signature{}, false, err
 	}
@@ -256,7 +283,7 @@ func SignFile(fsys afero.Fs, keyPath, keyID, path string, expires time.Time) (si
 	if err != nil {
 		return Signature{}, false, err
 	}
-	if sig, err = Sign(key, keyID, expires, data); err != nil {
+	if sig, err = Sign(key, keyID, release, expires, data); err != nil {
 		return Signature{}, false, err
 	}
 	sigPath := path + SignatureSuffix
@@ -269,13 +296,32 @@ func SignFile(fsys afero.Fs, keyPath, keyID, path string, expires time.Time) (si
 	return sig, true, nil
 }
 
+// Describe says what SignFile did for path, as `starcm sign` and sign() print
+// it.
+func Describe(path string, sig Signature) string {
+	var release string
+	if sig.Release != "" {
+		release = fmt.Sprintf(" for release %q", sig.Release)
+	}
+	return fmt.Sprintf("signed %s with key %q%s until %s -> %s",
+		path, sig.KeyID, release, formatTime(sig.Expires), path+SignatureSuffix)
+}
+
 // Keyring holds the public keys a run trusts, by key ID.
 type Keyring struct {
 	keys map[string]crypto.PublicKey
 	// maxExpiry, when set, refuses signatures that expire further than this
 	// from now.
 	maxExpiry time.Duration
-	now       func() time.Time
+	// release, when set, refuses signatures for any other release, or none.
+	release string
+	now     func() time.Time
+}
+
+// SetRelease makes the keyring refuse signatures that weren't made for
+// release. "" accepts any release, or none.
+func (k *Keyring) SetRelease(release string) {
+	k.release = release
 }
 
 // SetMaxExpiry makes the keyring refuse signatures that expire more than d
@@ -360,7 +406,7 @@ func (k *Keyring) verify(sig Signature, sum string) error {
 	if !ok {
 		return fmt.Errorf("key %q is not trusted", sig.KeyID)
 	}
-	if err := v.Verify(pub, digestMessage(sig.Algorithm, sig.KeyID, sig.Expires, sum), sig.Value); err != nil {
+	if err := v.Verify(pub, digestMessage(sig.Algorithm, sig.KeyID, sig.Expires, sig.Release, sum), sig.Value); err != nil {
 		return fmt.Errorf("key %q: %w", sig.KeyID, err)
 	}
 	// The signature covers sum, not the sha256 written in the file, so a
@@ -368,7 +414,14 @@ func (k *Keyring) verify(sig Signature, sum string) error {
 	if sig.SHA256 != sum {
 		return fmt.Errorf("key %q: signature file records sha256 %s, but the signature is for %s", sig.KeyID, sig.SHA256, sum)
 	}
-	// Checked after the signature, so the expiry is known to be the signer's.
+	// Checked after the signature, so the release and expiry are known to be
+	// the signer's.
+	if k.release != "" && sig.Release != k.release {
+		if sig.Release == "" {
+			return fmt.Errorf("key %q: signature has no release, want release %q", sig.KeyID, k.release)
+		}
+		return fmt.Errorf("key %q: signature is for release %q, want release %q", sig.KeyID, sig.Release, k.release)
+	}
 	now := k.now().UTC().Truncate(time.Second)
 	if !now.Before(sig.Expires) {
 		return fmt.Errorf("key %q: signature expired at %s (now %s)", sig.KeyID, formatTime(sig.Expires), formatTime(now))

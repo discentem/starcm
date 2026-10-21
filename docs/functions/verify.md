@@ -10,8 +10,9 @@ next, usually `fail()`.
 
 `verify` only works when starcm runs with `--trusted-keys`, which also means
 the `.star` file calling it must itself be signed. It applies the same
-expiry checks, including [--max-expiry](../cli.md#--max-expiry-duration),
-as the checks on `.star` files.
+expiry and release checks, including
+[--max-expiry](../cli.md#--max-expiry-duration) and
+[--release](../cli.md#--release-id), as the checks on `.star` files.
 
 ## Syntax
 

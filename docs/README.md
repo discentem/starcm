@@ -23,7 +23,7 @@ All of these functions can be enhanced by:
   `working_directory`, `what_if`) and the `starcm_result` they return.
 - [Loading additional files](loading.md): `load()`, the `starcm` and `stdlib` modules,
   and how paths resolve.
-- [Command line flags](cli.md): `--var`, `--trusted-keys`, `--max-expiry`, `--store-dir`, `--store-only`, `-v`, `--timestamps`,
+- [Command line flags](cli.md): `--var`, `--trusted-keys`, `--max-expiry`, `--release`, `--store-dir`, `--store-only`, `-v`, `--timestamps`,
   `starcm sign` and `starcm inspect`.
 
 

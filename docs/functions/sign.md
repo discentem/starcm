@@ -16,6 +16,11 @@ on its own instead of being replayable forever. Runs with
 [--max-expiry](../cli.md#--max-expiry-duration) also refuse signatures that
 expire too far in the future, so they only trust recently signed files.
 
+A signature can also name the release it was signed for. Runs with
+[--release](../cli.md#--release-id) refuse files signed for any other
+release, so a server can't replay an older release, or mix in a file from
+one, while its signatures are still unexpired.
+
 Signing belongs on the machine that holds the key, so `sign()` is disabled
 when starcm runs with `--trusted-keys`.
 
@@ -39,11 +44,11 @@ key up by it.
 load("starcm", "sign")
 
 sign("main.star", key = "release.pem", expires = "30d", label = "sign main.star")
-sign(path = "main.star", key = "release.pem", expires = "2026-12-31", key_id = "release-2027", label = "sign main.star")
+sign(path = "main.star", key = "release.pem", expires = "2026-12-31", key_id = "release-2027", release = "2026.10", label = "sign main.star")
 ```
 
 ```bash
-starcm sign --key release.pem --expires 30d [--key-id ID] FILE...
+starcm sign --key release.pem --expires 30d [--key-id ID] [--release ID] FILE...
 ```
 
 ## Arguments
@@ -54,6 +59,7 @@ starcm sign --key release.pem --expires 30d [--key-id ID] FILE...
 | `key` | string | required | Path to the PEM (PKCS #8) ed25519 private key. `--key` for `starcm sign`. |
 | `expires` | string | required | When the signature expires: a duration from now (`"30d"`, `"36h"`), a date (`"2026-11-14"`, midnight UTC) or an RFC 3339 time. `--expires` for `starcm sign`. |
 | `key_id` | string | key file name before the first dot | Key id to record in the signature. `--key-id` for `starcm sign`. |
+| `release` | string | none | The release to sign for, with no spaces, e.g. `"2026.10"`. Runs with [--release](../cli.md#--release-id) only accept files signed for their release. `--release` for `starcm sign`. |
 
 `sign` also takes the [common arguments](../common-functionality.md#common-arguments):
 `label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
@@ -67,7 +73,7 @@ A [starcm_result](../common-functionality.md#starcm_result):
 | --- | --- |
 | `success` | `True` |
 | `changed` | `True` when `<path>.sig` was written or changed. ed25519 signatures are deterministic, so re-signing unchanged content with the same key and a fixed expiry date reports `False`. An expiry given as a duration is counted from now, so it re-signs every time. |
-| `message` | `signed <path> with key "<id>" until <expiry> -> <path>.sig` |
+| `message` | `signed <path> with key "<id>" until <expiry> -> <path>.sig`, with ` for release "<release>"` after the key when there is one |
 | `value` | The key id |
 
 A missing file, an invalid expiry or a key that isn't an ed25519 private key
@@ -108,8 +114,9 @@ signed agent.pkg with key "release" until 2099-01-01T00:00:00Z -> agent.pkg.sig
 ```
 
 A signature file is one line: the algorithm, the key id, the expiry, the
-signed file's sha256 and the signature. All of them are covered by the
-signature, so none can be changed without breaking it.
+release when there is one, the signed file's sha256 and the signature. All of
+them are covered by the signature, so none can be changed without breaking
+it.
 
 ```scrut
 $ cat main.star.sig
@@ -190,6 +197,34 @@ signature check failed for main.star: key "release": signature expires at 2099-0
 ```scrut
 $ starcm sign --expires 30d --key release.pem main.star lib.star >/dev/null && starcm --trusted-keys trusted --max-expiry 30d main.star
 hello from signed something else
+```
+
+### Sign for a release with `--release`
+
+Sign a release's files together, and give each run the release it should
+accept:
+
+```scrut
+$ starcm sign --expires 30d --key release.pem --release 2026.10 main.star lib.star && starcm --trusted-keys trusted --release 2026.10 main.star
+signed main.star with key "release" for release "2026.10" until * -> main.star.sig (glob)
+signed lib.star with key "release" for release "2026.10" until * -> lib.star.sig (glob)
+hello from signed something else
+```
+
+```scrut
+$ cat main.star.sig
+ed25519 key=release expires=* release=2026.10 sha256=* sig=* (glob)
+```
+
+A `lib.star` from last month's release is still validly signed and hasn't
+expired, but the run refuses it:
+
+```scrut
+$ echo 'NAME = "last month"' > lib.star && starcm sign --expires 30d --key release.pem --release 2026.09 lib.star >/dev/null && starcm --trusted-keys trusted --release 2026.10 main.star 2>&1
+Traceback (most recent call last):
+  main.star:2:1: in <toplevel>
+Error: cannot load lib.star: signature check failed for lib.star: key "release": signature is for release "2026.09", want release "2026.10"
+[1]
 ```
 
 ### Record a different key id
@@ -398,14 +433,16 @@ def show(r):
 show(sign(path = "payload.txt", key = "private/untrusted.pem", key_id = "other", expires = "30d", label = "other key"))
 show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", label = "test key"))
 show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", label = "unchanged"))
+show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", release = "2026.10", label = "release"))
 ```
 
 ```scrut
-$ starcm sign_fn.star && cut -d" " -f1,2 payload.txt.sig
+$ starcm sign_fn.star && cut -d" " -f1,2,4 payload.txt.sig
 other key: changed=True value=other
 test key: changed=True value=test
 unchanged: changed=False value=test
-ed25519 key=test
+release: changed=True value=test
+ed25519 key=test release=2026.10
 ```
 
 Deployed runs never sign: `sign()` is disabled under `--trusted-keys`.
@@ -453,13 +490,13 @@ sha256, are refused.
 
 ```scrut
 $ echo "ed25519 key=test sig=AAAA" > unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
-signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> sha256=<hex> sig=<base64>"
+signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> [release=<id>] sha256=<hex> sig=<base64>"
 [1]
 ```
 
 ```scrut
 $ echo "ed25519 key=test expires=2099-01-01T00:00:00Z sig=AAAA" > unsigned.star.sig && starcm --trusted-keys trusted unsigned.star 2>&1
-signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> sha256=<hex> sig=<base64>"
+signature check failed for unsigned.star: malformed signature file, want "<algorithm> key=<id> expires=<RFC 3339 time> [release=<id>] sha256=<hex> sig=<base64>"
 [1]
 ```
 
@@ -509,6 +546,49 @@ $ starcm --trusted-keys trusted --max-expiry week unsigned.star 2>&1
 ```scrut
 $ starcm --max-expiry 30d unsigned.star 2>&1
 --max-expiry needs --trusted-keys
+[1]
+```
+
+### --release
+
+A signature without a release is refused by a run that wants one:
+
+```scrut
+$ starcm --trusted-keys trusted --release 2026.10 unsigned.star 2>&1
+signature check failed for unsigned.star: key "test": signature has no release, want release "2026.10"
+[1]
+```
+
+The release is signed, so relabelling an old release's signature breaks it:
+
+```scrut
+$ starcm sign --expires 30d --key private/test.pem --release 2026.09 unsigned.star >/dev/null && sed 's/release=2026.09/release=2026.10/' unsigned.star.sig > relabelled.sig && mv relabelled.sig unsigned.star.sig && starcm --trusted-keys trusted --release 2026.10 unsigned.star 2>&1
+signature check failed for unsigned.star: key "test": signature does not match
+[1]
+```
+
+Without `--release`, any release is accepted:
+
+```scrut
+$ starcm sign --expires 30d --key private/test.pem --release 2026.09 unsigned.star >/dev/null && starcm --trusted-keys trusted unsigned.star
+unsigned.star ran
+```
+
+verify() applies the same check:
+
+```scrut
+$ starcm sign --expires 30d --key private/test.pem --release 2026.10 verify.star payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
+signed: success=True value=test error=<nil>
+```
+
+```scrut
+$ starcm sign --expires 30d --key private/test.pem --release 2026.09 payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
+signed: success=False value=None error=payload.txt: key "test": signature is for release "2026.09", want release "2026.10"
+```
+
+```scrut
+$ starcm sign --expires 30d --key private/test.pem --release "two words" unsigned.star 2>&1
+sign: invalid release "two words": must have no spaces
 [1]
 ```
 

@@ -49,7 +49,7 @@ func TestSignAndVerify(t *testing.T) {
 	require.Equal(t, []string{"2026-a", "2026-b"}, k.KeyIDs())
 
 	data := []byte("print('hi')\n")
-	sig, err := Sign(priv, "2026-a", later, data)
+	sig, err := Sign(priv, "2026-a", "", later, data)
 	require.NoError(t, err)
 
 	parsed, err := ParseSignature(sig.Bytes())
@@ -72,7 +72,7 @@ func TestSignAndVerify(t *testing.T) {
 	})
 	t.Run("untrusted key", func(t *testing.T) {
 		_, untrusted := newKey(t)
-		s, err := Sign(untrusted, "someone-else", later, data)
+		s, err := Sign(untrusted, "someone-else", "", later, data)
 		require.NoError(t, err)
 		_, err = k.Verify(data, s.Bytes())
 		require.EqualError(t, err, `key "someone-else" is not trusted`)
@@ -105,7 +105,7 @@ func TestCheckFile(t *testing.T) {
 
 	fsys := afero.NewMemMapFs()
 	data := []byte("x = 1\n")
-	sig, err := Sign(priv, "k", later, data)
+	sig, err := Sign(priv, "k", "", later, data)
 	require.NoError(t, err)
 	require.NoError(t, afero.WriteFile(fsys, "main.star.sig", sig.Bytes(), 0o644))
 
@@ -143,19 +143,19 @@ func TestVerifyWrongKeyType(t *testing.T) {
 	require.NoError(t, err)
 
 	_, priv := newKey(t)
-	sig, err := Sign(priv, "ec", later, []byte("data"))
+	sig, err := Sign(priv, "ec", "", later, []byte("data"))
 	require.NoError(t, err)
 	_, err = k.Verify([]byte("data"), sig.Bytes())
 	require.EqualError(t, err, `key "ec": key is *ecdsa.PublicKey, not ed25519`)
 
-	_, err = Sign(ec, "ec", later, []byte("data"))
+	_, err = Sign(ec, "ec", "", later, []byte("data"))
 	require.EqualError(t, err, "signing with *ecdsa.PublicKey keys is not supported")
 }
 
 func TestSignRejectsBadKeyID(t *testing.T) {
 	_, priv := newKey(t)
 	for _, id := range []string{"", "has space", "tab\there"} {
-		_, err := Sign(priv, id, later, []byte("x"))
+		_, err := Sign(priv, id, "", later, []byte("x"))
 		require.Error(t, err, id)
 	}
 }
@@ -177,7 +177,7 @@ func TestOpenSSLInterop(t *testing.T) {
 	require.NoError(t, err)
 
 	expires := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
-	require.Equal(t, string(message), string(Message("ed25519", "openssl", expires, data)))
+	require.Equal(t, string(message), string(Message("ed25519", "openssl", expires, "", data)))
 
 	k, err := keyring(t, map[string][]byte{"openssl.pub.pem": pubPEM})
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ func TestExpiry(t *testing.T) {
 
 	sign := func(expires time.Time) Signature {
 		t.Helper()
-		sig, err := Sign(priv, "k", expires, data)
+		sig, err := Sign(priv, "k", "", expires, data)
 		require.NoError(t, err)
 		return sig
 	}
@@ -229,7 +229,7 @@ func TestExpiry(t *testing.T) {
 		require.EqualError(t, err, `key "k": signature expires at 2026-11-14T12:00:01Z, more than 30d from now (2026-10-15T12:00:00Z)`)
 	})
 	t.Run("expiry is required", func(t *testing.T) {
-		_, err := Sign(priv, "k", time.Time{}, data)
+		_, err := Sign(priv, "k", "", time.Time{}, data)
 		require.EqualError(t, err, "signatures must have an expiry")
 	})
 }
@@ -278,7 +278,7 @@ func TestVerifyDigest(t *testing.T) {
 	k, err := keyring(t, map[string][]byte{"k.pub.pem": pubPEM})
 	require.NoError(t, err)
 	data := []byte("agent payload\n")
-	sig, err := Sign(priv, "k", time.Now().Add(time.Hour), data)
+	sig, err := Sign(priv, "k", "", time.Now().Add(time.Hour), data)
 	require.NoError(t, err)
 	want, err := starcmsha256.FromReader(bytes.NewReader(data))
 	require.NoError(t, err)
@@ -312,4 +312,54 @@ func TestParseSignatureRequiresSHA256(t *testing.T) {
 	assert.EqualError(t, err, "malformed signature file, want "+signatureFormat)
 	_, err = ParseSignature([]byte("ed25519 key=k expires=2099-01-01T00:00:00Z sha256=ABC sig=AAAA\n"))
 	assert.ErrorContains(t, err, "is not 64 lowercase hex characters")
+}
+
+func TestRelease(t *testing.T) {
+	pubPEM, priv := newKey(t)
+	k, err := keyring(t, map[string][]byte{"k.pub.pem": pubPEM})
+	require.NoError(t, err)
+	data := []byte("print('hi')\n")
+
+	oct, err := Sign(priv, "k", "2026.10", later, data)
+	require.NoError(t, err)
+	assert.Contains(t, string(oct.Bytes()), " release=2026.10 sha256=")
+	parsed, err := ParseSignature(oct.Bytes())
+	require.NoError(t, err)
+	assert.Equal(t, oct, parsed)
+	sep, err := Sign(priv, "k", "2026.09", later, data)
+	require.NoError(t, err)
+	none, err := Sign(priv, "k", "", later, data)
+	require.NoError(t, err)
+	assert.NotContains(t, string(none.Bytes()), "release=")
+
+	// Without SetRelease, any release, or none, is accepted.
+	for _, s := range []Signature{oct, sep, none} {
+		_, err := k.Verify(data, s.Bytes())
+		assert.NoError(t, err, string(s.Bytes()))
+	}
+
+	k.SetRelease("2026.10")
+	got, err := k.Verify(data, oct.Bytes())
+	require.NoError(t, err)
+	assert.Equal(t, "2026.10", got.Release)
+	_, err = k.Verify(data, sep.Bytes())
+	assert.EqualError(t, err, `key "k": signature is for release "2026.09", want release "2026.10"`)
+	_, err = k.Verify(data, none.Bytes())
+	assert.EqualError(t, err, `key "k": signature has no release, want release "2026.10"`)
+	_, err = k.VerifyDigest(sep.Bytes())
+	assert.EqualError(t, err, `key "k": signature is for release "2026.09", want release "2026.10"`)
+
+	// The release is signed: relabelling an old signature breaks it, and so
+	// does adding a release to a signature made without one.
+	for _, s := range []Signature{sep, none} {
+		relabelled := s
+		relabelled.Release = "2026.10"
+		_, err = k.Verify(data, relabelled.Bytes())
+		assert.EqualError(t, err, `key "k": signature does not match`)
+	}
+
+	_, err = Sign(priv, "k", "has space", later, data)
+	assert.EqualError(t, err, `invalid release "has space": must have no spaces`)
+	_, err = ParseSignature([]byte("ed25519 key=k expires=2099-01-01T00:00:00Z release= sha256=" + strings.Repeat("0", 64) + " sig=AAAA\n"))
+	assert.EqualError(t, err, "malformed signature file: empty release")
 }
