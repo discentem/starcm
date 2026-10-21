@@ -3,9 +3,12 @@ package shell
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"strings"
 
 	base "github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
@@ -58,6 +61,11 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 		return nil, err
 	}
 
+	check, err := starlarkhelpers.FindBoolInKwargs(kwargs, "check", false)
+	if err != nil {
+		return nil, err
+	}
+
 	iter := cargs.Iterate()
 	defer iter.Done()
 	var v starlark.Value
@@ -103,6 +111,12 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 			Success: func() bool {
 				logging.Log(moduleName, deck.V(2), "info", "expectedExitCode: %v", expectedExitCode)
 
+				// The command never started, so there is no exit code.
+				var exitErr *exec.ExitError
+				if err != nil && !errors.As(err, &exitErr) {
+					return false
+				}
+
 				actualExitCode, err := ex.ExitCode()
 				if err != nil {
 					logging.Log(moduleName, nil, "error", "error getting exit code: %v", err)
@@ -132,8 +146,29 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 			}, ctx.Err()
 		}
 	case res := <-resultChan:
+		if check && !res.Success {
+			return nil, checkError(moduleName, c, ex, res, expectedExitCode, buff.String())
+		}
 		return res, err
 	}
+}
+
+// checkError is the error that stops the run when check = True and the
+// command couldn't start or exited with a code other than expected.
+func checkError(label, cmd string, ex shelllib.Executor, res *base.Result, expected int64, output string) error {
+	var exitErr *exec.ExitError
+	if res.Error != nil && !errors.As(res.Error, &exitErr) {
+		return fmt.Errorf("exec(label=%q): %w", label, res.Error)
+	}
+	actual, err := ex.ExitCode()
+	if err != nil {
+		return fmt.Errorf("exec(label=%q): %w", label, err)
+	}
+	msg := fmt.Sprintf("exec(label=%q): %s exited with status %d, expected %d", label, cmd, actual, expected)
+	if out := strings.TrimSpace(output); out != "" {
+		msg += "\n" + out
+	}
+	return errors.New(msg)
 }
 
 // Option configures exec().
@@ -160,6 +195,7 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 			base.Arg[*starlark.List]("args"),
 			base.OptionalArgAllowNone[starlark.Int]("expected_exit_code"),
 			base.OptionalArgAllowNone[starlark.Bool]("live_output"),
+			base.OptionalArgAllowNone[starlark.Bool]("check"),
 		},
 		a,
 	)
