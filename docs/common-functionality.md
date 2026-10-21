@@ -46,7 +46,7 @@ skipped = write("never printed", label = "skipped", only_if = False)
 print("skipped: %s" % skipped)
 ```
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm conditions.star
 installing
 INFO: [configure]: skipping write(label="configure") because only_if was false

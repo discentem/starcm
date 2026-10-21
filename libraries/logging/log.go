@@ -47,25 +47,16 @@ func (m message) Text() string {
 	return fmt.Sprintf("[%s]: %v", m.Prefix, fmt.Sprintf(m.Format, *m.Vs...))
 }
 
+// Infof, Warnf and Errorf pass the already formatted Text as an argument, so
+// a % in a label or path isn't read as a verb.
 func (m message) Infof() {
-	if m.Attribute == nil {
-		deck.Infof(m.Text())
-	}
-	deck.InfofA(m.Text()).With(m.Attribute).Go()
+	deck.InfofA("%s", m.Text()).With(m.Attribute).Go()
 }
 
 func (m message) Warnf() {
-	if m.Attribute == nil {
-		deck.Warningf(m.Text())
-	}
-
-	deck.WarningfA(m.Text()).With(m.Attribute).Go()
+	deck.WarningfA("%s", m.Text()).With(m.Attribute).Go()
 }
 
 func (m message) Errorf() {
-	if m.Attribute == nil {
-		deck.Errorf(m.Text())
-	}
-
-	deck.ErrorfA(m.Text()).With(m.Attribute).Go()
+	deck.ErrorfA("%s", m.Text()).With(m.Attribute).Go()
 }

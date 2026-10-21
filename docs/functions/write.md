@@ -84,13 +84,13 @@ write("deploying to production", label = "prod banner", only_if = env == "prod")
 write("not production: %s" % env, label = "dev banner", not_if = env == "prod")
 ```
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm conditional.star
 INFO: [prod banner]: skipping write(label="prod banner") because only_if was false
 not production: dev
 ```
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm --var env=prod conditional.star
 deploying to production
 INFO: [dev banner]: skipping write(label="dev banner") because not_if was true
