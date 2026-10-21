@@ -10,6 +10,8 @@ same report as JSON.
 
 Calls are resolved through `load()` aliases, so
 `load("starcm", run = "exec"); run(...)` is reported as a call to `exec`.
+Each call also says which loaded values reach its arguments, so a policy can
+check, for example, that no `--var` value ends up in an `exec` command.
 
 ## Syntax
 
@@ -45,6 +47,7 @@ prints a JSON list with one report per file.
 | `file` | The path as given. |
 | `loads` | One entry per `load()` statement: `module`, `line`, and `names`, which maps each local name to the name it was loaded as. |
 | `calls` | Direct calls to loaded names: `module`, `function` (the original name, after aliases) and `line`. Calls to `load_dynamic` also have `path`: its literal module path, or `None` / `null` when the path is computed at runtime. |
+| `calls[].inputs` | Only on calls with arguments that come from loaded names. One entry per such argument: `arg` (the keyword, the position `"0"`, `"1"`, ... of a positional argument, or `"*"` / `"**"`) and `uses`, the loaded names its value is computed from, as `module` and `function`. See [What reaches a call's arguments](#what-reaches-a-calls-arguments). |
 | `values` | Other uses of loaded names, such as `vars["base_url"]` or passing a function around: `module`, `function` and `line`. Calls made through such values can't be known statically. |
 
 A file that can't be read or parsed stops the run (or makes `starcm inspect`
@@ -117,13 +120,14 @@ load_dynamic("settings/%s.star" % vars["platform"], label = "settings for this p
 ```
 
 With `jq`, list each call. `inspect` reports the fixed path, and `null` for
-the one that's only known when the file runs:
+the one that's only known when the file runs. `inputs` shows that the
+download's `url` and the second path come from `vars`:
 
 ```scrut
 $ starcm inspect bootstrap.star | jq -c '.[].calls[]'
-{"module":"starcm","function":"download","line":3}
+{"module":"starcm","function":"download","line":3,"inputs":[{"arg":"url","uses":[{"module":"starcm","function":"vars"}]}]}
 {"module":"starcm","function":"load_dynamic","line":9,"path":"settings/common.star"}
-{"module":"starcm","function":"load_dynamic","line":10,"path":null}
+{"module":"starcm","function":"load_dynamic","line":10,"path":null,"inputs":[{"arg":"0","uses":[{"module":"starcm","function":"vars"}]}]}
 ```
 
 ```scrut
@@ -153,6 +157,60 @@ $ starcm policy.star
 bootstrap.star: ok
 sneaky.star: uses exec
 ```
+
+### Keep `--var` values out of commands
+
+A `--var` value is whatever the command line that runs starcm says. A policy
+can refuse configuration that passes one to `exec`. `computer_name.star`
+builds a name from two `--var` values before passing it on:
+
+```python
+# examples/inspect/lint/computer_name.star
+load("starcm", "exec", "vars")
+
+name = "%s-%s" % (vars["team"], vars["serial"])
+exec(label = "set computer name", cmd = "scutil", args = ["--set", "ComputerName", name])
+```
+
+```python
+# examples/inspect/lint/show_name.star
+load("starcm", "exec")
+
+exec(label = "show computer name", cmd = "scutil", args = ["--get", "ComputerName"])
+```
+
+```python
+# examples/inspect/lint/no_vars_in_exec.star
+load("starcm", "inspect", "list_files")
+
+for f in list_files(".", pattern = "*.star", label = "find config").value:
+    for c in inspect(f, label = "inspect " + f).value["calls"]:
+        if c["function"] != "exec":
+            continue
+        for i in c.get("inputs", []):
+            if "vars" in [u["function"] for u in i["uses"]]:
+                print("%s:%d: exec's %s argument comes from vars" % (f, c["line"], i["arg"]))
+```
+
+```scrut
+$ cd lint && starcm no_vars_in_exec.star
+computer_name.star:4: exec's args argument comes from vars
+```
+
+```scrut
+$ starcm inspect computer_name.star | jq -c '.[0].calls[0].inputs'
+[{"arg":"args","uses":[{"module":"starcm","function":"vars"}]}]
+```
+
+### What reaches a call's arguments
+
+`inputs` follows a value through local variables, `+=`, `d[k] = v`, list
+and dict methods such as `append` and `update`, `for` loops, comprehensions,
+and the parameters and return values of functions defined in the same file.
+It goes by name and ignores the order of statements, so it can report a use
+that can't happen but shouldn't miss one that can. It doesn't follow values
+into or out of other files: a function loaded from another file is reported
+as a use, like `read_file` in `read_file(...).value`.
 
 ## Errors and edge cases
 
@@ -190,7 +248,7 @@ $ starcm inspect main.star lib.star | jq -c '.[] | {file, loads: [.loads[] | [.m
 $ starcm inspect main.star | jq -c '.[0].calls[], .[0].values[]'
 {"module":"starcm","function":"exec","line":4}
 {"module":"starcm","function":"load_dynamic","line":5,"path":"lib.star"}
-{"module":"starcm","function":"load_dynamic","line":6,"path":null}
+{"module":"starcm","function":"load_dynamic","line":6,"path":null,"inputs":[{"arg":"0","uses":[{"module":"starcm","function":"vars"}]}]}
 {"module":"lib.star","function":"greet","line":7}
 {"module":"starcm","function":"vars","line":6}
 ```

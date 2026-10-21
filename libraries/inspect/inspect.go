@@ -45,15 +45,20 @@ type Call struct {
 	// Path is load_dynamic's module argument when it's a string literal, or
 	// nil when it's computed at runtime. Only set for starcm's load_dynamic.
 	Path *string
+	// Inputs are the arguments whose values come from loaded names, such as
+	// exec(args = ["-c", "echo " + vars["name"]]). Omitted when there are none.
+	Inputs []Input
 }
 
 // MarshalJSON writes "path" for load_dynamic calls only, as null when the
-// path is computed, so tools can tell "computed" from "not load_dynamic".
+// path is computed, so tools can tell "computed" from "not load_dynamic", and
+// "inputs" only when there are some.
 func (c Call) MarshalJSON() ([]byte, error) {
 	out := struct {
 		Ref
-		Path json.RawMessage `json:"path,omitempty"`
-	}{Ref: c.Ref}
+		Path   json.RawMessage `json:"path,omitempty"`
+		Inputs []Input         `json:"inputs,omitempty"`
+	}{Ref: c.Ref, Inputs: c.Inputs}
 	if c.isLoadDynamic() {
 		p, err := json.Marshal(c.Path) // nil marshals as null
 		if err != nil {
@@ -93,6 +98,12 @@ func File(filename string, src []byte) (*Report, error) {
 		r.Loads = append(r.Loads, l)
 	}
 
+	loaded := map[string]Use{}
+	for name, b := range bound {
+		loaded[name] = Use{Module: b.module, Function: b.name}
+	}
+	fl := newFlows(f, loaded)
+
 	called := map[*syntax.Ident]bool{}
 	keywords := map[*syntax.Ident]bool{} // the "x" in f(x = 1) names a parameter, not a value
 	syntax.Walk(f, func(n syntax.Node) bool {
@@ -116,7 +127,7 @@ func File(filename string, src []byte) (*Report, error) {
 			return true
 		}
 		called[fn] = true
-		c := Call{Ref: Ref{Module: b.module, Function: b.name, Line: line(call)}}
+		c := Call{Ref: Ref{Module: b.module, Function: b.name, Line: line(call)}, Inputs: fl.inputs(call)}
 		if c.isLoadDynamic() {
 			if lit, ok := moduleArg(call).(*syntax.Literal); ok && lit.Token == syntax.STRING {
 				p := lit.Value.(string)
