@@ -27,6 +27,7 @@ import (
 	starcmdedent "github.com/discentem/starcm/functions/dedent"
 	starcmdownload "github.com/discentem/starcm/functions/download"
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
+	starcmextract "github.com/discentem/starcm/functions/extract"
 	starcmFile "github.com/discentem/starcm/functions/file"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
@@ -371,6 +372,13 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							ctx,
 							ex,
 							starcmmacpkg.WithStoreCheck(l.StoreCheck),
+						).Function(),
+					),
+					"extract": starlark.NewBuiltin(
+						"extract",
+						starcmextract.New(
+							ctx,
+							starcmextract.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
 					"sha256": starlark.NewBuiltin(
