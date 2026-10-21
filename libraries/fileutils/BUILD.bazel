@@ -5,5 +5,8 @@ go_library(
     srcs = ["fileutils.go"],
     importpath = "github.com/discentem/starcm/libraries/fileutils",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_spf13_afero//:afero"],
+    deps = [
+        "//libraries/sha256",
+        "@com_github_spf13_afero//:afero",
+    ],
 )
