@@ -65,3 +65,54 @@ func TestFileSyntaxError(t *testing.T) {
 	_, err := File("bad.star", []byte("def (\n"))
 	require.ErrorContains(t, err, "bad.star:1")
 }
+
+func TestInputs(t *testing.T) {
+	src := `load("starcm", "exec", "read_file", "vars", sh = "exec")
+
+exec(label = "literal", cmd = "ls", args = ["-l"])
+exec(label = "direct", cmd = "scutil", args = ["--set", "ComputerName", vars["name"]])
+greeting = "say hello " + vars["user"]
+words = ["-c"]
+words.append(greeting)
+sh(label = "through names", cmd = "sh", args = words)
+cmd = read_file("cmd.txt", label = "read").value
+exec(label = "from a file", cmd = cmd, args = [], timeout = vars["timeout"])
+
+def quoted(s):
+    return "'%s'" % s
+
+def run(c):
+    exec(label = "inside a function", cmd = "sh", args = ["-c", c])
+
+run(quoted(vars["script"]))
+for f in [vars["a"], "b"]:
+    exec("positional", "echo", [f])
+opts = {"cmd": "echo"}
+opts["args"] = [x for x in vars["list"]]
+exec(label = "unpacked", **opts)
+value = vars["unrelated"]
+exec(label = "field names aren't names", cmd = read_file("x", label = "x").value, args = [])
+`
+	r, err := File("main.star", []byte(src))
+	require.NoError(t, err)
+
+	vars := `{"module": "starcm", "function": "vars"}`
+	readFile := `{"module": "starcm", "function": "read_file"}`
+	got, err := json.Marshal(r.Calls)
+	require.NoError(t, err)
+	require.JSONEq(t, `[
+	  {"module": "starcm", "function": "exec", "line": 3},
+	  {"module": "starcm", "function": "exec", "line": 4, "inputs": [{"arg": "args", "uses": [`+vars+`]}]},
+	  {"module": "starcm", "function": "exec", "line": 8, "inputs": [{"arg": "args", "uses": [`+vars+`]}]},
+	  {"module": "starcm", "function": "read_file", "line": 9},
+	  {"module": "starcm", "function": "exec", "line": 10, "inputs": [
+	    {"arg": "cmd", "uses": [`+readFile+`]},
+	    {"arg": "timeout", "uses": [`+vars+`]}
+	  ]},
+	  {"module": "starcm", "function": "exec", "line": 16, "inputs": [{"arg": "args", "uses": [`+vars+`]}]},
+	  {"module": "starcm", "function": "exec", "line": 20, "inputs": [{"arg": "2", "uses": [`+vars+`]}]},
+	  {"module": "starcm", "function": "exec", "line": 23, "inputs": [{"arg": "**", "uses": [`+vars+`]}]},
+	  {"module": "starcm", "function": "exec", "line": 25, "inputs": [{"arg": "cmd", "uses": [`+readFile+`]}]},
+	  {"module": "starcm", "function": "read_file", "line": 25}
+	]`, string(got))
+}

@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "inspect",
-    srcs = ["inspect.go"],
+    srcs = [
+        "flows.go",
+        "inspect.go",
+    ],
     importpath = "github.com/discentem/starcm/libraries/inspect",
     visibility = ["//visibility:public"],
     deps = ["@net_starlark_go//syntax"],
