@@ -1,0 +1,23 @@
+Executable=/tmp/terraform
+Identifier=terraform
+Format=Mach-O thin (arm64)
+CodeDirectory v=20500 size=957205 flags=0x10000(runtime) hashes=29907+2 location=embedded
+Hash type=sha256 size=32
+CandidateCDHash sha256=0d657a299b87a20a0415561f0d1c9b4d2e3752e4
+CandidateCDHashFull sha256=0d657a299b87a20a0415561f0d1c9b4d2e3752e420687cfc9a2263fa3692eb29
+Hash choices=sha256
+CMSDigest=0d657a299b87a20a0415561f0d1c9b4d2e3752e420687cfc9a2263fa3692eb29
+CMSDigestType=2
+CDHash=0d657a299b87a20a0415561f0d1c9b4d2e3752e4
+Signature size=9045
+Authority=Developer ID Application: Hashicorp, Inc. (D38WU7D763)
+Authority=Developer ID Certification Authority
+Authority=Apple Root CA
+Timestamp=Oct 21, 2026 at 6:57:04 PM
+Info.plist=not bound
+TeamIdentifier=D38WU7D763
+Runtime Version=12.0.0
+Sealed Resources=none
+Internal requirements count=1 size=172
+Total signatures=1
+Chosen signature=1

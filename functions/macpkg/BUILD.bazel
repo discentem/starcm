@@ -7,18 +7,18 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
+        "//libraries/macsig",
         "//libraries/sha256",
         "//libraries/shell",
         "//starlark-helpers",
         "@net_starlark_go//starlark",
-        "@net_starlark_go//starlarkstruct",
     ],
 )
 
 go_test(
     name = "macpkg_test",
     srcs = ["macpkg_test.go"],
-    data = glob(["testdata/**"]),
+    data = ["//libraries/macsig:testdata"],
     embed = [":macpkg"],
     deps = [
         "//libraries/shell",

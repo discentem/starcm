@@ -5,7 +5,6 @@ package macpkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,11 +14,11 @@ import (
 	"strings"
 
 	"github.com/discentem/starcm/functions/base"
+	"github.com/discentem/starcm/libraries/macsig"
 	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	shelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
-	"go.starlark.net/starlarkstruct"
 )
 
 type pkgAction struct {
@@ -142,7 +141,7 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s has sha256 %s, not the expected %s", label, p.path, sum, p.sha256)
 	}
 
-	sig, err := a.checkSignature(pkgPath)
+	sig, err := macsig.New(a.executor).ReadPkg(pkgPath)
 	if err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s: %w", label, p.path, err)
 	}
@@ -183,19 +182,6 @@ func (a *pkgAction) installedVersion(id, target string) (string, error) {
 	return strings.TrimSpace(string(m[1])), nil
 }
 
-func (a *pkgAction) checkSignature(path string) (*Signature, error) {
-	// pkgutil exits non-zero for unsigned packages; the output says why.
-	out, runErr := a.run("/usr/sbin/pkgutil", "--check-signature", path)
-	sig, err := ParseCheckSignature(string(out))
-	if err != nil {
-		if runErr != nil {
-			return nil, fmt.Errorf("pkgutil --check-signature: %w\n%s", runErr, strings.TrimSpace(string(out)))
-		}
-		return nil, err
-	}
-	return sig, nil
-}
-
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // copyFile copies src to a new file dst and returns the sha256 of what it
@@ -219,112 +205,6 @@ func copyFile(src, dst string) (string, error) {
 		return "", err
 	}
 	return starcmsha256.Hex(h), nil
-}
-
-// Certificate is one entry of a signature's certificate chain.
-type Certificate struct {
-	Name   string
-	SHA256 string // lowercase hex, no separators
-}
-
-// Signature is what `pkgutil --check-signature` reports.
-type Signature struct {
-	Status    string
-	Notarized bool
-	Chain     []Certificate // leaf first
-}
-
-// appleStatuses are the pkgutil statuses of signatures whose certificate
-// Apple issued for distribution. The signer is matched by name, and Apple
-// only issues a Developer ID certificate to the team it names, so anything
-// else is refused: no signature, an untrusted, expired or development
-// certificate, and certificates from other CAs that macOS trusts ("signed by
-// a certificate trusted by macOS"), which could carry any name.
-var appleStatuses = []string{
-	"signed Apple Software",
-	"signed by a developer certificate issued by Apple for distribution",
-}
-
-// appleRoot is the name pkgutil prints for the last certificate of every
-// chain Apple issues.
-const appleRoot = "Apple Root CA"
-
-var (
-	statusLine       = regexp.MustCompile(`^\s*Status: (.+?)\s*$`)
-	notarizationLine = regexp.MustCompile(`^\s*Notarization: (.+?)\s*$`)
-	chainEntry       = regexp.MustCompile(`^\s*\d+\. (.+?)\s*$`)
-	hexLine          = regexp.MustCompile(`^\s*([0-9A-Fa-f]{2}( [0-9A-Fa-f]{2})*)\s*$`)
-)
-
-// ParseCheckSignature parses the output of `pkgutil --check-signature`.
-func ParseCheckSignature(out string) (*Signature, error) {
-	sig := &Signature{}
-	var cur *Certificate
-	inFingerprint := false
-	for _, line := range strings.Split(out, "\n") {
-		switch {
-		case statusLine.MatchString(line) && sig.Status == "":
-			sig.Status = statusLine.FindStringSubmatch(line)[1]
-		case notarizationLine.MatchString(line):
-			sig.Notarized = strings.Contains(line, "trusted by the Apple notary service")
-		case chainEntry.MatchString(line):
-			sig.Chain = append(sig.Chain, Certificate{Name: chainEntry.FindStringSubmatch(line)[1]})
-			cur = &sig.Chain[len(sig.Chain)-1]
-			inFingerprint = false
-		case strings.TrimSpace(line) == "SHA256 Fingerprint:" && cur != nil:
-			inFingerprint = true
-		case inFingerprint && hexLine.MatchString(line):
-			cur.SHA256 += strings.ToLower(strings.ReplaceAll(strings.TrimSpace(line), " ", ""))
-		default:
-			inFingerprint = false
-		}
-	}
-	if sig.Status == "" {
-		return nil, fmt.Errorf("can't read pkgutil --check-signature output:\n%s", strings.TrimSpace(out))
-	}
-	return sig, nil
-}
-
-// Check returns an error unless the signature chains to Apple, its leaf
-// certificate is named signer exactly, and it's notarized when
-// requireNotarized is set.
-func (s *Signature) Check(signer string, requireNotarized bool) error {
-	trusted := false
-	for _, t := range appleStatuses {
-		if s.Status == t {
-			trusted = true
-		}
-	}
-	if !trusted {
-		return fmt.Errorf("not signed with a certificate Apple issued for distribution: %s", s.Status)
-	}
-	if len(s.Chain) < 2 || s.Chain[len(s.Chain)-1].Name != appleRoot {
-		return fmt.Errorf("certificate chain doesn't end at %s", appleRoot)
-	}
-	if got := s.Chain[0].Name; got != signer {
-		return fmt.Errorf("signed by %q, not the expected %q", got, signer)
-	}
-	if requireNotarized && !s.Notarized {
-		return errors.New("not notarized by Apple; pass require_notarized = False to install it anyway")
-	}
-	return nil
-}
-
-var teamID = regexp.MustCompile(`\(([A-Z0-9]{10})\)$`)
-
-// Value is install_mac_pkg()'s result value: who signed the package.
-func (s *Signature) Value() starlark.Value {
-	leaf := s.Chain[0]
-	team := ""
-	if m := teamID.FindStringSubmatch(leaf.Name); m != nil {
-		team = m[1]
-	}
-	return starlarkstruct.FromStringDict(starlark.String("pkg_signature"), starlark.StringDict{
-		"signer":        starlark.String(leaf.Name),
-		"signer_sha256": starlark.String(leaf.SHA256),
-		"team_id":       starlark.String(team),
-		"notarized":     starlark.Bool(s.Notarized),
-	})
 }
 
 // Option configures install_mac_pkg().

@@ -1,0 +1,16 @@
+Executable=/tmp/hi
+Identifier=a.out
+Format=Mach-O thin (arm64)
+CodeDirectory v=20400 size=13662 flags=0x20002(adhoc,linker-signed) hashes=424+0 location=embedded
+Hash type=sha256 size=32
+CandidateCDHash sha256=b82aa131687032971c8fd1d7d2a95ebf70a92051
+CandidateCDHashFull sha256=b82aa131687032971c8fd1d7d2a95ebf70a920515621fffb9702774f93be6c93
+Hash choices=sha256
+CMSDigest=b82aa131687032971c8fd1d7d2a95ebf70a920515621fffb9702774f93be6c93
+CMSDigestType=2
+CDHash=b82aa131687032971c8fd1d7d2a95ebf70a92051
+Signature=adhoc
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements=none
