@@ -62,3 +62,23 @@ func TestValueToGo_Errors(t *testing.T) {
 	_, err = ValueToGo(huge)
 	require.Error(t, err)
 }
+
+func TestFindOptionalBoolInKwargs(t *testing.T) {
+	kw := func(v starlark.Value) []starlark.Tuple {
+		return []starlark.Tuple{{starlark.String("require_notarized"), v}}
+	}
+	for _, c := range []struct {
+		name   string
+		kwargs []starlark.Tuple
+		want   bool
+	}{
+		{"missing", nil, true},
+		{"None", kw(starlark.None), true},
+		{"True", kw(starlark.True), true},
+		{"False", kw(starlark.False), false},
+	} {
+		got, err := FindOptionalBoolInKwargs(c.kwargs, "require_notarized", true)
+		require.NoError(t, err, c.name)
+		require.Equal(t, c.want, got, c.name)
+	}
+}

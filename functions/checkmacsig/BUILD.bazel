@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "checkmacsig",
+    srcs = ["checkmacsig.go"],
+    importpath = "github.com/discentem/starcm/functions/checkmacsig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//functions/base",
+        "//libraries/fileutils",
+        "//libraries/macsig",
+        "//libraries/shell",
+        "//starlark-helpers",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)
+
+go_test(
+    name = "checkmacsig_test",
+    srcs = ["checkmacsig_test.go"],
+    data = ["//libraries/macsig:testdata"],
+    embed = [":checkmacsig"],
+    deps = [
+        "//libraries/shell",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)

@@ -83,6 +83,28 @@ func FindBoolInKwargs(kwargs []starlark.Tuple, value string, defaultValue bool) 
 	return bool(v.Truth()), nil
 }
 
+// FindOptionalBoolInKwargs is like FindBoolInKwargs, but None also means
+// defaultValue rather than False, for arguments declared with
+// base.OptionalArgAllowNone. Use it for safety switches such as
+// require_notarized, where None must not turn a check off.
+func FindOptionalBoolInKwargs(kwargs []starlark.Tuple, value string, defaultValue bool) (bool, error) {
+	v := FindOptionalValueInKwargs(kwargs, value)
+	if v == nil {
+		return defaultValue, nil
+	}
+	return bool(v.Truth()), nil
+}
+
+// FindOptionalValueInKwargs returns the argument value, or nil when it's
+// missing or None.
+func FindOptionalValueInKwargs(kwargs []starlark.Tuple, value string) starlark.Value {
+	v, err := FindRawValueInKwargs(kwargs, value)
+	if err != nil || v == starlark.None {
+		return nil
+	}
+	return v
+}
+
 func FindStringInKwargs(kwargs []starlark.Tuple, value string) (*string, error) {
 	v, err := FindRawValueInKwargs(kwargs, value)
 	if err != nil || v == nil {
