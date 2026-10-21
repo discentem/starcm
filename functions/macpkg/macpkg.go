@@ -6,7 +6,6 @@ package macpkg
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/discentem/starcm/functions/base"
+	"github.com/discentem/starcm/libraries/fileutils"
 	"github.com/discentem/starcm/libraries/macsig"
-	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	shelllib "github.com/discentem/starcm/libraries/shell"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
@@ -133,7 +132,7 @@ func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label stri
 	}
 	defer os.RemoveAll(dir)
 	pkgPath := filepath.Join(dir, filepath.Base(p.path))
-	sum, err := copyFile(p.path, pkgPath)
+	sum, err := fileutils.CopyNew(p.path, pkgPath, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
 	}
@@ -183,29 +182,6 @@ func (a *pkgAction) installedVersion(id, target string) (string, error) {
 }
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
-
-// copyFile copies src to a new file dst and returns the sha256 of what it
-// wrote.
-func copyFile(src, dst string) (string, error) {
-	in, err := os.Open(src)
-	if err != nil {
-		return "", err
-	}
-	defer in.Close()
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-	if err != nil {
-		return "", err
-	}
-	h := starcmsha256.New()
-	if _, err := io.Copy(io.MultiWriter(out, h), in); err != nil {
-		out.Close()
-		return "", err
-	}
-	if err := out.Close(); err != nil {
-		return "", err
-	}
-	return starcmsha256.Hex(h), nil
-}
 
 // Option configures install_mac_pkg().
 type Option func(*pkgAction)
