@@ -10,7 +10,6 @@ go_library(
         "//starlark-helpers",
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",
-        "@net_starlark_go//syntax",
     ],
 )
 
