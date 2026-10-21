@@ -66,8 +66,10 @@ func main() {
 			timestamps := c.Bool("timestamps")
 			verbosity := c.Int("v")
 
+			// Log lines go to stderr so stdout holds only what the configuration
+			// prints and commands write.
 			l := log.Default()
-			l.SetOutput(os.Stdout)
+			l.SetOutput(os.Stderr)
 			// deck's logger.Init turns 0 into log.LstdFlags; Lmsgprefix is
 			// non-zero but adds nothing without a date or time.
 			flags := log.Lmsgprefix

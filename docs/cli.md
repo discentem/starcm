@@ -138,7 +138,8 @@ no store was created
 
 ### Verbosity and logs
 
-Skipped calls are always logged:
+Log lines go to stderr, so stdout holds only what the configuration prints and
+what commands write. Skipped calls are always logged:
 
 ```python
 # examples/cli/skip.star
@@ -147,14 +148,19 @@ load("starcm", "write")
 write("skipped", label = "skip me", only_if = False)
 ```
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm skip.star
 INFO: [skip me]: skipping write(label="skip me") because only_if was false
 ```
 
+```scrut
+$ starcm skip.star 2>/dev/null && echo "nothing on stdout"
+nothing on stdout
+```
+
 `-v 3` adds a line before and after every function call:
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm -v 3 hello.star
 INFO: [LoadFromFile]: loading file "hello.star"
 INFO: [base.go]: calling m.Action.Run(ctx, workingDirectory=".", label="greet", args, kwargs)
@@ -164,7 +170,7 @@ INFO: [base.go]: finished m.Action.Run for label="greet"
 
 `--timestamps` starts each log line with the date and time, in UTC:
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm --timestamps skip.star
 INFO: \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} \[skip me\]: skipping write\(label="skip me"\) because only_if was false (regex)
 ```

@@ -139,7 +139,7 @@ else:
     print("developer tools skipped")
 ```
 
-```scrut
+```scrut {output_stream: combined}
 $ starcm optional.star
 INFO: [developer tools]: skipping load(label="developer tools") because only_if was false
 developer tools skipped
