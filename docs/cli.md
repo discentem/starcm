@@ -3,8 +3,8 @@
 [← Documentation index](README.md)
 
 ```bash
-starcm [--var name=value]... [--trusted-keys DIR [--max-expiry DURATION]] [--store-dir DIR] [--store-only] [-v N] [--timestamps] FILE
-starcm sign --key KEY --expires WHEN [--key-id ID] FILE...
+starcm [--var name=value]... [--trusted-keys DIR [--max-expiry DURATION] [--release ID]] [--store-dir DIR] [--store-only] [-v N] [--timestamps] FILE
+starcm sign --key KEY --expires WHEN [--key-id ID] [--release ID] FILE...
 starcm inspect FILE...
 ```
 
@@ -21,6 +21,7 @@ code, don't change the exit code unless the configuration calls `fail()`.
 | [--var name=value](#--var-namevalue) | none | Pass a value to the run as `vars["name"]`. Repeatable. |
 | [--trusted-keys DIR](#--trusted-keys-dir) | none | Require every `.star` file to be signed by a key in `DIR`, and enable `verify()`. |
 | [--max-expiry DURATION](#--max-expiry-duration) | none | With `--trusted-keys`, also refuse signatures that expire more than `DURATION` (e.g. `30d`, `36h`) from now. |
+| [--release ID](#--release-id) | none | With `--trusted-keys`, refuse signatures that weren't made for release `ID`. |
 | [--store-dir DIR](#--store-dir-dir-and---store-only) | see below | Where `download()` keeps files when `save_to` is omitted. |
 | [--store-only](#--store-dir-dir-and---store-only) | `false` | Refuse `download(save_to = ...)`, so every download goes into the store. |
 | `-v N` | `1` | Log verbosity. Higher values log more of starcm's internals; `3` or more traces every function call. |
@@ -108,6 +109,41 @@ signature check failed for hello.star: key "release": signature expires at *, mo
 ```scrut
 $ starcm --max-expiry 30d hello.star 2>&1
 --max-expiry needs --trusted-keys
+[1]
+```
+
+### `--release ID`
+
+`starcm sign --release ID` records a release in each signature, and the
+release is covered by the signature. With `--release ID`, starcm refuses any
+signature made for a different release, or for none. A server then can't
+hand out files from an older release whose signatures haven't expired yet, or
+mix files from two releases. It needs `--trusted-keys`.
+
+Give the release from somewhere the server can't change, such as the
+launchd job or scheduled task that runs starcm.
+
+```scrut
+$ starcm --trusted-keys trusted --release 2026.10 hello.star 2>&1
+signature check failed for hello.star: key "release": signature has no release, want release "2026.10"
+[1]
+```
+
+```scrut
+$ starcm sign --expires 30d --key "$TESTDIR/keys/private/test.pem" --key-id release --release 2026.10 hello.star && starcm --trusted-keys trusted --release 2026.10 hello.star
+signed hello.star with key "release" for release "2026.10" until * -> hello.star.sig (glob)
+hello, world
+```
+
+```scrut
+$ starcm --trusted-keys trusted --release 2026.11 hello.star 2>&1
+signature check failed for hello.star: key "release": signature is for release "2026.10", want release "2026.11"
+[1]
+```
+
+```scrut
+$ starcm --release 2026.10 hello.star 2>&1
+--release needs --trusted-keys
 [1]
 ```
 

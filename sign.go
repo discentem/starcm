@@ -31,6 +31,10 @@ func signCommand() *cli.Command {
 				Name:  "key-id",
 				Usage: "key id to record in the signature; defaults to the key file's name before the first dot",
 			},
+			&cli.StringFlag{
+				Name:  "release",
+				Usage: "release `ID` to sign the files for; `starcm --release ID` refuses files signed for any other release",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			if c.NArg() == 0 {
@@ -42,11 +46,11 @@ func signCommand() *cli.Command {
 			}
 			fsys := afero.NewOsFs()
 			for _, path := range c.Args().Slice() {
-				sig, _, err := signing.SignFile(fsys, c.String("key"), c.String("key-id"), path, expires)
+				sig, _, err := signing.SignFile(fsys, c.String("key"), c.String("key-id"), c.String("release"), path, expires)
 				if err != nil {
 					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
 				}
-				fmt.Printf("signed %s with key %q until %s -> %s\n", path, sig.KeyID, sig.Expires.Format(time.RFC3339), path+signing.SignatureSuffix)
+				fmt.Println(signing.Describe(path, sig))
 			}
 			return nil
 		},

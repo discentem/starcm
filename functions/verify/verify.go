@@ -58,7 +58,11 @@ func (a *verifyAction) Run(ctx context.Context, workingDirectory string, moduleN
 		return failed(err), nil
 	}
 
-	msg := fmt.Sprintf("%s verified with key %q, signature expires %s", path, sig.KeyID, sig.Expires.Format(time.RFC3339))
+	var release string
+	if sig.Release != "" {
+		release = fmt.Sprintf(" for release %q", sig.Release)
+	}
+	msg := fmt.Sprintf("%s verified with key %q%s, signature expires %s", path, sig.KeyID, release, sig.Expires.Format(time.RFC3339))
 	return &base.Result{
 		Label:   moduleName,
 		Success: true,

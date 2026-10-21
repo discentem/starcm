@@ -49,7 +49,8 @@ Give exactly one of `sha256` or `signature`.
 - **`signature`** accepts any file your release key has signed, as long as
   its signature hasn't expired. starcm first fetches the signature and
   checks it against [--trusted-keys](../cli.md#--trusted-keys-dir), including
-  [--max-expiry](../cli.md#--max-expiry-duration). It then downloads the file
+  [--max-expiry](../cli.md#--max-expiry-duration) and
+  [--release](../cli.md#--release-id). It then downloads the file
   as if the sha256 recorded in the signature had been given as `sha256`, so
   the second run still downloads nothing. Publishing a release means
   uploading the file and its new `.sig`, with no change to your
