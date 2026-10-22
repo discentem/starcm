@@ -98,6 +98,8 @@ func kw(pairs ...any) []starlark.Tuple {
 			v = starlark.String(x)
 		case bool:
 			v = starlark.Bool(x)
+		case starlark.Value:
+			v = x
 		}
 		out = append(out, starlark.Tuple{starlark.String(pairs[i].(string)), v})
 	}
@@ -155,6 +157,24 @@ func TestRun(t *testing.T) {
 		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner))
 		assert.ErrorContains(t, err, "not signed with a certificate Apple issued for distribution: no signature")
 		assert.Equal(t, []string{"pkgutil --check-signature"}, f.commands())
+	})
+
+	t.Run("require_notarized = None still requires notarization", func(t *testing.T) {
+		// A wrapper that forwards its own require_notarized = None mustn't
+		// turn the check off.
+		notNotarized := strings.Replace(signed, "Notarization: trusted by the Apple notary service", "Notarization: none", 1)
+		require.NotEqual(t, signed, notNotarized)
+		f := &fakeMac{checkOutput: notNotarized}
+		a := &pkgAction{executor: f, goos: "darwin"}
+		_, err := a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner, "require_notarized", starlark.None))
+		assert.ErrorContains(t, err, "not notarized by Apple")
+		assert.Equal(t, []string{"pkgutil --check-signature"}, f.commands())
+
+		f = &fakeMac{checkOutput: notNotarized}
+		a = &pkgAction{executor: f, goos: "darwin"}
+		_, err = a.Run(ctx, "", "agent", nil, starlark.Tuple{starlark.String(writePkg(t, "x"))}, kw("signer", tailscaleSigner, "require_notarized", false))
+		require.NoError(t, err)
+		assert.Equal(t, []string{"pkgutil --check-signature", "installer -pkg"}, f.commands())
 	})
 
 	t.Run("what_if checks but doesn't install", func(t *testing.T) {

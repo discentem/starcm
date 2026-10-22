@@ -72,7 +72,7 @@ func (a *pkgAction) parseArgs(label string, args starlark.Tuple, kwargs []starla
 	if p.sha256 = strings.ToLower(*sum); p.sha256 != "" && !sha256Hex.MatchString(p.sha256) {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): sha256 %q is not 64 hex characters", label, *sum)
 	}
-	if p.requireNotarized, err = starlarkhelpers.FindBoolInKwargs(kwargs, "require_notarized", true); err != nil {
+	if p.requireNotarized, err = starlarkhelpers.FindOptionalBoolInKwargs(kwargs, "require_notarized", true); err != nil {
 		return nil, err
 	}
 	target, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "target", "/")

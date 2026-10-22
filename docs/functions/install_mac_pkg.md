@@ -58,7 +58,7 @@ install_mac_pkg(
 | `path` | string | required | The `.pkg` to install, positionally or as `path =`. |
 | `signer` | string | required | The installer certificate's name, exactly as `pkgutil --check-signature` prints it: `Developer ID Installer: <developer> (<Team ID>)`. |
 | `sha256` | string | none | The `.pkg` file's sha256 (`shasum -a 256`). When given, a package with any other content is refused before its signature is checked. That pins one exact build rather than any package the developer signed. |
-| `require_notarized` | bool | `True` | Refuse packages Apple hasn't notarized. |
+| `require_notarized` | bool | `True` | Refuse packages Apple hasn't notarized. `None` counts as leaving it out, so it stays `True`; only `False` turns the check off. |
 | `target` | string | `"/"` | The volume to install on (`installer -target`). |
 | `id`, `version` | string | none | Package id and version. When `pkgutil --pkg-info <id>` already reports this version on `target`, nothing is checked or installed and `changed = False`. Give both or neither. |
 
