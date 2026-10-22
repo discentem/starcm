@@ -80,6 +80,7 @@ These take no `label` and don't return a `starcm_result`.
 | [platform](functions/platform.md) | The machine's operating system and CPU architecture, as `os` and `arch`. |
 | [env](functions/env.md) | An environment variable's value, or a default when it isn't set. |
 | [home_dir](functions/home_dir.md) | The user's home directory, with optional path parts joined on. |
+| [here](functions/here.md) | The directory of the `.star` file the call is written in, with optional path parts joined on. |
 | [struct](functions/struct.md) | Build a record with named fields. Load it from `stdlib`: `load("stdlib", "struct")`. |
 
 Starlark's built-ins, such as `print`, `fail`, `len`, `range` and `sorted`,

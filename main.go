@@ -118,6 +118,7 @@ func main() {
 				loader.WithStore(openStore),
 				loader.WithStoreOnly(c.Bool("store-only")),
 				loader.WithStoreCheck(localstore.CheckIfStored(storeDir, openStore)),
+				loader.WithStoreDir(storeDir),
 			}
 			if dir := c.String("trusted-keys"); dir != "" {
 				keyring, err := signing.LoadKeyring(fsys, dir)

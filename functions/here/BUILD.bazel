@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "here",
+    srcs = ["here.go"],
+    importpath = "github.com/discentem/starcm/functions/here",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/paths",
+        "@net_starlark_go//starlark",
+    ],
+)
+
+go_test(
+    name = "here_test",
+    srcs = ["here_test.go"],
+    embed = [":here"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "paths",
+    srcs = ["paths.go"],
+    importpath = "github.com/discentem/starcm/libraries/paths",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@net_starlark_go//starlark",
+    ],
+)
+
+go_test(
+    name = "paths_test",
+    srcs = ["paths_test.go"],
+    embed = [":paths"],
+    deps = [
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+    ],
+)
