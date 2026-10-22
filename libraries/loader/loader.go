@@ -305,29 +305,24 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					}
 				}
 				vars.Freeze()
+				downloadOpts := []starcmdownload.Option{
+					starcmdownload.WithStore(l.Store),
+					starcmdownload.StoreOnly(l.StoreOnly),
+					starcmdownload.WithKeyring(l.Keyring),
+				}
+				download := starcmdownload.New(ctx, *http.DefaultClient, fsys, os.Stdout, downloadOpts...)
+				s3Download := starcmdownload.NewS3(ctx, fsys, os.Stdout, downloadOpts...)
+				remoteOpts := append(downloadOpts, starcmdownload.FunctionName("load_remote"))
+				remoteHTTP := starcmdownload.New(ctx, *http.DefaultClient, fsys, os.Stdout, remoteOpts...)
+				remoteS3 := starcmdownload.NewS3(ctx, fsys, os.Stdout, remoteOpts...)
 				return starlark.StringDict{
-					"download": starlark.NewBuiltin(
-						"download",
-						starcmdownload.New(
-							ctx,
-							*http.DefaultClient,
-							fsys,
-							os.Stdout,
-							starcmdownload.WithStore(l.Store),
-							starcmdownload.StoreOnly(l.StoreOnly),
-							starcmdownload.WithKeyring(l.Keyring),
-						).Function(),
-					),
-					"s3_download": starlark.NewBuiltin(
-						"s3_download",
-						starcmdownload.NewS3(
-							ctx,
-							fsys,
-							os.Stdout,
-							starcmdownload.WithStore(l.Store),
-							starcmdownload.StoreOnly(l.StoreOnly),
-							starcmdownload.WithKeyring(l.Keyring),
-						).Function(),
+					"download":    starlark.NewBuiltin("download", download.Function()),
+					"s3_download": starlark.NewBuiltin("s3_download", s3Download.Function()),
+					// load_remote fetches with download's and s3_download's
+					// actions, so it pins, stores and verifies the same way.
+					"load_remote": starlark.NewBuiltin(
+						"load_remote",
+						dynamicloading.NewRemote(ctx, remoteHTTP.Action, remoteS3.Action).Function(),
 					),
 					"write": starlark.NewBuiltin(
 						"write",

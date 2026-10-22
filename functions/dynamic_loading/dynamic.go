@@ -48,6 +48,25 @@ func (a *LoadAction) Run(
 		module = filepath.Join(callerDir, module)
 		module = filepath.ToSlash(module)
 	}
+	d, err := loadGlobals(thread, module)
+	if err != nil {
+		return nil, err
+	}
+
+	return &base.Result{
+		Changed: false,
+		Success: true,
+		Message: func() *string {
+			msg := fmt.Sprintf("module %q loaded successfully", module)
+			return &msg
+		}(),
+		Return: d,
+	}, nil
+}
+
+// loadGlobals runs module through thread.Load and returns its globals as a
+// frozen dict.
+func loadGlobals(thread *starlark.Thread, module string) (*starlark.Dict, error) {
 	globals, err := thread.Load(thread, module)
 	if err != nil {
 		switch e := err.(type) {
@@ -59,7 +78,6 @@ func (a *LoadAction) Run(
 			return nil, err
 		}
 	}
-
 	d := starlark.NewDict(len(globals))
 	for k, vv := range globals {
 		if err := d.SetKey(starlark.String(k), vv); err != nil {
@@ -67,16 +85,7 @@ func (a *LoadAction) Run(
 		}
 	}
 	d.Freeze()
-
-	return &base.Result{
-		Changed: false,
-		Success: true,
-		Message: func() *string {
-			msg := fmt.Sprintf("module %q loaded successfully", module)
-			return &msg
-		}(),
-		Return: d,
-	}, nil
+	return d, nil
 }
 
 func New(ctx context.Context) *base.Module {

@@ -16,7 +16,7 @@ load("starcm", run = "exec")                 # load under another name
 
 | Module | Names |
 | --- | --- |
-| `starcm` | [download](functions/download.md), [s3_download](functions/s3_download.md), [exec](functions/exec.md), [file](functions/file.md), [template](functions/template.md), [install_mac_pkg](functions/install_mac_pkg.md), [write](functions/write.md), [date](functions/date.md), [load_dynamic](functions/load_dynamic.md), [read_file](functions/read_file.md), [list_files](functions/list_files.md), [sha256](functions/sha256.md), [inspect](functions/inspect.md), [sign](functions/sign.md), [verify](functions/verify.md), [json](functions/json.md), [vars](functions/vars.md), [temp_dir](functions/temp_dir.md), [dedent](functions/dedent.md) |
+| `starcm` | [download](functions/download.md), [s3_download](functions/s3_download.md), [exec](functions/exec.md), [file](functions/file.md), [template](functions/template.md), [install_mac_pkg](functions/install_mac_pkg.md), [write](functions/write.md), [date](functions/date.md), [load_dynamic](functions/load_dynamic.md), [load_remote](functions/load_remote.md), [read_file](functions/read_file.md), [list_files](functions/list_files.md), [sha256](functions/sha256.md), [inspect](functions/inspect.md), [sign](functions/sign.md), [verify](functions/verify.md), [json](functions/json.md), [vars](functions/vars.md), [temp_dir](functions/temp_dir.md), [dedent](functions/dedent.md) |
 | `stdlib` | [struct](functions/struct.md) |
 | any path ending in `.star` | the file's top-level names |
 
@@ -34,7 +34,8 @@ A module is run once per run: loading the same module string again reuses
 the first result. Under
 [--trusted-keys](cli.md#--trusted-keys-dir), every loaded file needs a valid
 signature. To pick a file at runtime, use
-[load_dynamic](functions/load_dynamic.md).
+[load_dynamic](functions/load_dynamic.md); to fetch one from a server or S3
+bucket, use [load_remote](functions/load_remote.md).
 
 ## Examples
 

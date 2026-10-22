@@ -395,6 +395,12 @@ func WithStore(open func() (*localstore.Store, error)) Option {
 	return func(a *downloadAction) { a.store = open }
 }
 
+// FunctionName names the Starlark function in error messages, for functions
+// such as load_remote() that download with this action.
+func FunctionName(name string) Option {
+	return func(a *downloadAction) { a.fn = name }
+}
+
 // StoreOnly makes download() refuse save_to, so every download goes into the
 // store.
 func StoreOnly(storeOnly bool) Option {
