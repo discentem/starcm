@@ -30,6 +30,7 @@ import (
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmextract "github.com/discentem/starcm/functions/extract"
 	starcmFile "github.com/discentem/starcm/functions/file"
+	starcmhere "github.com/discentem/starcm/functions/here"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
 	starcmmacpkg "github.com/discentem/starcm/functions/macpkg"
@@ -109,6 +110,19 @@ type Loader struct {
 	// StoreCheck verifies exec()'s cmd and args that name files in the
 	// local store. Nil means no check.
 	StoreCheck func(path string) error
+
+	// StoreDir is the local store's directory, used to recognize modules
+	// loaded with load_remote (they run from the store). Empty means unknown.
+	StoreDir string
+}
+
+// inStore reports whether path is inside the store, without opening it.
+func (l *Loader) inStore(path string) bool {
+	if l.StoreDir == "" {
+		return false
+	}
+	inside, err := localstore.Contains(l.StoreDir, path)
+	return err == nil && inside
 }
 
 // CheckSignature verifies data, the content of the module at path, when the
@@ -273,6 +287,12 @@ func WithStoreCheck(check func(path string) error) LoaderOption {
 	}
 }
 
+func WithStoreDir(dir string) LoaderOption {
+	return func(l *Loader) {
+		l.StoreDir = dir
+	}
+}
+
 func WithFsys(fsys afero.Fs) LoaderOption {
 	return func(l *Loader) {
 		l.Fsys = fsys
@@ -413,6 +433,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"platform": starcmsysinfo.Platform(),
 					"env":      starcmsysinfo.Env(),
 					"home_dir": starcmsysinfo.HomeDir(),
+					"here":     starcmhere.New(l.inStore),
 					"json":     starlarkjson.Module,
 					"vars":     vars,
 				}, nil

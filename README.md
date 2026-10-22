@@ -80,7 +80,8 @@ its arguments, return value and tested examples:
   [extract](docs/functions/extract.md), [template](docs/functions/template.md) and
   [install_mac_pkg](docs/functions/install_mac_pkg.md).
 - Describe the machine with [platform](docs/functions/platform.md),
-  [env](docs/functions/env.md) and [home_dir](docs/functions/home_dir.md).
+  [env](docs/functions/env.md) and [home_dir](docs/functions/home_dir.md), and find files
+  that ship next to your `.star` file with [here](docs/functions/here.md).
 - Read information with [date](docs/functions/date.md),
   [read_file](docs/functions/read_file.md),
   [list_files](docs/functions/list_files.md),

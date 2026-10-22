@@ -256,6 +256,13 @@ func CheckIfStored(dir string, open func() (*Store, error)) func(path string) er
 	}
 }
 
+// Contains reports whether path is inside the store at dir, without opening
+// or creating the store.
+func Contains(dir, path string) (bool, error) {
+	_, inside, err := relToStore(dir, path)
+	return inside, err
+}
+
 // relToStore returns path relative to the store at dir, if it's inside it.
 func relToStore(dir, path string) (string, bool, error) {
 	absDir, err := filepath.Abs(dir)
