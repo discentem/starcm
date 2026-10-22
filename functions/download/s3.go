@@ -4,25 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"path"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/discentem/starcm/functions/base"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
-	"github.com/spf13/afero"
-	"go.starlark.net/starlark"
 )
-
-// s3Options are s3_download()'s endpoint and region arguments. Neither is a
-// secret; credentials always come from the AWS SDK's default chain
-// (environment, shared config and credentials files, SSO, instance role).
-type s3Options struct {
-	endpoint string
-	region   string
-}
 
 // defaultS3Region is used when neither region nor the AWS configuration
 // names one. S3-compatible stores generally accept any region; AWS refuses
@@ -32,10 +20,10 @@ const defaultS3Region = "us-east-1"
 // getS3 starts downloading s3://bucket/key with credentials from the AWS
 // SDK's default chain, returning the object's body and size (-1 when
 // unknown).
-func getS3(ctx context.Context, bucket, key string, opts s3Options) (io.ReadCloser, int64, error) {
+func getS3(ctx context.Context, bucket, key string, obj S3Object) (io.ReadCloser, int64, error) {
 	var loadOpts []func(*config.LoadOptions) error
-	if opts.region != "" {
-		loadOpts = append(loadOpts, config.WithRegion(opts.region))
+	if obj.Region != "" {
+		loadOpts = append(loadOpts, config.WithRegion(obj.Region))
 	}
 	cfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
@@ -48,8 +36,8 @@ func getS3(ctx context.Context, bucket, key string, opts s3Options) (io.ReadClos
 		// s3_download() checks the sha256 itself, so the SDK's note that an
 		// object has no S3 checksum to validate is just noise.
 		o.DisableLogOutputChecksumValidationSkipped = true
-		if opts.endpoint != "" {
-			o.BaseEndpoint = aws.String(opts.endpoint)
+		if obj.Endpoint != "" {
+			o.BaseEndpoint = aws.String(obj.Endpoint)
 			// S3-compatible stores (MinIO and the like) address buckets in
 			// the path, not the host name.
 			o.UsePathStyle = true
@@ -66,84 +54,70 @@ func getS3(ctx context.Context, bucket, key string, opts s3Options) (io.ReadClos
 	return out.Body, size, nil
 }
 
-// s3DownloadAction is s3_download(): download() with an S3 object instead of
-// a URL. Saving, the sha256 check and the local store are shared.
-type s3DownloadAction struct {
-	*downloadAction
-}
-
-var _ base.Runnable = (*s3DownloadAction)(nil)
-
-func (a *s3DownloadAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	if a.fsys == nil {
-		return nil, fmt.Errorf("fsys must be provided to s3_download module")
+// FetchS3 downloads obj as req describes, with credentials from the AWS
+// SDK's default chain (environment, shared config and credentials files,
+// SSO, instance role). req.Signature is the key of the signature file, in
+// the same bucket.
+func (f *Fetcher) FetchS3(ctx context.Context, obj S3Object, req Request) (Fetched, error) {
+	if f.fsys == nil {
+		return Fetched{}, fmt.Errorf("fsys must be provided to s3_download module")
 	}
-	required := map[string]*string{}
-	for _, k := range []string{"bucket", "key"} {
-		v, err := starlarkhelpers.FindValueinKwargs(kwargs, k)
-		if err != nil {
-			return nil, err
-		}
-		if v == nil || *v == "" {
-			return nil, fmt.Errorf("s3_download(label=%q): %s must not be empty", moduleName, k)
-		}
-		required[k] = v
+	if req.Function == "" {
+		req.Function = "s3_download"
 	}
-	bucket, key := *required["bucket"], *required["key"]
-
-	var opts s3Options
-	for k, dst := range map[string]*string{"endpoint": &opts.endpoint, "region": &opts.region} {
-		v, err := optionalString(kwargs, k)
-		if err != nil {
-			return nil, err
-		}
-		if v != nil {
-			*dst = *v
-		}
+	if obj.Bucket == "" {
+		return Fetched{}, req.errorf("bucket must not be empty")
 	}
-	savePath, err := optionalString(kwargs, "save_to")
-	if err != nil {
-		return nil, err
+	if obj.Key == "" {
+		return Fetched{}, req.errorf("key must not be empty")
 	}
-	liveProgress, err := starlarkhelpers.FindBoolInKwargs(kwargs, "live_progress", false)
-	if err != nil {
-		return nil, err
-	}
-
-	// signature is the key of the signature file, in the same bucket.
-	expectedHash, sig, err := a.pin(ctx, moduleName, kwargs, func(ctx context.Context, sigKey string) (io.ReadCloser, error) {
-		body, _, err := getS3(ctx, bucket, sigKey, opts)
+	expectedHash, sig, err := f.pin(ctx, req, func(ctx context.Context, sigKey string) (io.ReadCloser, error) {
+		body, _, err := getS3(ctx, obj.Bucket, sigKey, obj)
 		return body, err
 	})
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
-
-	name := fmt.Sprintf("s3://%s/%s", bucket, key)
+	name := fmt.Sprintf("s3://%s/%s", obj.Bucket, obj.Key)
 	get := func(ctx context.Context) (io.ReadCloser, error) {
-		body, size, err := getS3(ctx, bucket, key, opts)
+		body, size, err := getS3(ctx, obj.Bucket, obj.Key, obj)
 		if err != nil {
 			return nil, err
 		}
-		return a.withProgress(body, size, name, liveProgress), nil
+		return f.withProgress(body, size, name, req.LiveProgress), nil
 	}
-	return a.save(ctx, moduleName, kwargs, savePath, path.Base(key), expectedHash, sig, get, liveProgress)
+	return f.save(ctx, req, path.Base(obj.Key), expectedHash, sig, get)
 }
 
-// NewS3 returns the s3_download() builtin. It takes the same options as New,
-// which configure the local store.
+// s3DownloadAction is s3_download(): download() with an S3 object instead of
+// a URL.
+type s3DownloadAction struct {
+	f *Fetcher
+}
+
+var _ base.Action = (*s3DownloadAction)(nil)
+
+func (a *s3DownloadAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	var obj S3Object
+	obj.Bucket, _ = base.Get[string](inst, "bucket")
+	obj.Key, _ = base.Get[string](inst, "key")
+	obj.Endpoint, _ = base.Get[string](inst, "endpoint")
+	obj.Region, _ = base.Get[string](inst, "region")
+	req, err := requestFrom(inst, "s3_download")
+	if err != nil {
+		return nil, err
+	}
+	got, err := a.f.FetchS3(inst.Ctx, obj, req)
+	if err != nil {
+		return nil, err
+	}
+	return resultFrom(inst.Label, got), nil
+}
+
+// NewS3 returns the s3_download() builtin.
 //
 //	s3_download(label = "fetch agent", bucket = "releases", key = "agent.pkg", sha256 = "...")
-func NewS3(ctx context.Context, fsys afero.Fs, writer io.Writer, opts ...Option) *base.Module {
-	a := &downloadAction{
-		httpClient: http.DefaultClient,
-		fsys:       fsys,
-		output:     writer,
-		fn:         "s3_download",
-	}
-	for _, opt := range opts {
-		opt(a)
-	}
+func NewS3(ctx context.Context, f *Fetcher) *base.Module {
 	return base.NewModule(
 		ctx,
 		"s3_download",
@@ -158,6 +132,6 @@ func NewS3(ctx context.Context, fsys afero.Fs, writer io.Writer, opts ...Option)
 			base.OptionalArg[string]("endpoint"),
 			base.OptionalArg[string]("region"),
 		},
-		&s3DownloadAction{a},
+		&s3DownloadAction{f: f},
 	)
 }

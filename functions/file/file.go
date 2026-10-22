@@ -10,10 +10,7 @@ import (
 	"github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/diffutils"
 	shelllib "github.com/discentem/starcm/libraries/shell"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/afero"
-	"go.starlark.net/starlark"
 )
 
 type fileAction struct {
@@ -26,91 +23,48 @@ type fileAction struct {
 	checkStored func(path string) error
 }
 
-var _ base.Runnable = (*fileAction)(nil)
+var _ base.Action = (*fileAction)(nil)
 
-func (a *fileAction) Run(
-	ctx context.Context,
-	workingDirectory string,
-	label string,
-	thread *starlark.Thread,
-	args starlark.Tuple,
-	kwargs []starlark.Tuple,
-) (*base.Result, error) {
-	// Get action (create or delete)
-	action, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "action", "create")
-	if err != nil {
-		return nil, fmt.Errorf("failed to find action in kwargs: %w", err)
-	}
-
-	if *action == "delete" {
-		return a.runDelete(ctx, workingDirectory, label, thread, args, kwargs)
-	}
-	if starlarkhelpers.FindOptionalValueInKwargs(kwargs, "source") != nil {
-		return a.runCopy(label, kwargs)
-	}
-	for _, name := range []string{"sha256", "signer"} {
-		if starlarkhelpers.FindOptionalValueInKwargs(kwargs, name) != nil {
-			return nil, fmt.Errorf("file(label=%q): %s needs source", label, name)
-		}
-	}
-
-	return a.runCreate(ctx, workingDirectory, label, thread, args, kwargs)
-}
-
-func (a *fileAction) runCreate(
-	_ context.Context,
-	_ string,
-	label string,
-	_ *starlark.Thread,
-	_ starlark.Tuple,
-	kwargs []starlark.Tuple,
-) (*base.Result, error) {
+// Execute creates, copies or deletes the file at path, which must be
+// absolute (a leading ~ is expanded).
+func (a *fileAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
 	if a.fsys == nil {
 		return nil, fmt.Errorf("fsys must be provided to file module")
 	}
-
-	// Get path
-	path, err := starlarkhelpers.FindValueinKwargs(kwargs, "path")
+	filePath, _, err := inst.AbsPath("path")
 	if err != nil {
 		return nil, err
 	}
-	if path == nil {
-		return nil, fmt.Errorf("path must be provided to file(label=%q), cannot be nil", label)
+	action, given := base.Get[string](inst, "action")
+	if !given {
+		action = "create"
 	}
-
-	// Expand homedir and resolve path relative to workspace (current working directory)
-	filePath := *path
-	filePath, err = homedir.Expand(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to expand home directory in path %q: %w", *path, err)
+	if action == "delete" {
+		return a.runDelete(inst.Label, filePath)
 	}
-	if !filepath.IsAbs(filePath) {
-		filePath, err = filepath.Abs(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path %q: %w", *path, err)
+	if inst.Given("source") {
+		return a.runCopy(inst, filePath)
+	}
+	for _, name := range []string{"sha256", "signer"} {
+		if inst.Given(name) {
+			return nil, fmt.Errorf("file(label=%q): %s needs source", inst.Label, name)
 		}
 	}
 
-	// Get optional parameters
-	content, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "content", "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to find content in kwargs: %w", err)
+	content, _ := base.Get[string](inst, "content")
+	mode, given := base.Get[int64](inst, "mode")
+	if !given {
+		mode = 0644
 	}
+	createDirs, _ := base.Get[bool](inst, "create_dirs")
+	return a.runCreate(inst.Label, filePath, content, mode, createDirs)
+}
 
-	mode, err := starlarkhelpers.FindIntInKwargs(kwargs, "mode", 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find mode in kwargs: %w", err)
-	}
-
-	createDirs, err := starlarkhelpers.FindBoolInKwargs(kwargs, "create_dirs", false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find create_dirs in kwargs: %w", err)
-	}
-
+func (a *fileAction) runCreate(label, filePath, content string, mode int64, createDirs bool) (*base.Result, error) {
 	// Ensure directory exists
 	dir := filepath.Dir(filePath)
 	dirExists := true
-	_, err = a.fsys.Stat(dir)
+	_, err := a.fsys.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			dirExists = false
@@ -148,7 +102,7 @@ func (a *fileAction) runCreate(
 	}
 
 	// If file exists with same content, nothing to do
-	if fileExists && string(existingContent) == *content {
+	if fileExists && string(existingContent) == content {
 		return &base.Result{
 			Label:   label,
 			Message: func() *string { s := fmt.Sprintf("file %q already exists with correct content", filePath); return &s }(),
@@ -164,13 +118,13 @@ func (a *fileAction) runCreate(
 	}
 	defer f.Close()
 
-	n, err := f.WriteString(*content)
+	n, err := f.WriteString(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to write to file %q: %w", filePath, err)
 	}
 
-	if n != len(*content) {
-		return nil, fmt.Errorf("incomplete write to %q: wrote %d bytes out of %d", filePath, n, len(*content))
+	if n != len(content) {
+		return nil, fmt.Errorf("incomplete write to %q: wrote %d bytes out of %d", filePath, n, len(content))
 	}
 
 	if err := f.Sync(); err != nil {
@@ -180,7 +134,7 @@ func (a *fileAction) runCreate(
 	// Generate diff if file existed before
 	diff := ""
 	if fileExists {
-		diff = diffutils.GitDiff(string(existingContent), *content)
+		diff = diffutils.GitDiff(string(existingContent), content)
 	}
 
 	return &base.Result{
@@ -192,42 +146,9 @@ func (a *fileAction) runCreate(
 	}, nil
 }
 
-func (a *fileAction) runDelete(
-	_ context.Context,
-	_ string,
-	label string,
-	_ *starlark.Thread,
-	_ starlark.Tuple,
-	kwargs []starlark.Tuple,
-) (*base.Result, error) {
-	if a.fsys == nil {
-		return nil, fmt.Errorf("fsys must be provided to file module")
-	}
-
-	// Get path
-	path, err := starlarkhelpers.FindValueinKwargs(kwargs, "path")
-	if err != nil {
-		return nil, err
-	}
-	if path == nil {
-		return nil, fmt.Errorf("path must be provided to file(label=%q), cannot be nil", label)
-	}
-
-	// Expand homedir and resolve path relative to workspace (current working directory)
-	filePath := *path
-	filePath, err = homedir.Expand(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to expand home directory in path %q: %w", *path, err)
-	}
-	if !filepath.IsAbs(filePath) {
-		filePath, err = filepath.Abs(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve path %q: %w", *path, err)
-		}
-	}
-
+func (a *fileAction) runDelete(label, filePath string) (*base.Result, error) {
 	// Check if file exists and delete it
-	_, err = a.fsys.Stat(filePath)
+	_, err := a.fsys.Stat(filePath)
 	if err == nil {
 		// File exists, delete it
 		if err := a.fsys.Remove(filePath); err != nil {
@@ -252,6 +173,19 @@ func (a *fileAction) runDelete(
 		Success: true,
 		Changed: false,
 	}, nil
+}
+
+// fileArgs are file()'s own arguments.
+var fileArgs = []base.ArgPair{
+	base.Arg[string]("path"),
+	base.OptionalArg[string]("content"),
+	base.OptionalArg[string]("action"),
+	base.OptionalArgAllowNone[int64]("mode"),
+	base.OptionalArgAllowNone[bool]("create_dirs"),
+	base.OptionalArgAllowNone[string]("source"),
+	base.OptionalArgAllowNone[string]("sha256"),
+	base.OptionalArgAllowNone[string]("signer"),
+	base.OptionalArgAllowNone[bool]("require_notarized"),
 }
 
 // Option configures file().
@@ -287,17 +221,7 @@ func New(ctx context.Context, fsys afero.Fs, opts ...Option) *base.Module {
 	return base.NewModule(
 		ctx,
 		"file",
-		[]base.ArgPair{
-			base.Arg[string]("path"),
-			base.OptionalArg[string]("content"),
-			base.OptionalArg[string]("action"),
-			base.OptionalArgAllowNone[int64]("mode"),
-			base.OptionalArgAllowNone[bool]("create_dirs"),
-			base.OptionalArgAllowNone[string]("source"),
-			base.OptionalArgAllowNone[string]("sha256"),
-			base.OptionalArgAllowNone[string]("signer"),
-			base.OptionalArgAllowNone[bool]("require_notarized"),
-		},
+		fileArgs,
 		a,
 	)
 }

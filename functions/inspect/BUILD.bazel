@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//functions/base",
         "//libraries/inspect",
-        "//starlark-helpers",
         "@com_github_spf13_afero//:afero",
         "@net_starlark_go//lib/json",
         "@net_starlark_go//starlark",

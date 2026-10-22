@@ -77,13 +77,15 @@ exec(label = "install agent", cmd = "sh", args = [fetch("scripts/install-agent.s
 
 ```python
 # tests/integration/s3/fixtures/config/lib/settings.star
-load("starcm", "dedent", "file")
+load("starcm", "dedent", "file", "vars")
 
 def apply():
     """Writes the agent's settings file and reports whether it changed."""
+    # A module loaded with load_remote runs from the store, where here()
+    # isn't available, so the run says where managed files go.
     r = file(
         label       = "agent settings",
-        path        = "managed/agent.conf",
+        path        = vars["managed_dir"] + "/agent.conf",
         content     = dedent("""
             server = https://config.example.com
             channel = stable
@@ -161,7 +163,7 @@ signed bootstrap.star with key "test" until * -> bootstrap.star.sig (glob)
 ## Run the chain
 
 ```scrut
-$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star
 agent settings: changed=True
 agent 1.0 installed
 ```
@@ -185,7 +187,7 @@ store/sha256/4aad939f74ad480db56c05dba830d5e7321dce8ca7d032821aac99be089420d0/:
 main.star
 main.star.sig
 
-store/sha256/b4ef42f0602b30edd49326051dbdab600937b8bd7a3273353a748efd3b3ad96b/:
+store/sha256/5e5d73446803d1f676dcb4c44365bbe1aef48d93ebb1d4914cfd90a7646f518f/:
 settings.star
 settings.star.sig
 
@@ -200,7 +202,7 @@ Every file is already in the store, so starcm only fetches the signatures
 again:
 
 ```scrut
-$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star
 agent settings: changed=False
 agent 1.0 installed
 ```
@@ -219,7 +221,7 @@ $ aws --endpoint-url http://127.0.0.1:9000 s3 cp --quiet config/scripts/install-
 ```
 
 ```scrut
-$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star
 agent settings: changed=False
 agent 2.0 installed
 ```
@@ -236,7 +238,7 @@ $ printf 'echo pwned\n' > evil.sh && aws --endpoint-url http://127.0.0.1:9000 s3
 Agent 2.0 is already in the store, so starcm keeps using it:
 
 ```scrut
-$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star
 agent settings: changed=False
 agent 2.0 installed
 ```
@@ -245,7 +247,7 @@ With an empty store, starcm downloads the replaced script and refuses it,
 because it doesn't match the sha256 its signature records:
 
 ```scrut
-$ rm -rf store && starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | tail -1
+$ rm -rf store && starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star 2>&1 | tail -1
 Error in s3_download: expected sha256 hash *, got * (glob)
 ```
 
@@ -257,7 +259,7 @@ signed evil.sh with key "untrusted" until * -> evil.sh.sig (glob)
 ```
 
 ```scrut
-$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | tail -1
+$ starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star 2>&1 | tail -1
 Error in s3_download: s3_download(label="fetch scripts/install-agent.sh"): signature scripts/install-agent.sh.sig: key "untrusted" is not trusted
 ```
 
@@ -266,21 +268,21 @@ Error in s3_download: s3_download(label="fetch scripts/install-agent.sh"): signa
 A wrong secret key:
 
 ```scrut
-$ AWS_SECRET_ACCESS_KEY=wrong starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | grep -o 'api error [A-Za-z]*'
+$ AWS_SECRET_ACCESS_KEY=wrong starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star 2>&1 | grep -o 'api error [A-Za-z]*'
 api error SignatureDoesNotMatch
 ```
 
 A key the server doesn't know:
 
 ```scrut
-$ AWS_ACCESS_KEY_ID=nobody starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | grep -o 'api error [A-Za-z]*'
+$ AWS_ACCESS_KEY_ID=nobody starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star 2>&1 | grep -o 'api error [A-Za-z]*'
 api error InvalidAccessKeyId
 ```
 
 ## A missing file fails the run
 
 ```scrut
-$ aws --endpoint-url http://127.0.0.1:9000 s3 rm --quiet s3://config/main.star.sig && starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 bootstrap.star 2>&1 | grep -o 'NoSuchKey'
+$ aws --endpoint-url http://127.0.0.1:9000 s3 rm --quiet s3://config/main.star.sig && starcm --trusted-keys trusted --store-dir store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap.star 2>&1 | grep -o 'NoSuchKey'
 NoSuchKey
 ```
 

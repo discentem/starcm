@@ -7,8 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
-        "//starlark-helpers",
-        "@com_github_mitchellh_go_homedir//:go-homedir",
         "@net_starlark_go//starlark",
     ],
 )
@@ -18,6 +16,7 @@ go_test(
     srcs = ["extract_test.go"],
     embed = [":extract"],
     deps = [
+        "//functions/base",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@net_starlark_go//starlark",

@@ -1,4 +1,4 @@
-load("starcm", "download", "extract")
+load("starcm", "download", "extract", "vars")
 
 tool = download(
     label  = "fetch tool",
@@ -7,5 +7,5 @@ tool = download(
 )
 
 # tool.value is a path in the store, so extract() re-hashes it before reading.
-r = extract(label = "unpack tool", archive = tool.value, dest = "from-store")
+r = extract(label = "unpack tool", archive = tool.value, dest = vars["managed_dir"] + "/from-store")
 print("changed=%s files=%d" % (r.changed, len(r.value)))

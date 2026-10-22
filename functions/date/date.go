@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"time"
+
 	// Windows hosts have no zoneinfo database, so embed Go's copy for timezone=.
 	_ "time/tzdata"
 
 	"github.com/discentem/starcm/functions/base"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -33,37 +33,37 @@ type dateAction struct {
 	now func() time.Time
 }
 
-var _ base.Runnable = (*dateAction)(nil)
+var _ base.Action = (*dateAction)(nil)
 
 type parsedArgs struct {
 	layout   string
 	location *time.Location
 }
 
-func (a *dateAction) parseArgs(kwargs []starlark.Tuple) (*parsedArgs, error) {
-	format, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "format", "rfc3339")
-	if err != nil {
-		return nil, err
+func (a *dateAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) {
+	format, given := base.Get[string](inst, "format")
+	if !given {
+		format = "rfc3339"
 	}
-	layout, ok := namedLayouts[*format]
+	layout, ok := namedLayouts[format]
 	if !ok {
-		layout = *format
+		layout = format
 	}
 
-	tz, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "timezone", "Local")
-	if err != nil {
-		return nil, err
+	tz, given := base.Get[string](inst, "timezone")
+	if !given {
+		tz = "Local"
 	}
-	loc, err := time.LoadLocation(*tz)
+	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		return nil, fmt.Errorf("invalid timezone %q: %w", *tz, err)
+		return nil, fmt.Errorf("invalid timezone %q: %w", tz, err)
 	}
 
 	return &parsedArgs{layout: layout, location: loc}, nil
 }
 
-func (a *dateAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	parsed, err := a.parseArgs(kwargs)
+func (a *dateAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	parsed, err := a.parseArgs(inst)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (a *dateAction) Run(ctx context.Context, workingDirectory string, moduleNam
 	})
 
 	return &base.Result{
-		Label:   moduleName,
+		Label:   inst.Label,
 		Message: &formatted,
 		Success: true,
 		Changed: false,

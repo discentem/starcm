@@ -16,8 +16,6 @@ import (
 	"github.com/discentem/starcm/libraries/fileutils"
 	"github.com/discentem/starcm/libraries/macsig"
 	shelllib "github.com/discentem/starcm/libraries/shell"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
-	"go.starlark.net/starlark"
 )
 
 type pkgAction struct {
@@ -28,7 +26,7 @@ type pkgAction struct {
 	checkStored func(path string) error
 }
 
-var _ base.Runnable = (*pkgAction)(nil)
+var _ base.Action = (*pkgAction)(nil)
 
 // run runs a command with the executor and returns its combined stdout and
 // stderr. err is non-nil when the command couldn't start or exited non-zero.
@@ -47,65 +45,51 @@ type parsedArgs struct {
 	whatIf           bool
 }
 
-func (a *pkgAction) parseArgs(label string, args starlark.Tuple, kwargs []starlark.Tuple) (*parsedArgs, error) {
-	p := &parsedArgs{}
-	if args.Len() == 1 {
-		p.path = args.Index(0).(starlark.String).GoString()
-	} else {
-		v, err := starlarkhelpers.FindValueinKwargs(kwargs, "path")
-		if err != nil {
-			return nil, err
-		}
-		p.path = *v
-	}
-	signer, err := starlarkhelpers.FindValueinKwargs(kwargs, "signer")
-	if err != nil {
-		return nil, err
-	}
-	if p.signer = strings.TrimSpace(*signer); p.signer == "" {
+func (a *pkgAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) {
+	label := inst.Label
+	p := &parsedArgs{whatIf: inst.WhatIf}
+	signer, _ := base.Get[string](inst, "signer")
+	if p.signer = strings.TrimSpace(signer); p.signer == "" {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): signer must name the certificate, e.g. \"Developer ID Installer: Example Corp (ABCDE12345)\"", label)
 	}
-	sum, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "sha256", "")
-	if err != nil {
-		return nil, err
+	sum, _ := base.Get[string](inst, "sha256")
+	if p.sha256 = strings.ToLower(sum); p.sha256 != "" && !sha256Hex.MatchString(p.sha256) {
+		return nil, fmt.Errorf("install_mac_pkg(label=%q): sha256 %q is not 64 hex characters", label, sum)
 	}
-	if p.sha256 = strings.ToLower(*sum); p.sha256 != "" && !sha256Hex.MatchString(p.sha256) {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): sha256 %q is not 64 hex characters", label, *sum)
+	p.requireNotarized = true
+	if v, ok := base.Get[bool](inst, "require_notarized"); ok {
+		p.requireNotarized = v
 	}
-	if p.requireNotarized, err = starlarkhelpers.FindOptionalBoolInKwargs(kwargs, "require_notarized", true); err != nil {
-		return nil, err
-	}
-	target, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "target", "/")
-	if err != nil {
-		return nil, err
-	}
-	p.target = *target
-	id, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "id", "")
-	if err != nil {
-		return nil, err
-	}
-	version, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "version", "")
-	if err != nil {
-		return nil, err
-	}
-	p.id, p.version = *id, *version
+	p.id, _ = base.Get[string](inst, "id")
+	p.version, _ = base.Get[string](inst, "version")
 	if (p.id == "") != (p.version == "") {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): id and version must be given together", label)
-	}
-	if p.whatIf, err = starlarkhelpers.FindBoolInKwargs(kwargs, "what_if", false); err != nil {
-		return nil, err
 	}
 	return p, nil
 }
 
-func (a *pkgAction) Run(ctx context.Context, workingDirectory string, label string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	p, err := a.parseArgs(label, args, kwargs)
+func (a *pkgAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	label := inst.Label
+	p, err := a.parseArgs(inst)
 	if err != nil {
 		return nil, err
 	}
 	if a.goos != "darwin" {
 		return nil, fmt.Errorf("install_mac_pkg(label=%q): install_mac_pkg() only works on macOS", label)
 	}
+	// Whether a path is absolute depends on the OS, so check paths once we
+	// know we're on macOS.
+	if p.path, _, err = inst.AbsPath("path"); err != nil {
+		return nil, err
+	}
+	target, given, err := inst.AbsPath("target")
+	if err != nil {
+		return nil, err
+	}
+	if !given {
+		target = "/"
+	}
+	p.target = target
 
 	if p.id != "" {
 		installed, err := a.installedVersion(p.id, p.target)
@@ -183,6 +167,17 @@ func (a *pkgAction) installedVersion(id, target string) (string, error) {
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+// pkgArgs are install_mac_pkg()'s own arguments.
+var pkgArgs = []base.ArgPair{
+	base.Arg[string]("path"),
+	base.Arg[string]("signer"),
+	base.OptionalArg[string]("sha256"),
+	base.OptionalArgAllowNone[bool]("require_notarized"),
+	base.OptionalArg[string]("target"),
+	base.OptionalArg[string]("id"),
+	base.OptionalArg[string]("version"),
+}
+
 // Option configures install_mac_pkg().
 type Option func(*pkgAction)
 
@@ -201,7 +196,7 @@ func WithGOOS(goos string) Option {
 // New returns the install_mac_pkg() builtin, which runs pkgutil and
 // installer with executor.
 //
-//	install_mac_pkg("agent.pkg", signer = "Developer ID Installer: Example Corp (ABCDE12345)", label = "install agent")
+//	install_mac_pkg(agent.value, signer = "Developer ID Installer: Example Corp (ABCDE12345)", label = "install agent")
 func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.Module {
 	a := &pkgAction{executor: executor, goos: runtime.GOOS}
 	for _, opt := range opts {
@@ -210,15 +205,7 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 	return base.NewModule(
 		ctx,
 		"install_mac_pkg",
-		[]base.ArgPair{
-			base.Arg[string]("path"),
-			base.Arg[string]("signer"),
-			base.OptionalArg[string]("sha256"),
-			base.OptionalArgAllowNone[bool]("require_notarized"),
-			base.OptionalArg[string]("target"),
-			base.OptionalArg[string]("id"),
-			base.OptionalArg[string]("version"),
-		},
+		pkgArgs,
 		a,
 	)
 }

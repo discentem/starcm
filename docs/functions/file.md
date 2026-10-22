@@ -40,9 +40,9 @@ file(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `path` | string | required | The file to manage. A leading `~` expands to the home directory (`$HOME`); other relative paths are relative to the directory starcm runs in. |
+| `path` | string | required | The file to manage, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
 | `content` | string | `""` | The file's full content (`action = "create"` only). For several lines, use a triple-quoted string; see [Multi-line content](#multi-line-content). |
-| `source` | string | none | Make `path` a copy of this file instead of writing `content`. Give one or the other. Relative paths and `~` work as for `path`. |
+| `source` | string | none | Make `path` a copy of this file instead of writing `content`. Give one or the other. An absolute path, like `path`. |
 | `sha256` | string | none | With `source`: the source's sha256. A source with any other content is refused. |
 | `signer` | string | none | With `source`, macOS only: the signing certificate's name, as [check_mac_signature](check_mac_signature.md#finding-the-signer) describes. The copy is installed only if it passes the same checks. |
 | `require_notarized` | bool | `True` | With `signer`: refuse a source Apple hasn't notarized. |
@@ -51,8 +51,8 @@ file(
 | `create_dirs` | bool | `False` | Create missing parent directories. Without it, a missing parent directory fails the run. |
 
 `file` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
-`what_if`. `working_directory` and `what_if` have no effect.
+(required), `only_if`, `not_if`, `timeout` and
+`what_if`. `what_if` has no effect.
 
 ## Returns
 
@@ -71,25 +71,25 @@ Each example runs in a scratch copy of
 [examples/file/](../../examples/file).
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/file/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/file/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Create a file
 
 ```python
 # examples/file/create.star
-load("starcm", "file")
+load("starcm", "file", "vars")
 
 r = file(
     label   = "agent settings",
-    path    = "agent.conf",
+    path    = vars["managed_dir"] + "/agent.conf",
     content = "server = https://config.example.com\n",
 )
 print(r)
 ```
 
 ```scrut
-$ starcm create.star && cat agent.conf
+$ starcm --var managed_dir="$managed" create.star && cat agent.conf
 starcm_result(changed = True, error = "<nil>", label = "agent settings", message = "created file \"*agent.conf\"", success = True, value = None) (glob)
 server = https://config.example.com
 ```
@@ -97,7 +97,7 @@ server = https://config.example.com
 The second run finds the right content and doesn't touch the file:
 
 ```scrut
-$ starcm create.star
+$ starcm --var managed_dir="$managed" create.star
 starcm_result(changed = False, error = "<nil>", label = "agent settings", message = "file \"*agent.conf\" already exists with correct content", success = True, value = None) (glob)
 ```
 
@@ -107,11 +107,11 @@ starcm_result(changed = False, error = "<nil>", label = "agent settings", messag
 
 ```python
 # examples/file/update.star
-load("starcm", "file")
+load("starcm", "file", "vars")
 
 r = file(
     label   = "agent settings",
-    path    = "agent.conf",
+    path    = vars["managed_dir"] + "/agent.conf",
     content = """\
 server = https://config.example.com
 channel = beta
@@ -121,7 +121,7 @@ print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm update.star && cat agent.conf
+$ starcm --var managed_dir="$managed" update.star && cat agent.conf
 changed=True
 server = https://config.example.com
 channel = beta
@@ -148,11 +148,11 @@ Inside a function, where the lines would be indented with the code, use
 
 ```python
 # examples/file/create_dirs.star
-load("starcm", "file")
+load("starcm", "file", "vars")
 
 r = file(
     label       = "agent config",
-    path        = "etc/agent/agent.conf",
+    path        = vars["managed_dir"] + "/etc/agent/agent.conf",
     content     = "server = https://config.example.com\n",
     mode        = 0o600,
     create_dirs = True,
@@ -161,7 +161,7 @@ print("success=%s changed=%s" % (r.success, r.changed))
 ```
 
 ```scrut
-$ starcm create_dirs.star && cat etc/agent/agent.conf
+$ starcm --var managed_dir="$managed" create_dirs.star && cat etc/agent/agent.conf
 success=True changed=True
 server = https://config.example.com
 ```
@@ -170,13 +170,13 @@ Without `create_dirs`, a missing parent directory fails the run:
 
 ```python
 # examples/file/missing_dir.star
-load("starcm", "file")
+load("starcm", "file", "vars")
 
-file(label = "no parent", path = "nowhere/file.txt", content = "x")
+file(label = "no parent", path = vars["managed_dir"] + "/nowhere/file.txt", content = "x")
 ```
 
 ```scrut
-$ starcm missing_dir.star 2>&1
+$ starcm --var managed_dir="$managed" missing_dir.star 2>&1
 Traceback (most recent call last):
   missing_dir.star:3:5: in <toplevel>
 Error in file: directory ".*[/\\]nowhere" does not exist and create_dirs is false (regex)
@@ -208,15 +208,15 @@ Deleting a file that's already gone succeeds with `changed = False`.
 
 ```python
 # examples/file/delete.star
-load("starcm", "file")
+load("starcm", "file", "vars")
 
 for i in range(2):
-    r = file(label = "remove agent settings", path = "agent.conf", action = "delete")
+    r = file(label = "remove agent settings", path = vars["managed_dir"] + "/agent.conf", action = "delete")
     print("pass %d: changed=%s message=%s" % (i + 1, r.changed, r.message))
 ```
 
 ```scrut
-$ starcm delete.star
+$ starcm --var managed_dir="$managed" delete.star
 pass 1: changed=True message=deleted file "*agent.conf" (glob)
 pass 2: changed=False message=file "*agent.conf" does not exist (glob)
 ```
@@ -236,7 +236,7 @@ $ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=
 
 ```python
 # examples/file/copy.star
-load("starcm", "download", "file")
+load("starcm", "download", "file", "vars")
 
 agent = download(
     label  = "fetch agent",
@@ -247,7 +247,7 @@ agent = download(
 # agent.value is a path in the store, so file() re-hashes it before copying.
 r = file(
     label  = "install agent",
-    path   = "agent.txt",
+    path   = vars["managed_dir"] + "/agent.txt",
     source = agent.value,
     sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
@@ -255,7 +255,7 @@ print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm --store-dir "$store" copy.star && cat agent.txt
+$ starcm --var managed_dir="$managed" --store-dir "$store" copy.star && cat agent.txt
 changed=True
 agent v1.2.0
 ```
@@ -263,7 +263,7 @@ agent v1.2.0
 The second run finds the same content and copies nothing:
 
 ```scrut
-$ starcm --store-dir "$store" copy.star
+$ starcm --var managed_dir="$managed" --store-dir "$store" copy.star
 changed=False
 ```
 
@@ -272,7 +272,7 @@ copy it:
 
 ```python
 # examples/file/copy_changed.star
-load("starcm", "download", "exec", "file")
+load("starcm", "download", "exec", "file", "vars")
 
 agent = download(
     label  = "fetch agent",
@@ -284,11 +284,11 @@ agent = download(
 exec(label = "tamper", cmd = "sh", args = ["-c", "chmod u+w \"$1\" && echo malware >> \"$1\"", "sh", agent.value])
 
 # ...so file() refuses to copy it.
-file(label = "install agent", path = "agent.txt", source = agent.value)
+file(label = "install agent", path = vars["managed_dir"] + "/agent.txt", source = agent.value)
 ```
 
 ```scrut
-$ starcm --store-dir "$store" copy_changed.star 2>&1
+$ starcm --var managed_dir="$managed" --store-dir "$store" copy_changed.star 2>&1
 Traceback (most recent call last):
   copy_changed.star:13:5: in <toplevel>
 Error in file: file(label="install agent"): *agent-1.2.0.txt in the store has sha256 *; it was changed after it was stored (glob)
@@ -326,7 +326,7 @@ load("starcm", "file", "vars")
 # place, so what's installed is exactly what was checked.
 r = file(
     label             = "install tool",
-    path              = "bin/tool",
+    path              = vars["managed_dir"] + "/bin/tool",
     source            = vars["source"],
     signer            = "macOS Software Signing",
     require_notarized = False,  # Apple doesn't notarize its own code
@@ -337,19 +337,19 @@ print("changed=%s signer=%s" % (r.changed, r.value.signer))
 ```
 
 ```scrut
-$ starcm --var source=/bin/ls install_signed.star 2>&1 | tail -1
+$ starcm --var managed_dir="$managed" --var source=/bin/ls install_signed.star 2>&1 | tail -1
 (changed=True signer=macOS Software Signing|Error in file: file\(label="install tool"\): signer only works on macOS) (regex)
 ```
 
 ```scrut
-$ starcm --var source=/bin/ls install_signed.star 2>&1 | tail -1
+$ starcm --var managed_dir="$managed" --var source=/bin/ls install_signed.star 2>&1 | tail -1
 (changed=False signer=macOS Software Signing|Error in file: file\(label="install tool"\): signer only works on macOS) (regex)
 ```
 
 A modified binary is refused, and `bin/tool` is left as it was:
 
 ```scrut
-$ starcm --var source=ls-tampered install_signed.star 2>&1 | grep '^Error'; if [ -e bin/tool ]; then cmp -s bin/tool /bin/ls && echo "bin/tool unchanged"; else echo "bin/tool unchanged"; fi; ls -a bin 2>/dev/null | grep starcm-file || echo "nothing left behind"
+$ starcm --var managed_dir="$managed" --var source="$PWD/ls-tampered" install_signed.star 2>&1 | grep '^Error'; if [ -e bin/tool ]; then cmp -s bin/tool /bin/ls && echo "bin/tool unchanged"; else echo "bin/tool unchanged"; fi; ls -a bin 2>/dev/null | grep starcm-file || echo "nothing left behind"
 Error in file: file\(label="install tool"\): (.*ls-tampered: codesign --verify: exit status 1|signer only works on macOS) (regex)
 bin/tool unchanged
 nothing left behind
@@ -362,25 +362,25 @@ behaviour that the examples above don't show. They run in the copy of
 [examples/file/edge/](../../examples/file/edge).
 
 ```scrut
-$ cd "$TMPDIR/edge"
+$ cd "$TMPDIR/edge" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### A pinned sha256 must match
 
 ```python
 # examples/file/edge/copy_wrong_hash.star
-load("starcm", "file")
+load("starcm", "file", "here", "vars")
 
 file(
     label  = "pinned",
-    path   = "copy.txt",
-    source = "source.txt",
+    path   = vars["managed_dir"] + "/copy.txt",
+    source = here("source.txt"),
     sha256 = "0000000000000000000000000000000000000000000000000000000000000000",
 )
 ```
 
 ```scrut
-$ starcm copy_wrong_hash.star 2>&1; test ! -e copy.txt && echo "nothing copied"
+$ starcm --var managed_dir="$managed" copy_wrong_hash.star 2>&1; test ! -e copy.txt && echo "nothing copied"
 Traceback (most recent call last):
   copy_wrong_hash.star:3:5: in <toplevel>
 Error in file: file(label="pinned"): *source.txt has sha256 *, not the expected 0000000000000000000000000000000000000000000000000000000000000000 (glob)
@@ -391,13 +391,13 @@ nothing copied
 
 ```python
 # examples/file/edge/copy_and_content.star
-load("starcm", "file")
+load("starcm", "file", "here", "vars")
 
-file(label = "both", path = "copy.txt", source = "source.txt", content = "x")
+file(label = "both", path = vars["managed_dir"] + "/copy.txt", source = here("source.txt"), content = "x")
 ```
 
 ```scrut
-$ starcm copy_and_content.star 2>&1
+$ starcm --var managed_dir="$managed" copy_and_content.star 2>&1
 Traceback (most recent call last):
   copy_and_content.star:3:5: in <toplevel>
 Error in file: file(label="both"): give content or source, not both
@@ -408,18 +408,18 @@ Error in file: file(label="both"): give content or source, not both
 
 ```python
 # examples/file/edge/signer_without_source.star
-load("starcm", "file")
+load("starcm", "file", "vars")
 
 file(
     label   = "no source",
-    path    = "tool",
+    path    = vars["managed_dir"] + "/tool",
     content = "x",
     signer  = "Developer ID Application: Example Corp (ABCDE12345)",
 )
 ```
 
 ```scrut
-$ starcm signer_without_source.star 2>&1
+$ starcm --var managed_dir="$managed" signer_without_source.star 2>&1
 Traceback (most recent call last):
   signer_without_source.star:3:5: in <toplevel>
 Error in file: file(label="no source"): signer needs source

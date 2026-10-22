@@ -20,6 +20,7 @@ exec(
     expected_exit_code = 0,
     live_output        = False,
     check              = False,
+    cwd                = "/opt/agent",
 )
 ```
 
@@ -27,17 +28,18 @@ exec(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `cmd` | string | required | The program to run, found on `PATH` or given as a path. It's run directly, not through a shell. |
+| `cmd` | string | required | The program to run, found on `PATH` or given as a path. A relative path (one with a `/` or `\`) is a script next to the `.star` file the call is written in. It's run directly, not through a shell. |
 | `args` | list of strings | required | Arguments to pass. Use `[]` for none. |
 | `expected_exit_code` | int | `0` | The exit code that counts as success. |
 | `live_output` | bool | `False` | Also stream the command's output to starcm's stdout as it runs. |
 | `check` | bool | `False` | When `True`, stop the run if the command can't start or exits with a code other than `expected_exit_code`. The error includes the command's output. |
+| `cwd` | string | starcm's directory | The absolute directory to run the command in. |
 
 `exec` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and `what_if`.
+(required), `only_if`, `not_if`, `timeout` and `what_if`.
 `timeout` gives up waiting for the command after the given duration.
-`working_directory` and `what_if` have no effect: the command runs in the
-directory starcm runs in, every time.
+`what_if` has no effect. The command runs in `cwd` when given, otherwise in
+the directory starcm runs in.
 
 ### Files from the local store
 
@@ -58,8 +60,6 @@ A [starcm_result](../common-functionality.md#starcm_result):
 | `value` | The command's stdout and stderr, as a string |
 | `error` | `"<nil>"` for exit code 0, otherwise e.g. `"exit status 3"` (even when that code was expected), or `"context deadline exceeded"` after a `timeout` |
 | `message` | `""` |
-
-Log lines about skipped `exec` calls call it `shell(label=...)`, its internal name.
 
 ## Examples
 

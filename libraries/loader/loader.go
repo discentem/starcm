@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -42,6 +41,7 @@ import (
 	starcmtemplate "github.com/discentem/starcm/functions/template"
 	starcmverify "github.com/discentem/starcm/functions/verify"
 	starcmwrite "github.com/discentem/starcm/functions/write"
+	"github.com/discentem/starcm/libraries/paths"
 	starcmshelllib "github.com/discentem/starcm/libraries/shell"
 )
 
@@ -147,6 +147,9 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 
 	var load func(_ *starlark.Thread, module string) (starlark.StringDict, error)
 	load = func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
+		// Every script loads the starcm module, so this marks each thread
+		// that can call starcm functions.
+		paths.SetStoreCheck(thread, l.inStore)
 		if e, ok := cache[module]; ok {
 			if e == nil {
 				return nil, fmt.Errorf("cycle in load graph %q", module)
@@ -220,6 +223,7 @@ func (l *Loader) execModule(threadName, modulePath string, loadFunc func(*starla
 		Load:  loadFunc,
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 	}
+	paths.SetStoreCheck(thread, l.inStore)
 
 	globals, err := starlark.ExecFileOptions(
 		&syntax.FileOptions{TopLevelControl: true},
@@ -328,24 +332,19 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					}
 				}
 				vars.Freeze()
-				downloadOpts := []starcmdownload.Option{
+				// download, s3_download and load_remote share one Fetcher, so
+				// they pin, store and verify the same way.
+				fetcher := starcmdownload.NewFetcher(fsys, os.Stdout,
 					starcmdownload.WithStore(l.Store),
 					starcmdownload.StoreOnly(l.StoreOnly),
 					starcmdownload.WithKeyring(l.Keyring),
-				}
-				download := starcmdownload.New(ctx, *http.DefaultClient, fsys, os.Stdout, downloadOpts...)
-				s3Download := starcmdownload.NewS3(ctx, fsys, os.Stdout, downloadOpts...)
-				remoteOpts := append(downloadOpts, starcmdownload.FunctionName("load_remote"))
-				remoteHTTP := starcmdownload.New(ctx, *http.DefaultClient, fsys, os.Stdout, remoteOpts...)
-				remoteS3 := starcmdownload.NewS3(ctx, fsys, os.Stdout, remoteOpts...)
+				)
 				return starlark.StringDict{
-					"download":    starlark.NewBuiltin("download", download.Function()),
-					"s3_download": starlark.NewBuiltin("s3_download", s3Download.Function()),
-					// load_remote fetches with download's and s3_download's
-					// actions, so it pins, stores and verifies the same way.
+					"download":    starlark.NewBuiltin("download", starcmdownload.New(ctx, fetcher).Function()),
+					"s3_download": starlark.NewBuiltin("s3_download", starcmdownload.NewS3(ctx, fetcher).Function()),
 					"load_remote": starlark.NewBuiltin(
 						"load_remote",
-						dynamicloading.NewRemote(ctx, remoteHTTP.Action, remoteS3.Action).Function(),
+						dynamicloading.NewRemote(ctx, fetcher).Function(),
 					),
 					"write": starlark.NewBuiltin(
 						"write",

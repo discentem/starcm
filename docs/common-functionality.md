@@ -11,7 +11,7 @@ The examples run in a scratch copy of
 [examples/common_functionality/](../examples/common_functionality).
 
 ```scrut
-$ cp -R "$TESTDIR/../examples/common_functionality/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../examples/common_functionality/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ## Common arguments
@@ -22,7 +22,6 @@ $ cp -R "$TESTDIR/../examples/common_functionality/." "$TMPDIR" && cd "$TMPDIR"
 | [only_if](#only_if-and-not_if) | bool | `True` | Run only when this is true. |
 | [not_if](#only_if-and-not_if) | bool | `False` | Skip when this is true. |
 | [timeout](#timeout) | string | none | Give up after this [duration](https://pkg.go.dev/time#ParseDuration), e.g. `"30s"` or `"5m"`. |
-| [working_directory](#working_directory) | string | the calling file's directory | Base directory for relative paths. Only [template](functions/template.md) uses it. |
 | [what_if](#what_if) | bool | `False` | Show what would change without changing it. Only [template](functions/template.md) supports it. |
 
 Arguments apply only to the call they're passed to; nothing carries over to
@@ -75,35 +74,55 @@ $ starcm timeout.star
 success=False error=context deadline exceeded
 ```
 
-### working_directory
+### Paths
 
-[template](functions/template.md) resolves its `template` and `destination`
-paths against the directory of the `.star` file that calls it. An explicit
-`working_directory` is used as given instead, and a relative one is relative
-to the directory starcm runs in. Other functions resolve relative paths
-against the directory starcm runs in, whatever `working_directory` says.
+A relative path means one thing only: a read-only file that ships next to
+the `.star` file the call is written in, such as a
+[template](functions/template.md)'s `template` or a
+[load_dynamic](functions/load_dynamic.md) module. Every other path, the
+files a call writes and the files it reads that something else produced,
+must be absolute. Write the full path out (`"/etc/agent.conf"`), pass the
+result of the step that made the file, or use
+[home_dir](functions/home_dir.md) or [temp_dir](functions/temp_dir.md). `~`
+is expanded, and paths a function returns are absolute.
+[here](functions/here.md) builds paths to the read-only files that ship next
+to a `.star` file; don't use it for outputs, which have no reason to sit next
+to your code. See the [design note](design/paths-and-arguments.md) for why.
+
+The runnable examples on these pages write their outputs under a folder the
+run passes in, `vars["managed_dir"] + "/agent.conf"`, so you can copy them
+and point them at your team's own folder with `--var managed_dir=...`.
 
 ```python
 # examples/common_functionality/sub/render.star
-load("starcm", "template")
+load("starcm", "template", "vars")
 
-# By default, template and destination are relative to this file's directory...
-template(label = "next to me", template = "hello.tpl", destination = "here.txt", data = {"where": "sub"})
-
-# ...an explicit working_directory is used as given instead.
-template(
-    label             = "from the current directory",
-    template          = "sub/hello.tpl",
-    destination       = "there.txt",
-    data              = {"where": "the current directory"},
-    working_directory = ".",
-)
+# template ships next to this file, so the relative "hello.tpl" is found here.
+# destination is an output, so it's a full path: here, under the folder the
+# run passes as --var managed_dir.
+template(label = "next to me", template = "hello.tpl", destination = vars["managed_dir"] + "/hello.txt", data = {"where": "sub"})
 ```
 
 ```scrut
-$ starcm sub/render.star && cat sub/here.txt there.txt
+$ starcm --var managed_dir="$managed" sub/render.star && cat hello.txt
 Hello from sub.
-Hello from the current directory.
+```
+
+A relative output is an error that names the fix:
+
+```python
+# examples/common_functionality/relative_output.star
+load("starcm", "file")
+
+file(label = "relative", path = "out.txt", content = "x")
+```
+
+```scrut
+$ starcm relative_output.star 2>&1
+Traceback (most recent call last):
+  relative_output.star:3:5: in <toplevel>
+Error in file: file(label="relative"): path: "out.txt" is not an absolute path: write the full path, or pass the result of the step that made the file
+[1]
 ```
 
 ### what_if
@@ -176,14 +195,14 @@ behaviour that the examples above don't show. They run in the copy of
 They guard two bugs starcm once had with the common arguments:
 
 - **Values leaking between calls.** starcm used to keep the common
-  arguments in variables shared by every call. A `timeout` or
-  `working_directory` given to one call then also applied to later calls
+  arguments in variables shared by every call. A `timeout` given to one
+  call then also applied to later calls
   that didn't pass it, even calls in other files.
 - **Errors blaming the wrong call.** An argument error used to be reported
   under an earlier call's label.
 
 ```scrut
-$ cd "$TMPDIR/edge"
+$ cd "$TMPDIR/edge" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Argument errors name the failing call
@@ -237,31 +256,6 @@ print("main call: success=%s" % r.success)
 ```scrut
 $ starcm cross_file.star
 main call: success=True
-```
-
-### working_directory applies only to its own call
-
-```python
-# examples/common_functionality/edge/working_directory.star
-load("starcm", "template")
-
-def render(label, name, **kwargs):
-    template(
-        label       = label,
-        template    = "hello.tpl",
-        data        = {"name": name, "age": 1},
-        destination = "out.txt",
-        **kwargs
-    )
-
-render("elsewhere", "sub", working_directory = "sub")
-render("here", "top")
-```
-
-```scrut
-$ starcm working_directory.star && echo "sub/out.txt: $(cat sub/out.txt)" && echo "out.txt: $(cat out.txt)"
-sub/out.txt: Hello Sub, you are 1 years old.
-out.txt: Hello Top, you are 1 years old.
 ```
 
 ## See also

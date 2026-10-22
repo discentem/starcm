@@ -31,19 +31,20 @@ template(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `template` | string | `template` or `source` | Path to the template file. |
+| `template` | string | `template` or `source` | Path to the template file. A relative path is next to the `.star` file the call is written in. |
 | `source` | string | `template` or `source` | The template text itself, instead of a file. A triple-quoted string keeps it readable; see [Render an inline template](#render-an-inline-template). |
 | `data` | dict | required | Values the template can use. Keys must be strings; values can be strings, numbers, bools, `None`, lists, tuples, nested dicts and structs (including other functions' results). |
-| `destination` | string | required unless `what_if` | The file to write. Its parent directories are created. |
+| `destination` | string | required unless `what_if` | The file to write, as an absolute path. Its parent directories are created. |
 
-Give exactly one of `template` and `source`. Relative `template` and
-`destination` paths are relative to the directory of the `.star` file that
-calls `template`, not the directory starcm runs in. Set
-[working_directory](../common-functionality.md#working_directory) to use a
-different base directory.
+Give exactly one of `template` and `source`. The template file ships with
+your code, so a relative `template` path is found next to the `.star` file
+the call is written in, not the directory starcm runs in. `destination` is
+an output, so it must be a full path, such as
+`"/Library/LaunchDaemons/com.example.agent.plist"`. See
+[paths](../common-functionality.md#paths).
 
 `template` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
+(required), `only_if`, `not_if`, `timeout` and
 `what_if`. `what_if = True` renders the template but writes nothing.
 
 ## Returns
@@ -65,7 +66,7 @@ Each example runs in a scratch copy of
 [examples/template/](../../examples/template).
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/template/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/template/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Render a launchd job
@@ -98,13 +99,13 @@ A template for a launchd job, filled in from `data`:
 
 ```python
 # examples/template/site/launchd.star
-load("starcm", "template")
+load("starcm", "template", "vars")
 
 # A launchd job that runs the agent's check-in every 15 minutes.
 r = template(
     label       = "agent launchd job",
     template    = "agent.plist.tpl",
-    destination = "com.example.agent.plist",
+    destination = vars["managed_dir"] + "/com.example.agent.plist",
     data        = {
         "label":            "com.example.agent",
         "program":          ["/usr/local/bin/agent", "check-in"],
@@ -115,13 +116,13 @@ r = template(
 print("changed=%s" % r.changed)
 ```
 
-`agent.plist.tpl` and `com.example.agent.plist` are found next to
-`launchd.star`, wherever starcm runs from. On a Mac, the destination would be
-`/Library/LaunchDaemons/com.example.agent.plist`; here it stays in the
-example's directory.
+`agent.plist.tpl` is found next to `launchd.star`, wherever starcm runs from.
+On a Mac, the destination would be
+`/Library/LaunchDaemons/com.example.agent.plist`; here it goes in the folder
+the run passes as `--var managed_dir`.
 
 ```scrut
-$ starcm site/launchd.star && cat site/com.example.agent.plist
+$ starcm --var managed_dir="$managed" site/launchd.star && cat com.example.agent.plist
 changed=True
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -145,7 +146,7 @@ changed=True
 Rendering the same data again leaves the file alone:
 
 ```scrut
-$ (cd site && starcm launchd.star)
+$ (cd site && starcm --var managed_dir="$managed" launchd.star)
 changed=False
 ```
 
@@ -157,7 +158,7 @@ skips the first newline, so the template starts at the left margin:
 
 ```python
 # examples/template/site/inline.star
-load("starcm", "template")
+load("starcm", "template", "vars")
 
 # A short template can live in the .star file instead of its own file.
 r = template(
@@ -174,13 +175,13 @@ feature.{{ name }} = on
         "channel":  "beta",
         "features": ["updates", "telemetry"],
     },
-    destination = "agent.conf",
+    destination = vars["managed_dir"] + "/agent.conf",
 )
 print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm site/inline.star && cat site/agent.conf
+$ starcm --var managed_dir="$managed" site/inline.star && cat agent.conf
 changed=True
 server = https://config.example.com
 channel = beta
@@ -306,7 +307,7 @@ write(render.message, label = "print config", end = "")
 ```
 
 ```scrut
-$ (cd nested && starcm nested.star)
+$ (cd nested && starcm --var managed_dir="$managed" nested.star)
 [server]
 host = localhost
 port = 8080
@@ -329,7 +330,7 @@ behaviour that the examples above don't show. They run in the copy of
 [examples/template/edge/](../../examples/template/edge).
 
 ```scrut
-$ cd "$TMPDIR/edge"
+$ cd "$TMPDIR/edge" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### destination is required unless what_if
@@ -380,7 +381,7 @@ write(r.message, label = "show render", end = "")
 ```
 
 ```scrut
-$ starcm nested.star
+$ starcm --var managed_dir="$managed" nested.star
 hello
 dots: ada lives in london
 brackets: ada rex

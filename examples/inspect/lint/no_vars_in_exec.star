@@ -1,7 +1,7 @@
-load("starcm", "inspect", "list_files")
+load("starcm", "inspect", "list_files", "here")
 
-for f in list_files(".", pattern = "*.star", label = "find config").value:
-    for c in inspect(f, label = "inspect " + f).value["calls"]:
+for f in list_files(here(), pattern = "*.star", label = "find config").value:
+    for c in inspect(here(f), label = "inspect " + f).value["calls"]:
         if c["function"] != "exec":
             continue
         for i in c.get("inputs", []):

@@ -1,4 +1,4 @@
-load("starcm", "template")
+load("starcm", "template", "vars")
 
 # A short template can live in the .star file instead of its own file.
 r = template(
@@ -15,6 +15,6 @@ feature.{{ name }} = on
         "channel":  "beta",
         "features": ["updates", "telemetry"],
     },
-    destination = "agent.conf",
+    destination = vars["managed_dir"] + "/agent.conf",
 )
 print("changed=%s" % r.changed)

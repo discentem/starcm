@@ -15,8 +15,6 @@ go_library(
         "//libraries/macsig",
         "//libraries/sha256",
         "//libraries/shell",
-        "//starlark-helpers",
-        "@com_github_mitchellh_go_homedir//:go-homedir",
         "@com_github_spf13_afero//:afero",
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",
@@ -29,6 +27,7 @@ go_test(
     data = ["//libraries/macsig:testdata"],
     embed = [":file"],
     deps = [
+        "//functions/base",
         "//libraries/shell",
         "@com_github_spf13_afero//:afero",
         "@com_github_stretchr_testify//assert",

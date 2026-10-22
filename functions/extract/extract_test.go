@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/discentem/starcm/functions/base"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -95,8 +96,14 @@ func kw(archive, dest string, members *starlark.List) []starlark.Tuple {
 	return k
 }
 
+// call runs extract(label = "unpack", ...) with a's configuration.
+func call(a *extractAction, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+	kwargs = append(kwargs, starlark.Tuple{starlark.String("label"), starlark.String("unpack")})
+	return base.NewModule(context.Background(), "extract", extractArgs, a).Call(nil, args, kwargs)
+}
+
 func run(a *extractAction, archive, dest string, members *starlark.List) (changed bool, msg string, paths []string, err error) {
-	r, err := a.Run(context.Background(), "", "unpack", &starlark.Thread{}, nil, kw(archive, dest, members))
+	r, err := call(a, nil, kw(archive, dest, members))
 	if err != nil {
 		return false, "", nil, err
 	}
@@ -353,8 +360,7 @@ func TestPositionalArchive(t *testing.T) {
 	writeZip(t, archive, normal)
 	dest := filepath.Join(dir, "out")
 	a := &extractAction{goos: runtime.GOOS}
-	r, err := a.Run(context.Background(), "", "unpack", &starlark.Thread{},
-		starlark.Tuple{starlark.String(archive)}, kw(archive, dest, nil)[1:])
+	r, err := call(a, starlark.Tuple{starlark.String(archive), starlark.String(dest)}, nil)
 	require.NoError(t, err)
 	assert.True(t, r.Changed)
 }
@@ -368,4 +374,7 @@ func TestRelativeAndHomeDest(t *testing.T) {
 	_, _, paths, err := run(&extractAction{goos: runtime.GOOS}, archive, "~/home-out", nil)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, "home-out", "pkg", "tool"), paths[0])
+
+	_, _, _, err = run(&extractAction{goos: runtime.GOOS}, archive, "relative-out", nil)
+	assert.ErrorContains(t, err, `extract(label="unpack"): dest: "relative-out" is not an absolute path`)
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -30,16 +31,15 @@ func TestRun(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		action         *downloadAction
+		action         *Fetcher
 		moduleName     string
-		starlarkArgs   starlark.Tuple
 		starlarkKwargs []starlark.Tuple
 		expectedResult func(*base.Result) bool
 		expectedError  func(err error) bool
 	}{
 		{
 			name: "Test download with nil fsys",
-			action: &downloadAction{
+			action: &Fetcher{
 				httpClient: &http.Client{},
 				fsys:       nil,
 			},
@@ -53,7 +53,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test downloading succeeds",
-			action: &downloadAction{
+			action: &Fetcher{
 				httpClient: func() *http.Client {
 					client := &http.Client{}
 					client.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -66,8 +66,7 @@ func TestRun(t *testing.T) {
 				}(),
 				fsys: afero.NewMemMapFs(),
 			},
-			moduleName:   fmt.Sprintf("download %q", "hello world"),
-			starlarkArgs: nil,
+			moduleName: fmt.Sprintf("download %q", "hello world"),
 			starlarkKwargs: []starlark.Tuple{
 				{
 					starlark.String("url"),
@@ -75,7 +74,7 @@ func TestRun(t *testing.T) {
 				},
 				{
 					starlark.String("save_to"),
-					starlark.String("file.txt"),
+					starlark.String(abs("file.txt")),
 				},
 				{
 					starlark.String("sha256"),
@@ -91,16 +90,15 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test download with missing url",
-			action: &downloadAction{
+			action: &Fetcher{
 				httpClient: http.DefaultClient,
 				fsys:       afero.NewMemMapFs(),
 			},
-			moduleName:   fmt.Sprintf("download %q", "hello world"),
-			starlarkArgs: nil,
+			moduleName: fmt.Sprintf("download %q", "hello world"),
 			starlarkKwargs: []starlark.Tuple{
 				{
 					starlark.String("save_to"),
-					starlark.String("file.txt"),
+					starlark.String(abs("file.txt")),
 				},
 			},
 			expectedResult: func(result *base.Result) bool {
@@ -112,12 +110,11 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test download with missing save_to",
-			action: &downloadAction{
+			action: &Fetcher{
 				httpClient: http.DefaultClient,
 				fsys:       afero.NewMemMapFs(),
 			},
-			moduleName:   fmt.Sprintf("download %q", "hello world"),
-			starlarkArgs: nil,
+			moduleName: fmt.Sprintf("download %q", "hello world"),
 			starlarkKwargs: []starlark.Tuple{
 				{
 					starlark.String("url"),
@@ -133,7 +130,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "Test non-200 status code",
-			action: &downloadAction{
+			action: &Fetcher{
 				httpClient: func() *http.Client {
 					client := &http.Client{}
 					client.Transport = roundTripperFunc(func(req *http.Request) (*http.Response, error) {
@@ -145,8 +142,7 @@ func TestRun(t *testing.T) {
 				}(),
 				fsys: afero.NewMemMapFs(),
 			},
-			moduleName:   fmt.Sprintf("download %q", "hello world"),
-			starlarkArgs: nil,
+			moduleName: fmt.Sprintf("download %q", "hello world"),
 			starlarkKwargs: []starlark.Tuple{
 				{
 					starlark.String("url"),
@@ -154,7 +150,7 @@ func TestRun(t *testing.T) {
 				},
 				{
 					starlark.String("save_to"),
-					starlark.String("file.txt"),
+					starlark.String(abs("file.txt")),
 				},
 			},
 			expectedResult: func(result *base.Result) bool {
@@ -168,8 +164,7 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("Running test %q", tt.name)
-			thread := starlark.Thread{Name: "test"}
-			result, err := tt.action.Run(context.TODO(), "", tt.moduleName, &thread, tt.starlarkArgs, tt.starlarkKwargs)
+			result, err := runURL(tt.action, tt.moduleName, tt.starlarkKwargs)
 			if tt.expectedError == nil {
 				t.Fatal("tt.expectedError must be provided")
 			}
@@ -187,8 +182,9 @@ func TestRun(t *testing.T) {
 			if result != nil {
 				if result.Success == true {
 					t.Logf("result.Output: %q", *result.Message)
-					assert.Equal(t, "downloaded file to file.txt", *result.Message)
-					f, err := tt.action.fsys.Open("file.txt")
+					assert.Equal(t, "downloaded file to "+abs("file.txt"), *result.Message)
+					assert.Equal(t, starlark.String(abs("file.txt")), result.Return)
+					f, err := tt.action.fsys.Open(abs("file.txt"))
 					assert.NoError(t, err)
 					b, err := io.ReadAll(f)
 					assert.NoError(t, err)
@@ -209,6 +205,58 @@ func serving(body string) *http.Client {
 	})}
 }
 
+// testRoot is an absolute directory for test paths on any OS.
+func testRoot() string {
+	if runtime.GOOS == "windows" {
+		return `C:\repo`
+	}
+	return "/repo"
+}
+
+// abs is name under testRoot, since save_to must be absolute.
+func abs(name string) string {
+	return filepath.Join(testRoot(), filepath.FromSlash(name))
+}
+
+// request builds the Request download() and s3_download() would for these
+// keyword arguments.
+func request(fn, label string, kw []starlark.Tuple) (Request, map[string]string) {
+	m := map[string]string{}
+	for _, kv := range kw {
+		m[string(kv[0].(starlark.String))] = string(kv[1].(starlark.String))
+	}
+	return Request{
+		Function:  fn,
+		Label:     label,
+		SaveTo:    m["save_to"],
+		FileName:  m["file_name"],
+		SHA256:    m["sha256"],
+		Signature: m["signature"],
+	}, m
+}
+
+// runURL fetches as download() would for these keyword arguments and
+// returns its result.
+func runURL(f *Fetcher, label string, kw []starlark.Tuple) (*base.Result, error) {
+	req, m := request("download", label, kw)
+	got, err := f.FetchURL(context.Background(), m["url"], req)
+	if err != nil {
+		return nil, err
+	}
+	return resultFrom(label, got), nil
+}
+
+// runS3 is runURL for s3_download().
+func runS3(f *Fetcher, label string, kw []starlark.Tuple) (*base.Result, error) {
+	req, m := request("s3_download", label, kw)
+	obj := S3Object{Bucket: m["bucket"], Key: m["key"], Endpoint: m["endpoint"], Region: m["region"]}
+	got, err := f.FetchS3(context.Background(), obj, req)
+	if err != nil {
+		return nil, err
+	}
+	return resultFrom(label, got), nil
+}
+
 func kwargs(pairs ...string) []starlark.Tuple {
 	var out []starlark.Tuple
 	for i := 0; i < len(pairs); i += 2 {
@@ -219,67 +267,60 @@ func kwargs(pairs ...string) []starlark.Tuple {
 
 func TestSaveToRenamesIntoPlace(t *testing.T) {
 	fsys := afero.NewMemMapFs()
-	a := &downloadAction{httpClient: serving("hello world"), fsys: fsys}
+	a := &Fetcher{httpClient: serving("hello world"), fsys: fsys}
 
 	hash := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
-	r, err := a.Run(context.Background(), "", "get", nil, nil,
-		kwargs("url", "http://example.com/hello.txt", "save_to", "out/hello.txt", "sha256", hash))
+	r, err := runURL(a, "get", kwargs("url", "http://example.com/hello.txt", "save_to", abs("out/hello.txt"), "sha256", hash))
 	require.NoError(t, err)
 	require.True(t, r.Changed)
 
-	fi, err := fsys.Stat("out/hello.txt")
+	fi, err := fsys.Stat(abs("out/hello.txt"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o644), fi.Mode().Perm())
 
-	entries, err := afero.ReadDir(fsys, "out")
+	entries, err := afero.ReadDir(fsys, abs("out"))
 	require.NoError(t, err)
 	require.Len(t, entries, 1, "no temporary file may be left behind")
 
-	_, err = a.Run(context.Background(), "", "bad", nil, nil,
-		kwargs("url", "http://example.com/hello.txt", "save_to", "out/other.txt", "sha256", strings.Repeat("0", 64)))
+	_, err = runURL(a, "bad", kwargs("url", "http://example.com/hello.txt", "save_to", abs("out/other.txt"), "sha256", strings.Repeat("0", 64)))
 	require.ErrorContains(t, err, "expected sha256 hash")
-	entries, err = afero.ReadDir(fsys, "out")
+	entries, err = afero.ReadDir(fsys, abs("out"))
 	require.NoError(t, err)
 	require.Len(t, entries, 1, "a failed download must leave nothing behind")
 }
 
 func TestStoreOnlyRefusesSaveTo(t *testing.T) {
-	a := &downloadAction{httpClient: serving("hello world"), fsys: afero.NewMemMapFs(), storeOnly: true}
-	_, err := a.Run(context.Background(), "", "get", nil, nil,
-		kwargs("url", "http://example.com/hello.txt", "save_to", "hello.txt", "sha256", strings.Repeat("0", 64)))
+	a := &Fetcher{httpClient: serving("hello world"), fsys: afero.NewMemMapFs(), storeOnly: true}
+	_, err := runURL(a, "get", kwargs("url", "http://example.com/hello.txt", "save_to", abs("hello.txt"), "sha256", strings.Repeat("0", 64)))
 	require.ErrorContains(t, err, "save_to is disabled by --store-only")
 }
 
 func TestWithoutSaveToUsesStore(t *testing.T) {
 	perms, err := localstore.NewPermissions()
 	require.NoError(t, err)
-	a := &downloadAction{
+	a := &Fetcher{
 		httpClient: serving("hello world"),
 		fsys:       afero.NewMemMapFs(),
 		store:      localstore.Lazy(filepath.Join(t.TempDir(), "store"), perms),
 	}
 	hash := "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
 
-	r, err := a.Run(context.Background(), "", "get", nil, nil,
-		kwargs("url", "http://example.com/dl/hello.txt?x=1", "sha256", hash))
+	r, err := runURL(a, "get", kwargs("url", "http://example.com/dl/hello.txt?x=1", "sha256", hash))
 	require.NoError(t, err)
 	require.True(t, r.Changed)
 	path := string(r.Return.(starlark.String))
 	require.True(t, strings.HasSuffix(path, filepath.Join("sha256", hash, "hello.txt")), path)
 
-	r, err = a.Run(context.Background(), "", "again", nil, nil,
-		kwargs("url", "http://example.com/dl/hello.txt", "sha256", hash))
+	r, err = runURL(a, "again", kwargs("url", "http://example.com/dl/hello.txt", "sha256", hash))
 	require.NoError(t, err)
 	require.False(t, r.Changed)
 
-	_, err = a.Run(context.Background(), "", "unnamed", nil, nil,
-		kwargs("url", "http://example.com/", "sha256", hash))
+	_, err = runURL(a, "unnamed", kwargs("url", "http://example.com/", "sha256", hash))
 	require.ErrorContains(t, err, "pass file_name")
 }
 
 func TestWithoutSaveToOrStore(t *testing.T) {
-	a := &downloadAction{httpClient: serving("hello world"), fsys: afero.NewMemMapFs()}
-	_, err := a.Run(context.Background(), "", "get", nil, nil,
-		kwargs("url", "http://example.com/hello.txt", "sha256", strings.Repeat("0", 64)))
+	a := &Fetcher{httpClient: serving("hello world"), fsys: afero.NewMemMapFs()}
+	_, err := runURL(a, "get", kwargs("url", "http://example.com/hello.txt", "sha256", strings.Repeat("0", 64)))
 	require.ErrorContains(t, err, "no store is configured")
 }

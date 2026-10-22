@@ -12,8 +12,6 @@ import (
 	"github.com/discentem/starcm/libraries/fileutils"
 	"github.com/discentem/starcm/libraries/macsig"
 	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
@@ -21,67 +19,34 @@ import (
 
 var sha256Hex = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
-// absPath expands a leading ~ and makes path absolute.
-func absPath(path string) (string, error) {
-	p, err := homedir.Expand(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to expand home directory in path %q: %w", path, err)
-	}
-	if !filepath.IsAbs(p) {
-		if p, err = filepath.Abs(p); err != nil {
-			return "", fmt.Errorf("failed to resolve path %q: %w", path, err)
-		}
-	}
-	return p, nil
-}
-
 // runCopy makes path a copy of source. The copy is written to a private
 // directory next to path, checked there (sha256, then signature), and only
 // then renamed into place, so what lands at path is exactly what was
 // checked. It works on the real filesystem, since pkgutil and codesign need
 // real files.
-func (a *fileAction) runCopy(label string, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *fileAction) runCopy(inst *base.FunctionInstance, dst string) (*base.Result, error) {
+	label := inst.Label
 	fail := func(format string, args ...any) error {
 		return fmt.Errorf("file(label=%q): %s", label, fmt.Sprintf(format, args...))
 	}
-	if starlarkhelpers.FindOptionalValueInKwargs(kwargs, "content") != nil {
+	if inst.Given("content") {
 		return nil, fail("give content or source, not both")
 	}
-	path, err := starlarkhelpers.FindValueinKwargs(kwargs, "path")
+	src, _, err := inst.AbsPath("source")
 	if err != nil {
 		return nil, err
 	}
-	dst, err := absPath(*path)
-	if err != nil {
-		return nil, err
-	}
-	srcArg, err := starlarkhelpers.FindValueinKwargs(kwargs, "source")
-	if err != nil {
-		return nil, err
-	}
-	src, err := absPath(*srcArg)
-	if err != nil {
-		return nil, err
-	}
-	want, err := optionalString(kwargs, "sha256")
-	if err != nil {
-		return nil, err
-	}
-	if want = strings.ToLower(want); want != "" && !sha256Hex.MatchString(want) {
+	want, _ := base.Get[string](inst, "sha256")
+	if want = strings.ToLower(strings.TrimSpace(want)); want != "" && !sha256Hex.MatchString(want) {
 		return nil, fail("sha256 %q is not 64 hex characters", want)
 	}
-	signer, err := optionalString(kwargs, "signer")
-	if err != nil {
-		return nil, err
+	signer, _ := base.Get[string](inst, "signer")
+	signer = strings.TrimSpace(signer)
+	requireNotarized := true
+	if v, ok := base.Get[bool](inst, "require_notarized"); ok {
+		requireNotarized = v
 	}
-	requireNotarized, err := starlarkhelpers.FindOptionalBoolInKwargs(kwargs, "require_notarized", true)
-	if err != nil {
-		return nil, err
-	}
-	createDirs, err := starlarkhelpers.FindBoolInKwargs(kwargs, "create_dirs", false)
-	if err != nil {
-		return nil, err
-	}
+	createDirs, _ := base.Get[bool](inst, "create_dirs")
 	if signer != "" && a.goos != "darwin" {
 		return nil, fail("signer only works on macOS")
 	}
@@ -101,11 +66,7 @@ func (a *fileAction) runCopy(label string, kwargs []starlark.Tuple) (*base.Resul
 	// mode defaults to the source's permissions, so executables stay
 	// executable.
 	mode := srcInfo.Mode().Perm()
-	if starlarkhelpers.FindOptionalValueInKwargs(kwargs, "mode") != nil {
-		m, err := starlarkhelpers.FindIntInKwargs(kwargs, "mode", 0)
-		if err != nil {
-			return nil, err
-		}
+	if m, ok := base.Get[int64](inst, "mode"); ok {
 		mode = os.FileMode(m).Perm()
 	}
 
@@ -180,18 +141,4 @@ func (a *fileAction) runCopy(label string, kwargs []starlark.Tuple) (*base.Resul
 	}
 	msg := fmt.Sprintf("copied %q to %q", src, dst)
 	return &base.Result{Label: label, Success: true, Changed: true, Message: &msg, Return: value}, nil
-}
-
-// optionalString is the string argument name, or "" when it's missing or
-// None.
-func optionalString(kwargs []starlark.Tuple, name string) (string, error) {
-	v := starlarkhelpers.FindOptionalValueInKwargs(kwargs, name)
-	if v == nil {
-		return "", nil
-	}
-	s, ok := starlark.AsString(v)
-	if !ok {
-		return "", fmt.Errorf("%s must be a string, not %s", name, v.Type())
-	}
-	return strings.TrimSpace(s), nil
 }

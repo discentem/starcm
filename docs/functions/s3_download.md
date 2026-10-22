@@ -24,7 +24,7 @@ s3_download(
     key           = "agent/agent-1.2.0.pkg",       # required
     sha256        = "ffcf2b6c...",                 # sha256 or signature is required
     signature     = "agent/agent-1.2.0.pkg.sig",   # key of the signature, same bucket
-    save_to       = "agent.pkg",                   # omit to use the local store
+    save_to       = "/opt/agent/agent.pkg",        # omit to use the local store
     file_name     = "agent.pkg",                   # name in the store; only without save_to
     region        = "eu-west-1",
     endpoint      = "https://minio.example.com",   # S3-compatible stores only
@@ -40,7 +40,7 @@ s3_download(
 | `key` | string | required | The object's key, such as `agent/agent-1.2.0.pkg`. |
 | `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
 | `signature` | string | `sha256` or `signature` | Key of the file's signature in the same bucket, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](download.md#pinning-by-signature) for when to use which. |
-| `save_to` | string | none | Where to save the file, relative to the directory starcm runs in. Leave it out to download into the [local store](download.md#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
+| `save_to` | string | none | Where to save the file, as an absolute path (`~` expands). Leave it out to download into the [local store](download.md#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
 | `file_name` | string | the last part of `key` | The file's name in the local store. Only used without `save_to`. |
 | `region` | string | from the AWS configuration, else `us-east-1` | The bucket's region. |
 | `endpoint` | string | AWS S3 | The endpoint of an S3-compatible store. Requests then use path-style addressing (`<endpoint>/<bucket>/<key>`). |
@@ -48,7 +48,7 @@ s3_download(
 
 `s3_download` also takes the
 [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
+(required), `only_if`, `not_if`, `timeout` and
 `what_if`.
 
 ## Credentials
@@ -83,7 +83,7 @@ A [starcm_result](../common-functionality.md#starcm_result), the same as
 | `success` | `True` |
 | `changed` | `True` when the file was downloaded, `False` when it was already present |
 | `message` | `downloaded file to <path>`, `"<save_to>" already present and sha256 verified` or `"<path>" already in the store and sha256 verified` |
-| `value` | Without `save_to`, the stored file's absolute path. With `save_to`, `None`. |
+| `value` | The file's absolute path: `save_to`, or its place in the store. |
 
 Missing credentials, a refused request, a missing object and a sha256
 mismatch all stop the run with an error.
@@ -97,21 +97,21 @@ the ones in the environment. The example runs in a scratch copy of
 [examples/s3_download/](../../examples/s3_download).
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/s3_download/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/s3_download/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Download from an S3-compatible store
 
 ```python
 # examples/s3_download/fetch.star
-load("starcm", "s3_download")
+load("starcm", "s3_download", "vars")
 
 r = s3_download(
     label    = "fetch agent from S3",
     bucket   = "examples",
     key      = "download/files/agent-1.2.0.txt",
     sha256   = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
-    save_to  = "agent-1.2.0.txt",
+    save_to  = vars["managed_dir"] + "/agent-1.2.0.txt",
     # An S3-compatible store; leave this out for AWS S3.
     endpoint = "http://localhost:8000",
 )
@@ -119,16 +119,16 @@ print(r.message)
 ```
 
 ```scrut
-$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm fetch.star && cat agent-1.2.0.txt
-downloaded file to agent-1.2.0.txt
+$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --var managed_dir="$managed" fetch.star && cat agent-1.2.0.txt
+downloaded file to *agent-1.2.0.txt (glob)
 agent v1.2.0
 ```
 
 The second run finds the file with the right hash and doesn't fetch it again:
 
 ```scrut
-$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm fetch.star
-"agent-1.2.0.txt" already present and sha256 verified
+$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --var managed_dir="$managed" fetch.star
+"*agent-1.2.0.txt" already present and sha256 verified (glob)
 ```
 
 ### Pin by signature
@@ -143,7 +143,7 @@ $ mkdir -p trusted && cp "$TESTDIR/../keys/trusted/test.pub.pem" trusted/ && sta
 
 ```python
 # examples/s3_download/signed.star
-load("starcm", "s3_download")
+load("starcm", "s3_download", "vars")
 
 # The signature is another object in the same bucket.
 r = s3_download(
@@ -151,15 +151,15 @@ r = s3_download(
     bucket    = "examples",
     key       = "download/files/agent-1.2.0.txt",
     signature = "download/files/agent-1.2.0.txt.sig",
-    save_to   = "signed/agent.txt",
+    save_to   = vars["managed_dir"] + "/signed/agent.txt",
     endpoint  = "http://localhost:8000",
 )
 print(r.message)
 ```
 
 ```scrut
-$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --trusted-keys trusted signed.star && ls signed
-downloaded file to signed/agent.txt
+$ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --var managed_dir="$managed" --trusted-keys trusted signed.star && ls signed
+downloaded file to *agent.txt (glob)
 agent.txt
 agent.txt.sig
 ```

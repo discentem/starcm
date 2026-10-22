@@ -2,9 +2,8 @@
 
 [← Documentation index](../README.md)
 
-Status: accepted. Being implemented in a series of PRs; until they land,
-[common functionality](../common-functionality.md) describes current
-behaviour.
+Status: accepted. Implemented, except unwrapping results passed as arguments
+(below), which comes next.
 
 ## Problem
 
@@ -58,8 +57,10 @@ to the `.star` file.** Everything else must be absolute.
   render(here("motd.jinja"), "/etc/motd")   # absolute before render() sees it
   ```
 
-  `here()` is an error in modules loaded with `load_remote`, whose
-  directory is starcm's store.
+  `here()` is for read-only files that ship with the code, never for
+  outputs. In a module loaded with `load_remote`, whose directory is
+  starcm's store, it is an error, and so is any relative bundled-resource
+  path.
 - `home_dir(*parts)`, `temp_dir()`: unchanged.
 
 ### exec runs somewhere explicit
@@ -77,9 +78,18 @@ function. The function reads them with `base.Get[T](inst, name)`,
 `inst.AbsPath(name)` and `inst.ResourcePath(name)`. Positional and keyword
 arguments then behave identically for every function, errors read the same
 everywhere, and a rule like "expand `~`" lives in one place. Each function
-implements `Execute(inst *base.FunctionInstance)`; the old
-`Run(..., args, kwargs)` interface stays until every function has moved,
-then is removed.
+implements `Execute(inst *base.FunctionInstance)`.
+`functions/argcompat` checks that every function gives the same result
+called positionally and by keyword.
+
+### Shared logic is Go
+
+When two Starlark functions do the same work, the work lives in a typed Go
+API and each function is a thin adapter that reads its arguments and calls
+it. Functions never call each other by building Starlark arguments.
+`download`, `s3_download` and `load_remote` share `download.Fetcher`
+(`FetchURL`, `FetchS3`, with a `Request` and a `Fetched` result);
+`load_remote` calls it directly rather than running `download()`.
 
 ### Results passed as arguments
 
@@ -93,8 +103,11 @@ write `r.success` or `r.value` there.
 
 - Breaking: relative outputs and inputs (other than bundled resources) stop
   working, and `working_directory` is removed. The error names the fix
-  (`here()`, a result, or an absolute path).
-- Rollout: (1) this note, `here()`, the path helpers and `base.FunctionInstance`;
-  (2) every function moved to `base.FunctionInstance` and the path rule, then the old
-  interface and `working_directory` removed; (3) results unwrapped when
-  passed as arguments.
+  (a full path, or the result of the step that made the file).
+- Positional arguments fill parameters in the order each function declares
+  them, so `write("a", "b")` now means `end = "b"` instead of being an error.
+- Rollout: (1) this note, `here()`, the path helpers and
+  `base.FunctionInstance`; (2) every function moved to
+  `base.FunctionInstance` and the path rule, the old interface and
+  `working_directory` removed; (3) results unwrapped when passed as
+  arguments.

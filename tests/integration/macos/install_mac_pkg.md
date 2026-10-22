@@ -15,7 +15,7 @@ not installed yet
 
 ```scrut
 $ sudo "$starcm" --var "signer=Developer ID Installer: Example Corp (ABCDE12345)" installomator.star 2>&1 | tail -1; test ! -e /usr/local/Installomator && echo "nothing installed"
-Error in install_mac_pkg: install_mac_pkg(label="install Installomator"): Installomator-10.9.pkg: signed by "Developer ID Installer: Armin Briegel (JME5BW3F3R)", not the expected "Developer ID Installer: Example Corp (ABCDE12345)"
+Error in install_mac_pkg: install_mac_pkg(label="install Installomator"): *Installomator-10.9.pkg: signed by "Developer ID Installer: Armin Briegel (JME5BW3F3R)", not the expected "Developer ID Installer: Example Corp (ABCDE12345)" (glob)
 nothing installed
 ```
 
@@ -23,7 +23,7 @@ nothing installed
 
 ```scrut
 $ sudo "$starcm" --var pkg_sha256=0000000000000000000000000000000000000000000000000000000000000000 installomator.star 2>&1 | tail -1; test ! -e /usr/local/Installomator && echo "nothing installed"
-Error in install_mac_pkg: install_mac_pkg(label="install Installomator"): Installomator-10.9.pkg has sha256 8974888d6b27071cd6418d2d5afc53e39f7dff682641e7faed64d3d379679fad, not the expected 0000000000000000000000000000000000000000000000000000000000000000
+Error in install_mac_pkg: install_mac_pkg(label="install Installomator"): *Installomator-10.9.pkg has sha256 8974888d6b27071cd6418d2d5afc53e39f7dff682641e7faed64d3d379679fad, not the expected 0000000000000000000000000000000000000000000000000000000000000000 (glob)
 nothing installed
 ```
 
@@ -31,7 +31,7 @@ nothing installed
 
 ```scrut
 $ sudo "$starcm" installomator.star
-installed Installomator-10.9.pkg, signed by "Developer ID Installer: Armin Briegel (JME5BW3F3R)" | changed=True
+installed *Installomator-10.9.pkg, signed by "Developer ID Installer: Armin Briegel (JME5BW3F3R)" | changed=True (glob)
 team=JME5BW3F3R notarized=True
 ```
 

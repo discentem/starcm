@@ -13,7 +13,6 @@ import (
 	base "github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
 	shelllib "github.com/discentem/starcm/libraries/shell"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"go.starlark.net/starlark"
 )
@@ -25,53 +24,40 @@ type shellAction struct {
 	checkStored func(path string) error
 }
 
-var _ base.Runnable = (*shellAction)(nil)
+var _ base.Action = (*shellAction)(nil)
 
-func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-
-	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "cmd")
+func (a *shellAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	ctx, moduleName := inst.Ctx, inst.Label
+	c, _ := base.Get[string](inst, "cmd")
+	// A cmd with a path separator names a script bundled next to the .star
+	// file; a bare name is looked up on PATH.
+	if strings.ContainsAny(c, `/\`) || strings.HasPrefix(c, "~") {
+		p, _, err := inst.ResourcePath("cmd")
+		if err != nil {
+			return nil, err
+		}
+		c = p
+	}
+	cargs, _ := base.Get[*starlark.List](inst, "args")
+	cwd, _, err := inst.AbsPath("cwd")
 	if err != nil {
 		return nil, err
 	}
-	if idx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("'cmd' was not found in kwargs")
+	exitCode, _ := base.Get[starlark.Int](inst, "expected_exit_code")
+	expectedExitCode, ok := exitCode.Int64()
+	if !ok {
+		return nil, fmt.Errorf("exec(label=%q): expected_exit_code %s is out of range", moduleName, exitCode)
 	}
+	liveOutput, _ := base.Get[starlark.Bool](inst, "live_output")
+	check, _ := base.Get[starlark.Bool](inst, "check")
 
-	c, _, _, err := starlarkhelpers.Unquote(kwargs[idx][1].String())
-	if err != nil {
-		return nil, err
-	}
-
-	idx, err = starlarkhelpers.FindIndexOfValueInKwargs(kwargs, "args")
-	if err != nil {
-		return nil, err
-	}
-	if idx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("'args' was not found in kwargs")
-	}
-	cargs := (kwargs[idx][1]).(*starlark.List)
-
-	expectedExitCode, err := starlarkhelpers.FindIntInKwargs(kwargs, "expected_exit_code", 0)
-	if err != nil {
-		return nil, err
-	}
-
-	liveOutput, err := starlarkhelpers.FindBoolInKwargs(kwargs, "live_output", false)
-	if err != nil {
-		return nil, err
-	}
-
-	check, err := starlarkhelpers.FindBoolInKwargs(kwargs, "check", false)
-	if err != nil {
-		return nil, err
-	}
-
-	iter := cargs.Iterate()
-	defer iter.Done()
-	var v starlark.Value
 	var cmdArgsGo []string
-	for iter.Next(&v) {
-		cmdArgsGo = append(cmdArgsGo, v.(starlark.String).GoString())
+	for i := 0; i < cargs.Len(); i++ {
+		s, ok := starlark.AsString(cargs.Index(i))
+		if !ok {
+			return nil, fmt.Errorf("exec(label=%q): args[%d]: got %s, want string", moduleName, i, cargs.Index(i).Type())
+		}
+		cmdArgsGo = append(cmdArgsGo, s)
 	}
 
 	if a.checkStored != nil {
@@ -84,6 +70,7 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 
 	ex := &shelllib.RealExecutor{}
 	ex.Command(c, cmdArgsGo...)
+	ex.Dir = cwd
 
 	buff := bytes.NewBuffer(nil)
 	wc := shelllib.NopBufferCloser{
@@ -91,7 +78,7 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 	}
 
 	posters := []io.WriteCloser{&wc}
-	if liveOutput {
+	if bool(liveOutput) {
 		posters = append(posters, os.Stdout)
 	}
 
@@ -146,10 +133,10 @@ func (a *shellAction) Run(ctx context.Context, workingDirectory string, moduleNa
 			}, ctx.Err()
 		}
 	case res := <-resultChan:
-		if check && !res.Success {
+		if bool(check) && !res.Success {
 			return nil, checkError(moduleName, c, ex, res, expectedExitCode, buff.String())
 		}
-		return res, err
+		return res, nil
 	}
 }
 
@@ -171,6 +158,16 @@ func checkError(label, cmd string, ex shelllib.Executor, res *base.Result, expec
 	return errors.New(msg)
 }
 
+// execArgs are exec()'s own arguments.
+var execArgs = []base.ArgPair{
+	base.Arg[string]("cmd"),
+	base.Arg[*starlark.List]("args"),
+	base.OptionalArgAllowNone[starlark.Int]("expected_exit_code"),
+	base.OptionalArgAllowNone[starlark.Bool]("live_output"),
+	base.OptionalArgAllowNone[starlark.Bool]("check"),
+	base.OptionalArg[string]("cwd"),
+}
+
 // Option configures exec().
 type Option func(*shellAction)
 
@@ -189,14 +186,8 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 	}
 	return base.NewModule(
 		ctx,
-		"shell",
-		[]base.ArgPair{
-			base.Arg[string]("cmd"),
-			base.Arg[*starlark.List]("args"),
-			base.OptionalArgAllowNone[starlark.Int]("expected_exit_code"),
-			base.OptionalArgAllowNone[starlark.Bool]("live_output"),
-			base.OptionalArgAllowNone[starlark.Bool]("check"),
-		},
+		"exec",
+		execArgs,
 		a,
 	)
 }

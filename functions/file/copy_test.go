@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/discentem/starcm/functions/base"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,6 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
 )
+
+// call runs file(label = "copy", ...) with a's configuration.
+func call(a *fileAction, kwargs []starlark.Tuple) (*base.Result, error) {
+	kwargs = append(kwargs, starlark.Tuple{starlark.String("label"), starlark.String("copy")})
+	return base.NewModule(context.Background(), "file", fileArgs, a).Call(nil, nil, kwargs)
+}
 
 func kw(pairs ...any) []starlark.Tuple {
 	var out []starlark.Tuple
@@ -74,7 +81,6 @@ func (f *fakePkgutil) CombinedOutput() ([]byte, error) {
 const tailscaleSigner = "Developer ID Installer: Tailscale Inc. (W5364U7YZB)"
 
 func TestCopy(t *testing.T) {
-	ctx := context.Background()
 	dir := t.TempDir()
 	src := filepath.Join(dir, "agent.pkg")
 	require.NoError(t, os.WriteFile(src, []byte("pkg bytes"), 0o644))
@@ -83,7 +89,7 @@ func TestCopy(t *testing.T) {
 	require.NoError(t, err)
 
 	run := func(a *fileAction, args ...any) (string, bool, error) {
-		r, err := a.Run(ctx, "", "copy", nil, nil, kw(args...))
+		r, err := call(a, kw(args...))
 		if err != nil {
 			return "", false, err
 		}
@@ -172,7 +178,7 @@ func TestCopy(t *testing.T) {
 		f.onVerify = func() { require.NoError(t, os.WriteFile(src, []byte("evil"), 0o644)) }
 		t.Cleanup(func() { os.WriteFile(src, []byte("pkg bytes"), 0o644) })
 		a := &fileAction{fsys: afero.NewOsFs(), goos: "darwin", executor: f}
-		r, err := a.Run(ctx, "", "copy", nil, nil, kw("path", dst, "source", src, "signer", tailscaleSigner))
+		r, err := call(a, kw("path", dst, "source", src, "signer", tailscaleSigner))
 		require.NoError(t, err)
 		assert.NotEqual(t, src, f.path)
 		assert.Equal(t, dir, filepath.Dir(filepath.Dir(f.path)), "staged next to the destination")

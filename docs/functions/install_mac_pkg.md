@@ -40,7 +40,7 @@ as [exec](exec.md#files-from-the-local-store) does.
 load("starcm", "install_mac_pkg")
 
 install_mac_pkg(
-    "agent.pkg",                                                   # path, required
+    agent.value,                                                   # path, required
     signer            = "Developer ID Installer: Example Corp (ABCDE12345)",  # required
     sha256            = "8974888d...",
     require_notarized = True,
@@ -55,16 +55,16 @@ install_mac_pkg(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `path` | string | required | The `.pkg` to install, positionally or as `path =`. |
+| `path` | string | required | The `.pkg` to install, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
 | `signer` | string | required | The installer certificate's name, exactly as `pkgutil --check-signature` prints it: `Developer ID Installer: <developer> (<Team ID>)`. |
 | `sha256` | string | none | The `.pkg` file's sha256 (`shasum -a 256`). When given, a package with any other content is refused before its signature is checked. That pins one exact build rather than any package the developer signed. |
 | `require_notarized` | bool | `True` | Refuse packages Apple hasn't notarized. `None` counts as leaving it out, so it stays `True`; only `False` turns the check off. |
-| `target` | string | `"/"` | The volume to install on (`installer -target`). |
+| `target` | string | `"/"` | The volume to install on (`installer -target`), as an absolute path. |
 | `id`, `version` | string | none | Package id and version. When `pkgutil --pkg-info <id>` already reports this version on `target`, nothing is checked or installed and `changed = False`. Give both or neither. |
 
 `install_mac_pkg` also takes the
 [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
+(required), `only_if`, `not_if`, `timeout` and
 `what_if`. With `what_if = True` it checks the signature but doesn't install.
 `timeout` doesn't stop `pkgutil` or `installer` once they've started.
 
@@ -191,10 +191,10 @@ $ cp -R "$TESTDIR/../../examples/install_mac_pkg/." "$TMPDIR" && cd "$TMPDIR" &&
 
 ```python
 # examples/install_mac_pkg/unsigned.star
-load("starcm", "install_mac_pkg")
+load("starcm", "here", "install_mac_pkg")
 
 install_mac_pkg(
-    "unsigned.pkg",
+    here("unsigned.pkg"),
     signer = "Developer ID Installer: Example Corp (ABCDE12345)",
     label  = "unsigned",
 )
@@ -205,7 +205,7 @@ print("never reached")
 $ starcm unsigned.star 2>&1
 Traceback (most recent call last):
   unsigned.star:3:16: in <toplevel>
-Error in install_mac_pkg: install_mac_pkg\(label="unsigned"\): (unsigned\.pkg: not signed with a certificate Apple issued for distribution: no signature|install_mac_pkg\(\) only works on macOS) (regex)
+Error in install_mac_pkg: install_mac_pkg\(label="unsigned"\): (.*[/\\]unsigned\.pkg: not signed with a certificate Apple issued for distribution: no signature|install_mac_pkg\(\) only works on macOS) (regex)
 [1]
 ```
 
@@ -213,9 +213,9 @@ Error in install_mac_pkg: install_mac_pkg\(label="unsigned"\): (unsigned\.pkg: n
 
 ```python
 # examples/install_mac_pkg/empty_signer.star
-load("starcm", "install_mac_pkg")
+load("starcm", "install_mac_pkg", "here")
 
-install_mac_pkg("agent.pkg", signer = "", label = "no signer")
+install_mac_pkg(here("agent.pkg"), signer = "", label = "no signer")
 ```
 
 ```scrut
@@ -240,10 +240,10 @@ $ cd "$TMPDIR/edge"
 
 ```python
 # examples/install_mac_pkg/edge/id_without_version.star
-load("starcm", "install_mac_pkg")
+load("starcm", "here", "install_mac_pkg")
 
 install_mac_pkg(
-    "agent.pkg",
+    here("agent.pkg"),
     signer = "Developer ID Installer: Example Corp (ABCDE12345)",
     id     = "com.example.agent",
     label  = "no version",

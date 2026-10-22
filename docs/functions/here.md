@@ -5,7 +5,8 @@
 `here` returns the directory of the `.star` file the `here()` call is written
 in, optionally with more path parts joined on. Use it for read-only files that
 ship next to your code, such as templates, so the path doesn't depend on the
-directory starcm was started in.
+directory starcm was started in. It isn't for outputs: files a run produces
+have no reason to sit next to your code, so give those a full path.
 
 It resolves next to the file where `here()` itself is written, the way
 [load()](../loading.md) resolves paths. A helper in another module that calls

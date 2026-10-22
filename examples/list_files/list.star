@@ -1,5 +1,5 @@
-load("starcm", "list_files")
+load("starcm", "list_files", "here")
 
-print(list_files("config", label = "everything").value)
-print(list_files("config", pattern = "*.star", label = "star files").value)
-print(list_files(dir = "config/lib", pattern = "w*", label = "windows only").value)
+print(list_files(here("config"), label = "everything").value)
+print(list_files(here("config"), pattern = "*.star", label = "star files").value)
+print(list_files(dir = here("config/lib"), pattern = "w*", label = "windows only").value)

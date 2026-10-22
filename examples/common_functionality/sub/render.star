@@ -1,13 +1,6 @@
-load("starcm", "template")
+load("starcm", "template", "vars")
 
-# By default, template and destination are relative to this file's directory...
-template(label = "next to me", template = "hello.tpl", destination = "here.txt", data = {"where": "sub"})
-
-# ...an explicit working_directory is used as given instead.
-template(
-    label             = "from the current directory",
-    template          = "sub/hello.tpl",
-    destination       = "there.txt",
-    data              = {"where": "the current directory"},
-    working_directory = ".",
-)
+# template ships next to this file, so the relative "hello.tpl" is found here.
+# destination is an output, so it's a full path: here, under the folder the
+# run passes as --var managed_dir.
+template(label = "next to me", template = "hello.tpl", destination = vars["managed_dir"] + "/hello.txt", data = {"where": "sub"})

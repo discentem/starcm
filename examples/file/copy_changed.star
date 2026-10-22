@@ -1,4 +1,4 @@
-load("starcm", "download", "exec", "file")
+load("starcm", "download", "exec", "file", "vars")
 
 agent = download(
     label  = "fetch agent",
@@ -10,4 +10,4 @@ agent = download(
 exec(label = "tamper", cmd = "sh", args = ["-c", "chmod u+w \"$1\" && echo malware >> \"$1\"", "sh", agent.value])
 
 # ...so file() refuses to copy it.
-file(label = "install agent", path = "agent.txt", source = agent.value)
+file(label = "install agent", path = vars["managed_dir"] + "/agent.txt", source = agent.value)

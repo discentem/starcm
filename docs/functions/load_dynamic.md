@@ -29,7 +29,7 @@ load_dynamic(module = "platforms/macos.star", label = "load macOS settings")
 | `module` | string | required | Path of the `.star` file, positionally or as `module =`. Paths starting with `//` are relative to the directory starcm runs in; other relative paths are relative to the calling file. See [Loading files](../loading.md). |
 
 `load_dynamic` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -141,7 +141,7 @@ else:
 
 ```scrut {output_stream: combined}
 $ starcm optional.star
-INFO: [developer tools]: skipping load(label="developer tools") because only_if was false
+INFO: [developer tools]: skipping load_dynamic(label="developer tools") because only_if was false
 developer tools skipped
 ```
 
@@ -173,7 +173,7 @@ load_dynamic("nope.star", label = "missing module")
 $ starcm missing.star 2>&1
 Traceback (most recent call last):
   missing.star:3:13: in <toplevel>
-Error in load_dynamic: loading module "nope\.star": open nope\.star: (no such file or directory|The system cannot find the file specified\.) (regex)
+Error in load_dynamic: loading module ".*[/\\]nope\.star": open .*[/\\]nope\.star: (no such file or directory|The system cannot find the file specified\.) (regex)
 [1]
 ```
 

@@ -46,7 +46,7 @@ Give exactly one of `sha256` and `signature`. S3 credentials come from the
 AWS SDK's usual sources, as for [s3_download](s3_download.md).
 
 `load_remote` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. `timeout` limits the download.
 
 ## Returns
@@ -72,9 +72,11 @@ The module runs from its folder in the store, so:
   where the loader finds it. A module pinned by `sha256` is refused.
 - **Once per run:** loading the same file again returns the same globals
   without running it again.
-- **Other files:** a remote module's relative `load()` statements look in its
-  folder in the store, which only holds the module. Have it fetch the files
-  it needs with `load_remote` or `download` instead.
+- **Other files:** a remote module's folder in the store only holds the
+  module, so nothing ships next to it. Its relative `load()` statements look
+  there, and a relative bundled-resource path in it, such as `template`'s
+  `template`, or [here()](here.md), is an error. Have it fetch the files it
+  needs with `load_remote` or `download`, or take their paths as arguments.
 
 ## Examples
 
@@ -256,6 +258,39 @@ $ starcm --store-dir "$store" no_pin.star 2>&1
 Traceback (most recent call last):
   no_pin.star:3:12: in <toplevel>
 Error in load_remote: load_remote(label="no pin"): sha256 or signature must be provided
+[1]
+```
+
+### Relative resource paths in a remote module
+
+A relative `template` path means "next to this `.star` file", which for a
+remote module is its folder in the store. The error says so instead of
+reporting a missing file:
+
+```python
+# examples/load_remote/edge/render.star
+load("starcm", "template")
+
+def render(dest):
+    # motd.jinja would have to ship next to this file, but in the store
+    # nothing does.
+    template(label = "motd", template = "motd.jinja", data = {}, destination = dest)
+```
+
+```python
+# examples/load_remote/edge/relative_resource.star
+load("starcm", "here", "load_remote")
+
+r = load_remote("http://localhost:8000/examples/load_remote/edge/render.star", sha256 = "fb8592c5b4d09d832ed6a84eb3e010c378b32141cf5e1d9913363dc9e86dff2e", label = "renderer")
+r.value["render"](here("motd.txt"))
+```
+
+```scrut
+$ starcm --store-dir "$store" relative_resource.star 2>&1
+Traceback (most recent call last):
+  relative_resource.star:4:18: in <toplevel>
+  *render.star:6:13: in render (glob)
+Error in template: template(label="motd"): template: "motd.jinja" is relative, but this .star file was loaded with load_remote and runs from starcm's store, where nothing ships next to it: fetch the file with download() or pass its absolute path
 [1]
 ```
 

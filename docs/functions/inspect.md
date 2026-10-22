@@ -16,10 +16,10 @@ check, for example, that no `--var` value ends up in an `exec` command.
 ## Syntax
 
 ```python
-load("starcm", "inspect")
+load("starcm", "here", "inspect")
 
-inspect("bootstrap.star", label = "check bootstrap").value
-inspect(path = "bootstrap.star", label = "check bootstrap").value
+inspect(here("bootstrap.star"), label = "check bootstrap").value
+inspect(path = here("bootstrap.star"), label = "check bootstrap").value
 ```
 
 ```bash
@@ -30,10 +30,10 @@ starcm inspect FILE...
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `path` | string | required | The `.star` file to inspect, positionally or as `path =`, relative to the directory starcm runs in. |
+| `path` | string | required | The `.star` file to inspect, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. `starcm inspect` takes paths relative to the directory it runs in. |
 
 `inspect` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -112,7 +112,6 @@ load("starcm", "download", "load_dynamic", "vars")
 download(
     label   = "fetch agent",
     url     = vars["base_url"] + "/agent.pkg",
-    save_to = "agent.pkg",
     sha256  = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )
 load_dynamic("settings/common.star", label = "settings for every platform")
@@ -126,28 +125,28 @@ download's `url` and the second path come from `vars`:
 ```scrut
 $ starcm inspect bootstrap.star | jq -c '.[].calls[]'
 {"module":"starcm","function":"download","line":3,"inputs":[{"arg":"url","uses":[{"module":"starcm","function":"vars"}]}]}
-{"module":"starcm","function":"load_dynamic","line":9,"path":"settings/common.star"}
-{"module":"starcm","function":"load_dynamic","line":10,"path":null,"inputs":[{"arg":"0","uses":[{"module":"starcm","function":"vars"}]}]}
+{"module":"starcm","function":"load_dynamic","line":8,"path":"settings/common.star"}
+{"module":"starcm","function":"load_dynamic","line":9,"path":null,"inputs":[{"arg":"0","uses":[{"module":"starcm","function":"vars"}]}]}
 ```
 
 ```scrut
 $ starcm inspect bootstrap.star | jq -c '[.[].values[] | [.function, .line]]'
-[["vars",5],["vars",10]]
+[["vars",5],["vars",9]]
 ```
 
 ### Enforce a policy in Starlark
 
 ```python
 # examples/inspect/policy.star
-load("starcm", "inspect", "list_files")
+load("starcm", "inspect", "list_files", "here")
 
-ALLOWED = ["download", "load_dynamic"]
+ALLOWED = ["download", "here", "load_dynamic"]
 
-for f in list_files(".", pattern = "*.star", label = "find config").value:
+for f in list_files(here(), pattern = "*.star", label = "find config").value:
     # Only this folder's configuration files, not this script or subfolders.
     if f == "policy.star" or "/" in f:
         continue
-    report = inspect(f, label = "inspect " + f).value
+    report = inspect(here(f), label = "inspect " + f).value
     bad = [c["function"] for c in report["calls"] if c["function"] not in ALLOWED]
     print("%s: %s" % (f, "ok" if not bad else "uses %s" % ", ".join(bad)))
 ```
@@ -181,10 +180,10 @@ exec(label = "show computer name", cmd = "scutil", args = ["--get", "ComputerNam
 
 ```python
 # examples/inspect/lint/no_vars_in_exec.star
-load("starcm", "inspect", "list_files")
+load("starcm", "inspect", "list_files", "here")
 
-for f in list_files(".", pattern = "*.star", label = "find config").value:
-    for c in inspect(f, label = "inspect " + f).value["calls"]:
+for f in list_files(here(), pattern = "*.star", label = "find config").value:
+    for c in inspect(here(f), label = "inspect " + f).value["calls"]:
         if c["function"] != "exec":
             continue
         for i in c.get("inputs", []):
@@ -280,9 +279,9 @@ The same report, as a Starlark value.
 
 ```python
 # examples/inspect/edge/inspect_fn.star
-load("starcm", "inspect")
+load("starcm", "inspect", "here")
 
-r = inspect("main.star", label = "inspect main.star").value
+r = inspect(here("main.star"), label = "inspect main.star").value
 print([c["function"] for c in r["calls"]])
 print([c.get("path") for c in r["calls"] if c["function"] == "load_dynamic"])
 print(r["loads"][0]["names"]["run"])

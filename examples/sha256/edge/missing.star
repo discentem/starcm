@@ -1,2 +1,2 @@
-load("starcm", "sha256")
-sha256("missing.txt", label = "missing")
+load("starcm", "sha256", "here")
+sha256(here("missing.txt"), label = "missing")

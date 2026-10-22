@@ -1,3 +1,3 @@
-load("starcm", "extract")
+load("starcm", "extract", "here")
 
-extract(label = "no dest", archive = "../files/tool-1.0.zip")
+extract(label = "no dest", archive = here("../files/tool-1.0.zip"))

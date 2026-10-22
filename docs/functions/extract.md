@@ -18,7 +18,7 @@ load("starcm", "extract")
 
 extract(
     label   = "unpack terraform",        # required
-    archive = "terraform.zip",           # required; positional or keyword
+    archive = terraform.value,           # required; positional or keyword
     dest    = "/usr/local/lib/terraform", # required
     members = ["terraform"],
 )
@@ -28,13 +28,13 @@ extract(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `archive` | string | required | The archive to unpack. A leading `~` expands to the home directory; other relative paths are relative to the directory starcm runs in. Must end in `.zip`, `.tar.gz` or `.tgz` (any case). It may be the path `download` returned, which `extract` checks against the [local store](download.md#the-local-store) first. |
-| `dest` | string | required | The directory to unpack into, created if it's missing. `~` and relative paths work as for `archive`. |
+| `archive` | string | required | The archive to unpack. An absolute path; a leading `~` expands to the home directory. Must end in `.zip`, `.tar.gz` or `.tgz` (any case). It may be the path `download` returned, which `extract` checks against the [local store](download.md#the-local-store) first. |
+| `dest` | string | required | The directory to unpack into, created if it's missing. An absolute path; a leading `~` expands to the home directory. |
 | `members` | list of strings | all files | Extract only these files, named exactly as the archive spells them (`"tool-1.0/tool"`). A name the archive doesn't hold fails the run. Directories are created as the files need them. |
 
 `extract` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
-`what_if`. `working_directory` and `what_if` have no effect.
+(required), `only_if`, `not_if`, `timeout` and
+`what_if`. `what_if` has no effect.
 
 Files get the permissions the archive records, without setuid, setgid and
 sticky bits; an entry that records none gets `0o644`. Windows only keeps a
@@ -61,25 +61,25 @@ They were made with Python's `zipfile` and `tarfile` modules, with fixed
 timestamps.
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/extract/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/extract/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Unpack an archive
 
 ```python
 # examples/extract/unpack.star
-load("starcm", "extract")
+load("starcm", "extract", "here", "vars")
 
 r = extract(
     label   = "unpack tool",
-    archive = "files/tool-1.0.zip",
-    dest    = "opt/tool",
+    archive = here("files/tool-1.0.zip"),
+    dest    = vars["managed_dir"] + "/opt/tool",
 )
 print("changed=%s files=%d" % (r.changed, len(r.value)))
 ```
 
 ```scrut
-$ starcm unpack.star && cat opt/tool/tool-1.0/README.txt
+$ starcm --var managed_dir="$managed" unpack.star && cat opt/tool/tool-1.0/README.txt
 changed=True files=3
 tool 1.0
 ```
@@ -87,14 +87,14 @@ tool 1.0
 The second run finds every file in place and writes nothing:
 
 ```scrut
-$ starcm unpack.star
+$ starcm --var managed_dir="$managed" unpack.star
 changed=False files=3
 ```
 
 A file that was changed since is put back:
 
 ```scrut
-$ echo tampered > opt/tool/tool-1.0/README.txt && starcm unpack.star && cat opt/tool/tool-1.0/README.txt
+$ echo tampered > opt/tool/tool-1.0/README.txt && starcm --var managed_dir="$managed" unpack.star && cat opt/tool/tool-1.0/README.txt
 changed=True files=3
 tool 1.0
 ```
@@ -103,15 +103,15 @@ tool 1.0
 
 ```python
 # examples/extract/unpack_tgz.star
-load("starcm", "extract")
+load("starcm", "extract", "here", "vars")
 
 # The format comes from the extension: .zip, .tar.gz or .tgz.
-r = extract("files/tool-1.0.tar.gz", dest = "opt/tool-tar", label = "unpack tool")
+r = extract(here("files/tool-1.0.tar.gz"), dest = vars["managed_dir"] + "/opt/tool-tar", label = "unpack tool")
 print("changed=%s files=%d" % (r.changed, len(r.value)))
 ```
 
 ```scrut
-$ starcm unpack_tgz.star && cat opt/tool-tar/tool-1.0/docs/LICENSE.txt
+$ starcm --var managed_dir="$managed" unpack_tgz.star && cat opt/tool-tar/tool-1.0/docs/LICENSE.txt
 changed=True files=3
 MIT
 ```
@@ -123,12 +123,12 @@ created, and `value` lists just those files.
 
 ```python
 # examples/extract/members.star
-load("starcm", "extract")
+load("starcm", "extract", "here", "vars")
 
 r = extract(
     label   = "unpack just the tool",
-    archive = "files/tool-1.0.zip",
-    dest    = "bin-only",
+    archive = here("files/tool-1.0.zip"),
+    dest    = vars["managed_dir"] + "/bin-only",
     members = ["tool-1.0/tool"],
 )
 print("changed=%s" % r.changed)
@@ -137,7 +137,7 @@ for path in r.value:
 ```
 
 ```scrut
-$ starcm members.star && find bin-only -type f | sed 's|\\|/|g'
+$ starcm --var managed_dir="$managed" members.star && find bin-only -type f | sed 's|\\|/|g'
 changed=True
 ["tool-1.0", "tool"]
 bin-only/tool-1.0/tool
@@ -155,7 +155,7 @@ $ store="$TMPDIR/store"; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) store_root=
 
 ```python
 # examples/extract/from_store.star
-load("starcm", "download", "extract")
+load("starcm", "download", "extract", "vars")
 
 tool = download(
     label  = "fetch tool",
@@ -164,12 +164,12 @@ tool = download(
 )
 
 # tool.value is a path in the store, so extract() re-hashes it before reading.
-r = extract(label = "unpack tool", archive = tool.value, dest = "from-store")
+r = extract(label = "unpack tool", archive = tool.value, dest = vars["managed_dir"] + "/from-store")
 print("changed=%s files=%d" % (r.changed, len(r.value)))
 ```
 
 ```scrut
-$ starcm --store-dir "$store" from_store.star
+$ starcm --var managed_dir="$managed" --store-dir "$store" from_store.star
 changed=True files=3
 ```
 
@@ -178,7 +178,7 @@ to read it, as [exec](exec.md#run-a-file-from-the-local-store) does:
 
 ```python
 # examples/extract/from_store_changed.star
-load("starcm", "download", "exec", "extract")
+load("starcm", "download", "exec", "extract", "vars")
 
 tool = download(
     label  = "fetch tool",
@@ -190,11 +190,11 @@ tool = download(
 exec(label = "tamper", cmd = "sh", args = ["-c", "chmod u+w \"$1\" && echo malware >> \"$1\"", "sh", tool.value])
 
 # ...so extract() refuses to read it.
-extract(label = "unpack tool", archive = tool.value, dest = "tampered-out")
+extract(label = "unpack tool", archive = tool.value, dest = vars["managed_dir"] + "/tampered-out")
 ```
 
 ```scrut
-$ starcm --store-dir "$store" from_store_changed.star 2>&1; test ! -e tampered-out && echo "nothing extracted"
+$ starcm --var managed_dir="$managed" --store-dir "$store" from_store_changed.star 2>&1; test ! -e tampered-out && echo "nothing extracted"
 Traceback (most recent call last):
   from_store_changed.star:13:8: in <toplevel>
 Error in extract: extract(label="unpack tool"): *tool-1.0.zip in the store has sha256 *; it was changed after it was stored (glob)
@@ -227,7 +227,7 @@ behaviour that the examples above don't show. They run in the copy of
 [examples/extract/edge/](../../examples/extract/edge).
 
 ```scrut
-$ cd "$TMPDIR/edge"
+$ cd "$TMPDIR/edge" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### An entry that leaves the destination
@@ -237,14 +237,14 @@ $ cd "$TMPDIR/edge"
 
 ```python
 # examples/extract/edge/traversal.star
-load("starcm", "extract")
+load("starcm", "extract", "here", "vars")
 
 # evil.zip holds ok.txt and ../evil.txt.
-extract(label = "unpack evil", archive = "evil.zip", dest = "out")
+extract(label = "unpack evil", archive = here("evil.zip"), dest = vars["managed_dir"] + "/out")
 ```
 
 ```scrut
-$ starcm traversal.star 2>&1; test ! -e out && test ! -e evil.txt && echo "nothing written"
+$ starcm --var managed_dir="$managed" traversal.star 2>&1; test ! -e out && test ! -e evil.txt && echo "nothing written"
 Traceback (most recent call last):
   traversal.star:4:8: in <toplevel>
 Error in extract: extract(label="unpack evil"): refusing entry "../evil.txt": path contains ".."
@@ -255,18 +255,18 @@ nothing written
 
 ```python
 # examples/extract/edge/missing_member.star
-load("starcm", "extract")
+load("starcm", "extract", "here", "vars")
 
 extract(
     label   = "unpack missing",
-    archive = "../files/tool-1.0.zip",
-    dest    = "out-missing",
+    archive = here("../files/tool-1.0.zip"),
+    dest    = vars["managed_dir"] + "/out-missing",
     members = ["tool-1.0/tool", "tool-1.0/nope"],
 )
 ```
 
 ```scrut
-$ starcm missing_member.star 2>&1; test ! -e out-missing && echo "nothing written"
+$ starcm --var managed_dir="$managed" missing_member.star 2>&1; test ! -e out-missing && echo "nothing written"
 Traceback (most recent call last):
   missing_member.star:3:8: in <toplevel>
 Error in extract: extract(label="unpack missing"): member "tool-1.0/nope" not found in *tool-1.0.zip (glob)
@@ -279,13 +279,13 @@ The format comes from the file name, not the content.
 
 ```python
 # examples/extract/edge/unknown_format.star
-load("starcm", "extract")
+load("starcm", "extract", "here", "vars")
 
-extract(label = "unpack rar", archive = "tool.rar", dest = "out-rar")
+extract(label = "unpack rar", archive = here("tool.rar"), dest = vars["managed_dir"] + "/out-rar")
 ```
 
 ```scrut
-$ starcm unknown_format.star 2>&1
+$ starcm --var managed_dir="$managed" unknown_format.star 2>&1
 Traceback (most recent call last):
   unknown_format.star:3:8: in <toplevel>
 Error in extract: extract(label="unpack rar"): *tool.rar: unknown archive format; extract() handles .zip, .tar.gz and .tgz (glob)
@@ -296,9 +296,9 @@ Error in extract: extract(label="unpack rar"): *tool.rar: unknown archive format
 
 ```python
 # examples/extract/edge/dest_required.star
-load("starcm", "extract")
+load("starcm", "extract", "here")
 
-extract(label = "no dest", archive = "../files/tool-1.0.zip")
+extract(label = "no dest", archive = here("../files/tool-1.0.zip"))
 ```
 
 ```scrut

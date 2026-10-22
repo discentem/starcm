@@ -2,7 +2,6 @@ package template
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 
@@ -87,69 +86,53 @@ type parsedArgs struct {
 	whatIf      bool
 }
 
-func (a *templateAction) parseArgs(_ starlark.Tuple, kwargs []starlark.Tuple) (*parsedArgs, error) {
-	template, err := optionalString(kwargs, "template")
+// parseArgs reads the call's arguments. A relative template path is a
+// bundled resource: it resolves next to the .star file the call is written
+// in. destination is an output, so it must be absolute.
+func (a *templateAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) {
+	template, hasTemplate, err := inst.ResourcePath("template")
 	if err != nil {
 		return nil, err
 	}
-	source, err := optionalString(kwargs, "source")
-	if err != nil {
-		return nil, err
-	}
+	sourceText, hasSource := base.Get[string](inst, "source")
+	var source *string
 	switch {
-	case template != nil && source != nil:
+	case hasTemplate && hasSource:
 		return nil, fmt.Errorf("template() takes template or source, not both")
-	case template == nil && source == nil:
+	case !hasTemplate && !hasSource:
 		return nil, fmt.Errorf("template() needs template (a template file) or source (the template text)")
-	case template == nil:
-		empty := ""
-		template = &empty
+	case hasSource:
+		source = &sourceText
 	}
-	keyWordStr := "data"
 
-	keyValsIdx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, keyWordStr)
-	if err != nil {
-		logging.Log("template", deck.V(3), "error", "failed to find index of %s in kwargs: %v", keyWordStr, err)
-		return nil, err
-	}
-	if keyValsIdx == starlarkhelpers.IndexNotFound {
-		return nil, fmt.Errorf("%s is required in template() module", keyWordStr)
-	}
-	keyVals := kwargs[keyValsIdx][1].(*starlark.Dict)
+	keyVals, _ := base.Get[*starlark.Dict](inst, "data")
 	gokv, err := starlarkhelpers.DictToGoMap(keyVals)
 	if err != nil {
 		return nil, fmt.Errorf("template() data: %w", err)
 	}
 
-	whatIf, err := starlarkhelpers.FindBoolInKwargs(kwargs, "what_if", false)
+	destination, hasDestination, err := inst.AbsPath("destination")
 	if err != nil {
-		logging.Log("template", deck.V(3), "error", "failed to find what_if in kwargs: %v", err)
 		return nil, err
 	}
-
-	destination, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "destination", "not_provided")
-	if err != nil {
-		logging.Log("template", deck.V(3), "error", "failed to find destination in kwargs: %v", err)
-		return nil, err
-	}
-
-	if *destination == "not_provided" && !whatIf {
+	if !hasDestination && !inst.WhatIf {
 		return nil, fmt.Errorf("destination is required in template() module if what_if is false")
 	}
 
 	return &parsedArgs{
-		templatePath: *template,
+		templatePath: template,
 		source:       source,
 		data:         gokv,
-		destination:  *destination,
-		whatIf:       whatIf,
+		destination:  destination,
+		whatIf:       inst.WhatIf,
 	}, nil
 }
 
-var _ base.Runnable = (*templateAction)(nil)
+var _ base.Action = (*templateAction)(nil)
 
-func (a *templateAction) Run(ctx context.Context, workingDirectory string, moduleName string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	parsedArgs, err := a.parseArgs(args, kwargs)
+func (a *templateAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	moduleName := inst.Label
+	parsedArgs, err := a.parseArgs(inst)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +154,7 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		b = []byte(*parsedArgs.source)
 		template = "source"
 	} else {
-		f, err := a.fsys.Open(filepath.Join(workingDirectory, template))
+		f, err := a.fsys.Open(template)
 		if err != nil {
 			return nil, err
 		}
@@ -194,7 +177,7 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 		return nil, err
 	}
 
-	destinationPath := filepath.Join(workingDirectory, destination)
+	destinationPath := destination
 
 	// Check if destination file exists
 	destinationExists := true
@@ -290,31 +273,14 @@ func (a *templateAction) Run(ctx context.Context, workingDirectory string, modul
 	}, nil
 }
 
-func New(ctx context.Context, fsys afero.Fs) *base.Module {
-	return base.NewModule(
-		ctx,
-		"template",
-		[]base.ArgPair{
-			base.OptionalArg[string]("template"),
-			base.OptionalArg[string]("source"),
-			base.Arg[*starlark.Dict]("data"),
-			base.OptionalArg[string]("destination"),
-		},
-		&templateAction{
-			fsys: fsys,
-		},
-	)
+// templateArgs are template()'s own arguments.
+var templateArgs = []base.ArgPair{
+	base.OptionalArg[string]("template"),
+	base.OptionalArg[string]("source"),
+	base.Arg[*starlark.Dict]("data"),
+	base.OptionalArg[string]("destination"),
 }
 
-// optionalString returns the value of key in kwargs, or nil if it wasn't
-// passed.
-func optionalString(kwargs []starlark.Tuple, key string) (*string, error) {
-	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, key)
-	if errors.Is(err, starlarkhelpers.ErrIndexNotFound) || idx == starlarkhelpers.IndexNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return starlarkhelpers.FindValueFromIndexInKwargs(kwargs, idx)
+func New(ctx context.Context, fsys afero.Fs) *base.Module {
+	return base.NewModule(ctx, "template", templateArgs, &templateAction{fsys: fsys})
 }

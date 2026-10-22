@@ -41,10 +41,10 @@ key up by it.
 ## Syntax
 
 ```python
-load("starcm", "sign")
+load("starcm", "here", "sign")
 
-sign("main.star", key = "release.pem", expires = "30d", label = "sign main.star")
-sign(path = "main.star", key = "release.pem", expires = "2026-12-31", key_id = "release-2027", release = "2026.10", label = "sign main.star")
+sign(here("main.star"), key = "~/keys/release.pem", expires = "30d", label = "sign main.star")
+sign(path = here("main.star"), key = "~/keys/release.pem", expires = "2026-12-31", key_id = "release-2027", release = "2026.10", label = "sign main.star")
 ```
 
 ```bash
@@ -55,14 +55,14 @@ starcm sign --key release.pem --expires 30d [--key-id ID] [--release ID] FILE...
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `path` | string | required | The file to sign, positionally or as `path =`. |
-| `key` | string | required | Path to the PEM (PKCS #8) ed25519 private key. `--key` for `starcm sign`. |
+| `path` | string | required | The file to sign, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
+| `key` | string | required | Absolute path to the PEM (PKCS #8) ed25519 private key; `~` expands. `--key` for `starcm sign`. |
 | `expires` | string | required | When the signature expires: a duration from now (`"30d"`, `"36h"`), a date (`"2026-11-14"`, midnight UTC) or an RFC 3339 time. `--expires` for `starcm sign`. |
 | `key_id` | string | key file name before the first dot | Key id to record in the signature. `--key-id` for `starcm sign`. |
 | `release` | string | none | The release to sign for, with no spaces, e.g. `"2026.10"`. Runs with [--release](../cli.md#--release-id) only accept files signed for their release. `--release` for `starcm sign`. |
 
 `sign` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -153,18 +153,18 @@ file with the same expiry; only the edited `lib.star` changes.
 
 ```python
 # examples/signing/sign_all.star
-load("starcm", "list_files", "sign", "vars")
+load("starcm", "list_files", "sign", "vars", "here")
 
-for f in list_files(".", pattern = "*.star", label = "find config").value:
+for f in list_files(here(), pattern = "*.star", label = "find config").value:
     # Only this folder's configuration files, not this script or subfolders.
     if f == "sign_all.star" or "/" in f:
         continue
-    r = sign(f, key = vars["key"], expires = "2099-01-01", label = "sign " + f)
+    r = sign(here(f), key = vars["key"], expires = "2099-01-01", label = "sign " + f)
     print("%s: changed=%s key=%s" % (f, r.changed, r.value))
 ```
 
 ```scrut
-$ starcm --var key=release.pem sign_all.star
+$ starcm --var key="$(pwd -W 2>/dev/null || pwd)/release.pem" sign_all.star
 lib.star: changed=True key=release
 main.star: changed=False key=release
 ```
@@ -273,15 +273,15 @@ print("dyn.star ran")
 
 ```python
 # examples/signing/edge/verify.star
-load("starcm", "verify")
+load("starcm", "verify", "here")
 
 def show(r):
     print("%s: success=%s value=%s error=%s" % (r.label, r.success, r.value, r.error))
 
-show(verify("payload.txt", label = "signed"))
-show(verify(path = "copy.txt", signature = "payload.txt.sig", label = "signature= kwarg"))
-show(verify("tampered.txt", signature = "payload.txt.sig", label = "tampered"))
-show(verify("unsigned.txt", label = "no signature"))
+show(verify(here("payload.txt"), label = "signed"))
+show(verify(path = here("copy.txt"), signature = here("payload.txt.sig"), label = "signature= kwarg"))
+show(verify(here("tampered.txt"), signature = here("payload.txt.sig"), label = "tampered"))
+show(verify(here("unsigned.txt"), label = "no signature"))
 ```
 
 ```scrut
@@ -345,7 +345,7 @@ $ mv lib.orig lib.star && cp dyn.star dyn.orig && echo "# edited" >> dyn.star &&
 hello, nobody
 Traceback (most recent call last):
   main.star:5:13: in <toplevel>
-Error in load_dynamic: signature check failed for dyn.star: key "test": signature does not match
+Error in load_dynamic: signature check failed for *dyn.star: key "test": signature does not match (glob)
 [1]
 ```
 
@@ -381,17 +381,17 @@ whether to `fail()`. `value` is the key id that signed it.
 $ starcm --trusted-keys trusted verify.star
 signed: success=True value=test error=<nil>
 signature= kwarg: success=True value=test error=<nil>
-tampered: success=False value=None error=tampered.txt: key "test": signature does not match
-no signature: success=False value=None error=unsigned\.txt: reading signature: open unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
+tampered: success=False value=None error=*tampered.txt: key "test": signature does not match (glob)
+no signature: success=False value=None error=.*[/\\]unsigned\.txt: reading signature: open .*[/\\]unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
 ```
 
 verify() needs `--trusted-keys`.
 
 ```python
 # examples/signing/edge/verify_untrusted_run.star
-load("starcm", "verify")
+load("starcm", "verify", "here")
 
-verify("payload.txt", label = "needs keys")
+verify(here("payload.txt"), label = "needs keys")
 ```
 
 ```scrut
@@ -425,15 +425,15 @@ re-signs every time.
 
 ```python
 # examples/signing/edge/sign_fn.star
-load("starcm", "sign")
+load("starcm", "sign", "here")
 
 def show(r):
     print("%s: changed=%s value=%s" % (r.label, r.changed, r.value))
 
-show(sign(path = "payload.txt", key = "private/untrusted.pem", key_id = "other", expires = "30d", label = "other key"))
-show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", label = "test key"))
-show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", label = "unchanged"))
-show(sign("payload.txt", key = "private/test.pem", expires = "2099-01-01", release = "2026.10", label = "release"))
+show(sign(path = here("payload.txt"), key = here("private/untrusted.pem"), key_id = "other", expires = "30d", label = "other key"))
+show(sign(here("payload.txt"), key = here("private/test.pem"), expires = "2099-01-01", label = "test key"))
+show(sign(here("payload.txt"), key = here("private/test.pem"), expires = "2099-01-01", label = "unchanged"))
+show(sign(here("payload.txt"), key = here("private/test.pem"), expires = "2099-01-01", release = "2026.10", label = "release"))
 ```
 
 ```scrut
@@ -449,8 +449,8 @@ Deployed runs never sign: `sign()` is disabled under `--trusted-keys`.
 
 ```python
 # examples/signing/edge/sign_deployed.star
-load("starcm", "sign")
-sign("payload.txt", key = "private/test.pem", expires = "30d", label = "deployed")
+load("starcm", "sign", "here")
+sign(here("payload.txt"), key = here("private/test.pem"), expires = "30d", label = "deployed")
 ```
 
 ```scrut
@@ -482,7 +482,7 @@ signature check failed for unsigned.star: key "test": signature does not match
 
 ```scrut
 $ starcm sign --expires 2020-01-01 --key private/test.pem payload.txt >/dev/null && starcm --trusted-keys trusted verify.star | head -1
-signed: success=False value=None error=payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
+signed: success=False value=None error=*payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
 ```
 
 Signatures in older formats, without an expiry or without the file's
@@ -583,7 +583,7 @@ signed: success=True value=test error=<nil>
 
 ```scrut
 $ starcm sign --expires 30d --key private/test.pem --release 2026.09 payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
-signed: success=False value=None error=payload.txt: key "test": signature is for release "2026.09", want release "2026.10"
+signed: success=False value=None error=*payload.txt: key "test": signature is for release "2026.09", want release "2026.10" (glob)
 ```
 
 ```scrut

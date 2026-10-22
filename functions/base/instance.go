@@ -3,6 +3,7 @@ package base
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/discentem/starcm/libraries/paths"
@@ -31,6 +32,11 @@ type FunctionInstance struct {
 	// WhatIf is the what_if common argument: show what would change
 	// without changing it.
 	WhatIf bool
+
+	// inStore is set when the call is written in a module loaded with
+	// load_remote, which runs from the store: nothing ships next to it, so
+	// relative resource paths can't resolve.
+	inStore bool
 
 	fn     string         // the function's name, for errors
 	values map[string]any // name -> pointer to the parsed value (*T)
@@ -80,6 +86,11 @@ func (c *FunctionInstance) ResourcePath(name string) (string, bool, error) {
 	s, given := Get[string](c, name)
 	if !given {
 		return "", false, nil
+	}
+	if c.inStore {
+		if expanded, err := paths.Expand(s); err == nil && !filepath.IsAbs(expanded) {
+			return "", true, c.argErr(name, fmt.Errorf("%q is relative, but this .star file was loaded with load_remote and runs from starcm's store, where nothing ships next to it: fetch the file with download() or pass its absolute path", s))
+		}
 	}
 	p, err := paths.Resource(c.Dir, s)
 	if err != nil {
@@ -138,14 +149,16 @@ func newInstance(ctx context.Context, fn, label string, whatIf bool, thread *sta
 		}
 	}
 	dir, _ := paths.CallerDir(thread)
+	file, _ := paths.CallerFile(thread)
 	return &FunctionInstance{
-		Ctx:    ctx,
-		Label:  label,
-		Thread: thread,
-		Dir:    dir,
-		WhatIf: whatIf,
-		fn:     fn,
-		values: targets,
-		given:  given,
+		inStore: file != "" && paths.InStore(thread, file),
+		Ctx:     ctx,
+		Label:   label,
+		Thread:  thread,
+		Dir:     dir,
+		WhatIf:  whatIf,
+		fn:      fn,
+		values:  targets,
+		given:   given,
 	}
 }

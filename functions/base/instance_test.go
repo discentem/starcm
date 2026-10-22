@@ -4,7 +4,10 @@ import (
 	"context"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+
+	"github.com/discentem/starcm/libraries/paths"
 
 	"github.com/mitchellh/go-homedir"
 	"github.com/stretchr/testify/require"
@@ -41,7 +44,7 @@ func absFile(parts ...string) string {
 func runCalls(t *testing.T, path, src string) (*callRecorder, error) {
 	t.Helper()
 	action := &callRecorder{}
-	m := NewActionModule(context.Background(), "test_type", callArgs, action)
+	m := NewModule(context.Background(), "fn", callArgs, action)
 	predeclared := starlark.StringDict{"fn": starlark.NewBuiltin("fn", m.Function())}
 	_, err := starlark.ExecFileOptions(&syntax.FileOptions{}, &starlark.Thread{}, path, src, predeclared)
 	return action, err
@@ -142,7 +145,7 @@ fn(label = "tilde", path = "~/x", args = [])
 // UnpackArgs alone would treat as optional.
 func TestInstance_RequiredAfterOptional(t *testing.T) {
 	action := &callRecorder{}
-	m := NewActionModule(context.Background(), "test_type", []ArgPair{
+	m := NewModule(context.Background(), "fn", []ArgPair{
 		OptionalArg[string]("first"),
 		Arg[string]("needed"),
 	}, action)
@@ -159,4 +162,27 @@ func TestGet_Panics(t *testing.T) {
 	c := action.calls[0]
 	require.PanicsWithValue(t, `base.Get: fn has no argument "nope"`, func() { Get[string](c, "nope") })
 	require.Panics(t, func() { Get[int](c, "path") })
+}
+
+// In a module loaded with load_remote, which runs from the store, a relative
+// resource path gets an error that says why instead of a missing file.
+func TestInstance_ResourcePathInStore(t *testing.T) {
+	store := absFile("store")
+	file := filepath.Join(store, "sha256", "abc", "settings.star")
+	action := &callRecorder{}
+	m := NewModule(context.Background(), "fn", callArgs, action)
+	thread := &starlark.Thread{}
+	paths.SetStoreCheck(thread, func(p string) bool { return strings.HasPrefix(p, store) })
+	_, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, file, `
+fn(label = "rel", path = "motd.jinja", args = [])
+fn(label = "abs", path = "`+filepath.ToSlash(absFile("etc", "motd.jinja"))+`", args = [])
+`, starlark.StringDict{"fn": starlark.NewBuiltin("fn", m.Function())})
+	require.NoError(t, err)
+
+	_, _, err = action.calls[0].ResourcePath("path")
+	require.EqualError(t, err, `fn(label="rel"): path: "motd.jinja" is relative, but this .star file was loaded with load_remote and runs from starcm's store, where nothing ships next to it: fetch the file with download() or pass its absolute path`)
+
+	p, _, err := action.calls[1].ResourcePath("path")
+	require.NoError(t, err)
+	require.Equal(t, absFile("etc", "motd.jinja"), p)
 }

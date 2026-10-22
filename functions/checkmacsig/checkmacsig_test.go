@@ -3,6 +3,7 @@ package checkmacsig
 import (
 	"context"
 	"errors"
+	"github.com/discentem/starcm/functions/base"
 	"io"
 	"os"
 	"path/filepath"
@@ -45,6 +46,13 @@ func (f *fakePkgutil) CombinedOutput() ([]byte, error) {
 	return []byte(f.output), nil
 }
 
+// call runs check_mac_signature(label = "check", ...) with a's
+// configuration.
+func call(a *checkAction, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+	kwargs = append(kwargs, starlark.Tuple{starlark.String("label"), starlark.String("check")})
+	return base.NewModule(context.Background(), "check_mac_signature", checkArgs, a).Call(nil, args, kwargs)
+}
+
 func kw(pairs ...any) []starlark.Tuple {
 	var out []starlark.Tuple
 	for i := 0; i < len(pairs); i += 2 {
@@ -61,7 +69,6 @@ func kw(pairs ...any) []starlark.Tuple {
 }
 
 func TestRun(t *testing.T) {
-	ctx := context.Background()
 	out, err := os.ReadFile(filepath.Join("..", "..", "libraries", "macsig", "testdata", "developer-id-notarized.txt"))
 	require.NoError(t, err)
 	pkg := filepath.Join(t.TempDir(), "agent.pkg")
@@ -71,7 +78,7 @@ func TestRun(t *testing.T) {
 	t.Run("reports the signature and sha256 of what it checked", func(t *testing.T) {
 		f := &fakePkgutil{output: string(out)}
 		a := &checkAction{executor: f, goos: "darwin"}
-		r, err := a.Run(ctx, "", "check", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
+		r, err := call(a, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
 		require.NoError(t, err)
 		assert.True(t, r.Success)
 		assert.False(t, r.Changed)
@@ -93,7 +100,7 @@ func TestRun(t *testing.T) {
 
 	t.Run("another signer stops the run", func(t *testing.T) {
 		a := &checkAction{executor: &fakePkgutil{output: string(out)}, goos: "darwin"}
-		_, err := a.Run(ctx, "", "check", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", "Developer ID Installer: Example Corp (ABCDE12345)"))
+		_, err := call(a, starlark.Tuple{starlark.String(pkg)}, kw("signer", "Developer ID Installer: Example Corp (ABCDE12345)"))
 		assert.EqualError(t, err, `check_mac_signature(label="check"): `+pkg+`: signed by "`+tailscaleSigner+`", not the expected "Developer ID Installer: Example Corp (ABCDE12345)"`)
 	})
 
@@ -101,18 +108,22 @@ func TestRun(t *testing.T) {
 		a := &checkAction{executor: &fakePkgutil{output: string(out)}, goos: "darwin", checkStored: func(p string) error {
 			return errors.New("tampered: " + p)
 		}}
-		_, err := a.Run(ctx, "", "check", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
+		_, err := call(a, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
 		assert.EqualError(t, err, `check_mac_signature(label="check"): tampered: `+pkg)
 	})
 
 	t.Run("argument errors", func(t *testing.T) {
 		a := &checkAction{executor: &fakePkgutil{}, goos: "darwin"}
-		_, err := a.Run(ctx, "", "check", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", " "))
+		_, err := call(a, starlark.Tuple{starlark.String(pkg)}, kw("signer", " "))
 		assert.ErrorContains(t, err, "signer must name the certificate")
-		_, err = a.Run(ctx, "", "check", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner, "kind", "dmg"))
+		_, err = call(a, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner, "kind", "dmg"))
 		assert.EqualError(t, err, `check_mac_signature(label="check"): kind must be "auto", "pkg" or "code", not "dmg"`)
 		linux := &checkAction{executor: &fakePkgutil{}, goos: "linux"}
-		_, err = linux.Run(ctx, "", "check", nil, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
+		_, err = call(linux, starlark.Tuple{starlark.String(pkg)}, kw("signer", tailscaleSigner))
+		assert.EqualError(t, err, `check_mac_signature(label="check"): check_mac_signature() only works on macOS`)
+		// A macOS path isn't absolute on Windows; the platform error comes
+		// first, so it names the real problem everywhere.
+		_, err = call(linux, starlark.Tuple{starlark.String("/bin/ls")}, kw("signer", tailscaleSigner))
 		assert.EqualError(t, err, `check_mac_signature(label="check"): check_mac_signature() only works on macOS`)
 	})
 }

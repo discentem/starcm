@@ -9,21 +9,21 @@ repository.
 ## Syntax
 
 ```python
-load("starcm", "list_files")
+load("starcm", "here", "list_files")
 
-list_files("config", pattern = "*.star", label = "find config").value
-list_files(dir = "config", pattern = "*.star", label = "find config").value
+list_files(here("config"), pattern = "*.star", label = "find config").value
+list_files(dir = "/etc/agent", pattern = "*.conf", label = "find settings").value
 ```
 
 ## Arguments
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `dir` | string | `"."` | Directory to search, positionally or as `dir =`, relative to the directory starcm runs in. |
+| `dir` | string | required | The absolute directory to search, positionally or as `dir =`. |
 | `pattern` | string | `"*"` | A [glob](https://pkg.go.dev/path#Match) matched against each file's name (not its path): `*`, `?`, `[abc]`. An invalid pattern fails the run. |
 
 `list_files` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -55,11 +55,11 @@ config/
 
 ```python
 # examples/list_files/list.star
-load("starcm", "list_files")
+load("starcm", "list_files", "here")
 
-print(list_files("config", label = "everything").value)
-print(list_files("config", pattern = "*.star", label = "star files").value)
-print(list_files(dir = "config/lib", pattern = "w*", label = "windows only").value)
+print(list_files(here("config"), label = "everything").value)
+print(list_files(here("config"), pattern = "*.star", label = "star files").value)
+print(list_files(dir = here("config/lib"), pattern = "w*", label = "windows only").value)
 ```
 
 ```scrut
@@ -73,10 +73,10 @@ $ starcm list.star
 
 ```python
 # examples/list_files/manifest.star
-load("starcm", "list_files", "sha256")
+load("starcm", "list_files", "sha256", "here")
 
-for f in list_files("config", pattern = "*.star", label = "find config").value:
-    h = sha256("config/" + f, label = "hash " + f).value
+for f in list_files(here("config"), pattern = "*.star", label = "find config").value:
+    h = sha256(here("config", f), label = "hash " + f).value
     print("%s  %s" % (h[:12], f))
 ```
 
@@ -101,8 +101,8 @@ $ cd "$TMPDIR/edge"
 
 ```python
 # examples/list_files/edge/bad_pattern.star
-load("starcm", "list_files")
-list_files("tree", pattern = "[", label = "bad pattern")
+load("starcm", "list_files", "here")
+list_files(here("tree"), pattern = "[", label = "bad pattern")
 ```
 
 ```scrut

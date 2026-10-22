@@ -1,3 +1,3 @@
-load("starcm", "check_mac_signature")
+load("starcm", "check_mac_signature", "here")
 
-check_mac_signature("agent", signer = "", label = "no signer")
+check_mac_signature(here("agent"), signer = "", label = "no signer")

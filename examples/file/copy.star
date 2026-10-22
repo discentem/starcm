@@ -1,4 +1,4 @@
-load("starcm", "download", "file")
+load("starcm", "download", "file", "vars")
 
 agent = download(
     label  = "fetch agent",
@@ -9,7 +9,7 @@ agent = download(
 # agent.value is a path in the store, so file() re-hashes it before copying.
 r = file(
     label  = "install agent",
-    path   = "agent.txt",
+    path   = vars["managed_dir"] + "/agent.txt",
     source = agent.value,
     sha256 = "ffcf2b6c3e96b1659e1bc5614ef23376f3d9b13fd65c3880b94a6318a9669e08",
 )

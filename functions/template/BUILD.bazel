@@ -24,6 +24,7 @@ go_test(
     srcs = ["template_test.go"],
     embed = [":template"],
     deps = [
+        "//functions/base",
         "//starlark-helpers",
         "//testhelpers/aferohelpers",
         "@com_github_noirbizarre_gonja//:gonja",
