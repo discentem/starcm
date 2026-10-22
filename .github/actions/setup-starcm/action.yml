@@ -51,7 +51,11 @@ runs:
     # scrut prints only a summary when every test passes. This `starcm`, ahead
     # of the real one on PATH, copies each run's command and output into
     # $STARCM_TRANSCRIPT; the workflow prints it after the tests.
+    # Not on Windows: scrut's output_stream: combined hands Git Bash two
+    # handles to one pipe, which it sees as different files, so the wrapper
+    # can't tell that the block wants stdout and stderr in order.
     - name: Record starcm's output
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         set -euo pipefail
