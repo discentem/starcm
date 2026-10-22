@@ -84,8 +84,9 @@ its arguments, return value and tested examples:
 - Read information with [date](docs/functions/date.md),
   [read_file](docs/functions/read_file.md),
   [list_files](docs/functions/list_files.md),
-  [sha256](docs/functions/sha256.md) and
-  [inspect](docs/functions/inspect.md).
+  [sha256](docs/functions/sha256.md),
+  [inspect](docs/functions/inspect.md) and
+  [check_mac_signature](docs/functions/check_mac_signature.md).
 - Run only signed configuration with [sign](docs/functions/sign.md),
   [verify](docs/functions/verify.md) and
   [--trusted-keys](docs/cli.md#--trusted-keys-dir).
