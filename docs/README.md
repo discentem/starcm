@@ -25,6 +25,8 @@ All of these functions can be enhanced by:
   and how paths resolve.
 - [Command line flags](cli.md): `--var`, `--trusted-keys`, `--max-expiry`, `--release`, `--store-dir`, `--store-only`, `-v`, `--timestamps`,
   `starcm sign` and `starcm inspect`.
+- [Design: paths and arguments](design/paths-and-arguments.md): the rule for
+  relative paths, `here()`, and how arguments are parsed (being rolled out).
 
 
 ### Managing the machine
