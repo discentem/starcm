@@ -15,13 +15,20 @@ var fixed = time.Date(2026, time.October, 11, 14, 30, 5, 0, time.UTC)
 
 func run(t *testing.T, kwargs []starlark.Tuple) (*starlarkstruct.Struct, error) {
 	t.Helper()
-	a := &dateAction{now: func() time.Time { return fixed }}
-	r, err := a.Run(context.Background(), "", "test", &starlark.Thread{}, nil, kwargs)
+	// FunctionInstance date() from Starlark, as scripts do, so it has a calling frame.
+	thread := &starlark.Thread{}
+	globals, err := starlark.ExecFile(thread, "test.star", "def call(**kw):\n    return date(label = \"test\", **kw)\n", starlark.StringDict{
+		"date": starlark.NewBuiltin("date", newWithClock(context.Background(), func() time.Time { return fixed }).Function()),
+	})
+	require.NoError(t, err)
+	v, err := starlark.Call(thread, globals["call"], nil, kwargs)
 	if err != nil {
 		return nil, err
 	}
-	require.True(t, r.Success)
-	s, ok := r.Return.(*starlarkstruct.Struct)
+	r, ok := v.(*starlarkstruct.Struct)
+	require.True(t, ok)
+	require.Equal(t, starlark.True, attr(t, r, "success"))
+	s, ok := attr(t, r, "value").(*starlarkstruct.Struct)
 	require.True(t, ok)
 	return s, nil
 }

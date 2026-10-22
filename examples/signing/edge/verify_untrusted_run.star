@@ -1,3 +1,3 @@
-load("starcm", "verify")
+load("starcm", "verify", "here")
 
-verify("payload.txt", label = "needs keys")
+verify(here("payload.txt"), label = "needs keys")

@@ -41,7 +41,7 @@ date(
 | `iso8601basic` | `20261017T140509Z` |
 
 `date` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
+(required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -71,7 +71,7 @@ expression. Each example runs in a scratch copy of
 [examples/date/](../../examples/date).
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/date/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/date/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### The current time
@@ -135,15 +135,15 @@ unix=\d+ (regex)
 
 ```python
 # examples/date/stamp_file.star
-load("starcm", "date", "file")
+load("starcm", "date", "file", "vars")
 
 today = date(label = "today", format = "date", timezone = "UTC").value.formatted
-r = file(label = "last run", path = "last-run.txt", content = today + "\n")
+r = file(label = "last run", path = vars["managed_dir"] + "/last-run.txt", content = today + "\n")
 print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm stamp_file.star && test "$(cat last-run.txt)" = "$(date -u +%Y-%m-%d)" && echo "matches the system clock"
+$ starcm --var managed_dir="$managed" stamp_file.star && test "$(cat last-run.txt)" = "$(date -u +%Y-%m-%d)" && echo "matches the system clock"
 changed=True
 matches the system clock
 ```

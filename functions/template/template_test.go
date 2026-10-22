@@ -3,9 +3,11 @@ package template
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/discentem/starcm/functions/base"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/discentem/starcm/testhelpers/aferohelpers"
 	"github.com/noirbizarre/gonja"
@@ -18,71 +20,75 @@ import (
 // FileDefinition represents a file to be created in the test filesystem
 type FileDefinition = aferohelpers.FileDefinition
 
-func TestTemplateAction_parseArgs(t *testing.T) {
-	tests := []struct {
-		name     string
-		kwargs   []starlark.Tuple
-		wantErr  bool
-		expected *parsedArgs
-	}{
-		{
-			name: "valid args",
-			kwargs: []starlark.Tuple{
-				{starlark.String("template"), starlark.String("path/to/template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
-				{starlark.String("destination"), starlark.String("path/to/output.txt")},
-			},
-			wantErr: false,
-			expected: &parsedArgs{
-				templatePath: "path/to/template.tmpl",
-				data:         map[string]any{"key": "value"},
-				destination:  "path/to/output.txt",
-			},
-		},
-		{
-			name: "missing template",
-			kwargs: []starlark.Tuple{
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
-				{starlark.String("destination"), starlark.String("path/to/output.txt")},
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing data",
-			kwargs: []starlark.Tuple{
-				{starlark.String("template"), starlark.String("path/to/template.tmpl")},
-				{starlark.String("destination"), starlark.String("path/to/output.txt")},
-			},
-			wantErr: true,
-		},
-		{
-			name: "missing destination",
-			kwargs: []starlark.Tuple{
-				{starlark.String("template"), starlark.String("path/to/template.tmpl")},
-				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
-			},
-			wantErr: true,
-		},
+// testRoot is an absolute directory for the test filesystem, so that
+// destinations can be absolute on every platform.
+func testRoot() string {
+	if runtime.GOOS == "windows" {
+		return `C:\repo`
 	}
+	return "/repo"
+}
 
+// p returns name under testRoot().
+func p(name string) string {
+	return filepath.Join(testRoot(), filepath.FromSlash(name))
+}
+
+// capture wraps an action to keep the Go Result it returns.
+type capture struct {
+	inner  base.Action
+	result *base.Result
+}
+
+func (c *capture) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	r, err := c.inner.Execute(inst)
+	c.result = r
+	return r, err
+}
+
+// runTemplate calls template() from a .star file in testRoot(), as a script
+// would, and returns the Result the action produced.
+func runTemplate(t *testing.T, fs afero.Fs, kwargs []starlark.Tuple) (*base.Result, error) {
+	t.Helper()
+	c := &capture{inner: &templateAction{fsys: fs}}
+	fn := starlark.NewBuiltin("template", base.NewModule(context.Background(), "template", templateArgs, c).Function())
+	thread := &starlark.Thread{Name: "test"}
+	globals, err := starlark.ExecFile(thread, p("test.star"), "def call(**kw):\n    return template(label = \"template_test\", **kw)\n", starlark.StringDict{"template": fn})
+	require.NoError(t, err)
+	_, err = starlark.Call(thread, globals["call"], nil, kwargs)
+	return c.result, err
+}
+
+func TestTemplateAction_Arguments(t *testing.T) {
+	data := func() starlark.Value { return starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"}) }
+	kw := func(k string, v starlark.Value) starlark.Tuple { return starlark.Tuple{starlark.String(k), v} }
+	tmpl := kw("template", starlark.String("path/to/template.tmpl"))
+	dest := kw("destination", starlark.String(p("out.txt")))
+	tests := []struct {
+		name        string
+		kwargs      []starlark.Tuple
+		errContains string
+	}{
+		{"valid args", []starlark.Tuple{tmpl, kw("data", data()), dest}, ""},
+		{"missing template", []starlark.Tuple{kw("data", data()), dest}, "needs template"},
+		{"missing data", []starlark.Tuple{tmpl, dest}, "missing argument for data"},
+		{"missing destination", []starlark.Tuple{tmpl, kw("data", data())}, "destination is required"},
+		{"relative destination", []starlark.Tuple{tmpl, kw("data", data()), kw("destination", starlark.String("out.txt"))}, `"out.txt" is not an absolute path`},
+		{"template and source", []starlark.Tuple{tmpl, kw("source", starlark.String("x")), kw("data", data()), dest}, "not both"},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			action := &templateAction{fsys: afero.NewMemMapFs()}
-			got, err := action.parseArgs(starlark.Tuple{}, tt.kwargs)
-
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-
+			fs := aferohelpers.NewMemFsWithFiles(FileDefinition{Path: p("path/to/template.tmpl"), Content: "{{ key }}"})
+			_, err := runTemplate(t, fs, tt.kwargs)
+			if tt.errContains == "" {
 				require.NoError(t, err)
-				require.Equal(t, tt.expected.templatePath, got.templatePath)
-				require.Equal(t, tt.expected.destination, got.destination)
-				require.Equal(t, len(tt.expected.data), len(got.data))
-
-				for k, v := range tt.expected.data {
-					require.Equal(t, v, got.data[k])
-				}
+				// A relative template resolves next to the calling .star file.
+				content, err := afero.ReadFile(fs, p("out.txt"))
+				require.NoError(t, err)
+				require.Equal(t, "value", string(content))
+				return
 			}
+			require.ErrorContains(t, err, tt.errContains)
 		})
 	}
 }
@@ -194,7 +200,7 @@ func TestTemplateAction_Run(t *testing.T) {
 				workDir := ""
 				fs := aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
-						Path:    "template.tmpl",
+						Path:    p("template.tmpl"),
 						Content: "Hello {{ name }}!",
 					},
 				)
@@ -203,7 +209,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
-				{starlark.String("destination"), starlark.String("output.txt")},
+				{starlark.String("destination"), starlark.String(p("output.txt"))},
 			},
 			expectedSuccess:   true,
 			expectedChanged:   true,
@@ -217,11 +223,11 @@ func TestTemplateAction_Run(t *testing.T) {
 				workDir := ""
 				fs := aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
-						Path:    "template.tmpl",
+						Path:    p("template.tmpl"),
 						Content: "Hello {{ name }}!",
 					},
 					FileDefinition{
-						Path:    "output.txt",
+						Path:    p("output.txt"),
 						Content: "Hello World!",
 					},
 				)
@@ -230,7 +236,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
-				{starlark.String("destination"), starlark.String("output.txt")},
+				{starlark.String("destination"), starlark.String(p("output.txt"))},
 			},
 			expectedSuccess:   true,
 			expectedChanged:   false,
@@ -247,7 +253,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("nonexistent.tmpl")},
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
-				{starlark.String("destination"), starlark.String("output.txt")},
+				{starlark.String("destination"), starlark.String(p("output.txt"))},
 			},
 			expectedSuccess: false,
 			expectedChanged: false,
@@ -258,11 +264,11 @@ func TestTemplateAction_Run(t *testing.T) {
 			setupFs: func() (afero.Fs, string) {
 				fs := aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
-						Path:    "template.tmpl",
+						Path:    p("template.tmpl"),
 						Content: "Hello {{ name }}!",
 					},
 					FileDefinition{
-						Path:    "output.txt",
+						Path:    p("output.txt"),
 						Content: "Different content",
 					},
 				)
@@ -271,7 +277,7 @@ func TestTemplateAction_Run(t *testing.T) {
 			kwargs: []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"name": "World"})},
-				{starlark.String("destination"), starlark.String("output.txt")},
+				{starlark.String("destination"), starlark.String(p("output.txt"))},
 			},
 			expectedSuccess:   true,
 			expectedChanged:   true,
@@ -284,11 +290,8 @@ func TestTemplateAction_Run(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fs, workDir := tt.setupFs()
-			thread := starlark.Thread{Name: "test"}
-			action := &templateAction{fsys: fs}
-			ctx := context.Background()
-			result, err := action.Run(ctx, workDir, "template_test", &thread, tt.args, tt.kwargs)
+			fs, _ := tt.setupFs()
+			result, err := runTemplate(t, fs, tt.kwargs)
 
 			if tt.wantErr {
 				require.Error(t, err)
@@ -318,7 +321,7 @@ func TestTemplateAction_Run(t *testing.T) {
 					}
 				}
 				if destinationPath != "" {
-					content, err := afero.ReadFile(fs, filepath.Join(workDir, destinationPath))
+					content, err := afero.ReadFile(fs, destinationPath)
 					require.NoError(t, err)
 					require.Equal(t, tt.expectedOutput, string(content))
 				}
@@ -360,22 +363,18 @@ func TestTemplateAction_TemplateErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := aferohelpers.NewMemFsWithFiles(
 				FileDefinition{
-					Path:    "template.tmpl",
+					Path:    p("template.tmpl"),
 					Content: tt.templateContent,
 				},
 			)
 
-			action := &templateAction{fsys: fs}
-			ctx := context.Background()
-
 			kwargs := []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(tt.data)},
-				{starlark.String("destination"), starlark.String("output.txt")},
+				{starlark.String("destination"), starlark.String(p("output.txt"))},
 			}
-			thread := starlark.Thread{Name: "test"}
 
-			result, err := action.Run(ctx, "", "template_test", &thread, starlark.Tuple{}, kwargs)
+			result, err := runTemplate(t, fs, kwargs)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -390,7 +389,7 @@ func TestTemplateAction_TemplateErrors(t *testing.T) {
 			assert.True(t, result.Success)
 
 			// Verify file was created with correct content
-			content, err := afero.ReadFile(fs, "output.txt")
+			content, err := afero.ReadFile(fs, p("output.txt"))
 			assert.NoError(t, err)
 
 			// Using gonja directly to verify expected output
@@ -417,11 +416,11 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 			setupFs: func() afero.Fs {
 				return aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
-						Path:    "template.tmpl",
+						Path:    p("template.tmpl"),
 						Content: "content",
 					},
 					FileDefinition{
-						Path:  "output/dir",
+						Path:  p("output/dir"),
 						IsDir: true,
 					},
 				)
@@ -434,11 +433,11 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 			setupFs: func() afero.Fs {
 				return aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
-						Path:    "template.tmpl",
+						Path:    p("template.tmpl"),
 						Content: "content",
 					},
 					FileDefinition{
-						Path:  "output",
+						Path:  p("output"),
 						IsDir: true,
 					},
 				)
@@ -452,7 +451,7 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 				pastTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 				return aferohelpers.NewMemFsWithFiles(
 					FileDefinition{
-						Path:    "template.tmpl",
+						Path:    p("template.tmpl"),
 						Content: "content",
 						ModTime: pastTime,
 					},
@@ -466,18 +465,14 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fs := tt.setupFs()
-			action := &templateAction{fsys: fs}
-			ctx := context.Background()
 
 			kwargs := []starlark.Tuple{
 				{starlark.String("template"), starlark.String("template.tmpl")},
 				{starlark.String("data"), starlarkhelpers.GoDictToStarlarkDict(map[string]any{"key": "value"})},
-				{starlark.String("destination"), starlark.String(tt.destination)},
+				{starlark.String("destination"), starlark.String(p(tt.destination))},
 			}
 
-			thread := starlark.Thread{Name: "test"}
-
-			result, err := action.Run(ctx, "", "template_test", &thread, starlark.Tuple{}, kwargs)
+			result, err := runTemplate(t, fs, kwargs)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -489,7 +484,7 @@ func TestTemplateAction_FileSystemEdgeCases(t *testing.T) {
 			assert.True(t, result.Success)
 
 			// Verify destination file exists
-			exists, err := afero.Exists(fs, tt.destination)
+			exists, err := afero.Exists(fs, p(tt.destination))
 			assert.NoError(t, err)
 			assert.True(t, exists)
 		})

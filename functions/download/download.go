@@ -20,285 +20,340 @@ import (
 	localstore "github.com/discentem/starcm/libraries/local_store"
 	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	"github.com/discentem/starcm/libraries/signing"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
 )
 
-type downloadAction struct {
+// Fetcher downloads files from HTTP(S) URLs or S3 objects, checks them
+// against a sha256 or a signature, and saves them to a path or into the
+// local store. download(), s3_download() and load_remote() are thin
+// Starlark adapters over it; Go code calls it directly.
+type Fetcher struct {
 	httpClient *http.Client
 	fsys       afero.Fs
 	output     io.Writer
-	// store opens the local store, for downloads without save_to.
+	// store opens the local store, for downloads without SaveTo.
 	store func() (*localstore.Store, error)
-	// storeOnly refuses save_to, so every download goes into the store.
+	// storeOnly refuses SaveTo, so every download goes into the store.
 	storeOnly bool
-	// fn is the Starlark function name used in error messages.
-	fn string
 	// keyring is --trusted-keys, for downloads pinned by signature. Nil
-	// means signature can't be used.
+	// means Signature can't be used.
 	keyring *signing.Keyring
 }
 
-// Ensure downloadAction implements base.Runnable
-var _ base.Runnable = (*downloadAction)(nil)
+// Request describes one download. Exactly one of SHA256 or Signature pins
+// what it must match.
+type Request struct {
+	// Function and Label name the download in errors and messages, e.g.
+	// download(label="agent"). Function defaults to "download".
+	Function string
+	Label    string
+	// SaveTo is the path to save to; "" saves into the local store.
+	SaveTo string
+	// FileName names the stored file; "" uses the source's base name.
+	FileName string
+	SHA256   string
+	// Signature locates the signature file: a URL for FetchURL, a key in
+	// the same bucket for FetchS3.
+	Signature    string
+	LiveProgress bool
+}
 
-func (a *downloadAction) Run(
-	ctx context.Context,
-	workingDirectory string,
-	moduleName string,
-	thread *starlark.Thread,
-	args starlark.Tuple,
-	kwargs []starlark.Tuple,
-) (*base.Result, error) {
-	if a.fsys == nil {
-		return nil, fmt.Errorf("fsys must be provided to download module")
-	}
+// Fetched is a finished download.
+type Fetched struct {
+	// Path is where the file is: SaveTo, or its place in the store.
+	Path    string
+	Changed bool
+	Message string
+}
 
-	url, err := starlarkhelpers.FindValueinKwargs(kwargs, "url")
-	if err != nil {
-		return nil, err
-	}
-	if url == nil {
-		return nil, fmt.Errorf("url must be provided to download module, cannot be nil")
-	}
+// S3Object is an object to fetch with FetchS3.
+type S3Object struct {
+	Bucket, Key string
+	// Endpoint and Region are optional; see s3_download().
+	Endpoint, Region string
+}
 
-	savePath, err := optionalString(kwargs, "save_to")
-	if err != nil {
-		return nil, err
+func (r Request) errorf(format string, args ...any) error {
+	fn := r.Function
+	if fn == "" {
+		fn = "download"
 	}
+	return fmt.Errorf("%s(label=%q): "+format, append([]any{fn, r.Label}, args...)...)
+}
 
-	expectedHash, sig, err := a.pin(ctx, moduleName, kwargs, func(ctx context.Context, sigURL string) (io.ReadCloser, error) {
-		body, _, err := a.httpGet(ctx, sigURL)
+// FetchURL downloads url as req describes.
+func (f *Fetcher) FetchURL(ctx context.Context, url string, req Request) (Fetched, error) {
+	if f.fsys == nil {
+		return Fetched{}, fmt.Errorf("fsys must be provided to download module")
+	}
+	expectedHash, sig, err := f.pin(ctx, req, func(ctx context.Context, sigURL string) (io.ReadCloser, error) {
+		body, _, err := f.httpGet(ctx, sigURL)
 		return body, err
 	})
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
-
-	liveProgress, err := starlarkhelpers.FindBoolInKwargs(kwargs, "live_progress", false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find live_progress in kwargs: %w", err)
-	}
-
 	get := func(ctx context.Context) (io.ReadCloser, error) {
-		body, size, err := a.httpGet(ctx, *url)
+		body, size, err := f.httpGet(ctx, url)
 		if err != nil {
 			return nil, err
 		}
-		return a.withProgress(body, size, *url, liveProgress), nil
+		return f.withProgress(body, size, url, req.LiveProgress), nil
 	}
 	urlName := ""
-	if u, err := neturl.Parse(*url); err == nil {
+	if u, err := neturl.Parse(url); err == nil {
 		urlName = path.Base(u.Path)
 	}
-	return a.save(ctx, moduleName, kwargs, savePath, urlName, expectedHash, sig, get, liveProgress)
+	return f.save(ctx, req, urlName, expectedHash, sig, get)
+}
+
+// downloadAction is download(): it reads the call's arguments into a
+// Request and runs it with the Fetcher.
+type downloadAction struct {
+	f *Fetcher
+}
+
+var _ base.Action = (*downloadAction)(nil)
+
+func (a *downloadAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	url, _ := base.Get[string](inst, "url")
+	req, err := requestFrom(inst, "download")
+	if err != nil {
+		return nil, err
+	}
+	got, err := a.f.FetchURL(inst.Ctx, url, req)
+	if err != nil {
+		return nil, err
+	}
+	return resultFrom(inst.Label, got), nil
+}
+
+// requestFrom reads the arguments download() and s3_download() share.
+// save_to is an output, so it must be absolute.
+func requestFrom(inst *base.FunctionInstance, fn string) (Request, error) {
+	saveTo, _, err := inst.AbsPath("save_to")
+	if err != nil {
+		return Request{}, err
+	}
+	fileName, _ := base.Get[string](inst, "file_name")
+	sha, _ := base.Get[string](inst, "sha256")
+	sig, _ := base.Get[string](inst, "signature")
+	live, _ := base.Get[bool](inst, "live_progress")
+	return Request{
+		Function:     fn,
+		Label:        inst.Label,
+		SaveTo:       saveTo,
+		FileName:     fileName,
+		SHA256:       sha,
+		Signature:    sig,
+		LiveProgress: live,
+	}, nil
+}
+
+// resultFrom turns a finished download into download()'s result. value is
+// the file's absolute path.
+func resultFrom(label string, got Fetched) *base.Result {
+	msg := got.Message
+	return &base.Result{Label: label, Message: &msg, Success: true, Changed: got.Changed, Return: starlark.String(got.Path)}
 }
 
 // maxSignatureSize bounds a fetched signature file, which is one short line.
 const maxSignatureSize = 64 << 10
 
-// pin returns the sha256 a download must match: the sha256 argument, or the
-// one recorded in the signature named by the signature argument, which
-// fetchSig fetches and the --trusted-keys keyring must verify. sig is that
-// signature file's content, or nil when pinned by sha256.
-func (a *downloadAction) pin(ctx context.Context, label string, kwargs []starlark.Tuple, fetchSig func(context.Context, string) (io.ReadCloser, error)) (sha256 string, sig []byte, err error) {
-	hash, err := optionalString(kwargs, "sha256")
-	if err != nil {
-		return "", nil, err
-	}
-	sigRef, err := optionalString(kwargs, "signature")
-	if err != nil {
-		return "", nil, err
-	}
-	hasHash, hasSig := hash != nil && *hash != "", sigRef != nil && *sigRef != ""
+// pin returns the sha256 a download must match: req.SHA256, or the one
+// recorded in the signature req.Signature names, which fetchSig fetches and
+// the --trusted-keys keyring must verify. sig is that signature file's
+// content, or nil when pinned by sha256.
+func (f *Fetcher) pin(ctx context.Context, req Request, fetchSig func(context.Context, string) (io.ReadCloser, error)) (sha256 string, sig []byte, err error) {
+	hasHash, hasSig := req.SHA256 != "", req.Signature != ""
 	switch {
 	case hasHash && hasSig:
-		return "", nil, fmt.Errorf("%s(label=%q): pass sha256 or signature, not both", a.fn, label)
+		return "", nil, req.errorf("pass sha256 or signature, not both")
 	case hasHash:
-		return *hash, nil, nil
+		return req.SHA256, nil, nil
 	case !hasSig:
-		return "", nil, fmt.Errorf("%s(label=%q): sha256 or signature must be provided", a.fn, label)
+		return "", nil, req.errorf("sha256 or signature must be provided")
 	}
-	if a.keyring == nil {
-		return "", nil, fmt.Errorf("%s(label=%q): signature needs trusted keys: run starcm with --trusted-keys", a.fn, label)
+	if f.keyring == nil {
+		return "", nil, req.errorf("signature needs trusted keys: run starcm with --trusted-keys")
 	}
-	body, err := fetchSig(ctx, *sigRef)
+	body, err := fetchSig(ctx, req.Signature)
 	if err != nil {
-		return "", nil, fmt.Errorf("%s(label=%q): fetching signature: %w", a.fn, label, err)
+		return "", nil, req.errorf("fetching signature: %w", err)
 	}
 	defer body.Close()
 	sig, err = io.ReadAll(io.LimitReader(body, maxSignatureSize+1))
 	if err != nil {
-		return "", nil, fmt.Errorf("%s(label=%q): fetching signature: %w", a.fn, label, err)
+		return "", nil, req.errorf("fetching signature: %w", err)
 	}
 	if len(sig) > maxSignatureSize {
-		return "", nil, fmt.Errorf("%s(label=%q): signature %s is larger than %d bytes", a.fn, label, *sigRef, maxSignatureSize)
+		return "", nil, req.errorf("signature %s is larger than %d bytes", req.Signature, maxSignatureSize)
 	}
-	verified, err := a.keyring.VerifyDigest(sig)
+	verified, err := f.keyring.VerifyDigest(sig)
 	if err != nil {
-		return "", nil, fmt.Errorf("%s(label=%q): signature %s: %w", a.fn, label, *sigRef, err)
+		return "", nil, req.errorf("signature %s: %w", req.Signature, err)
 	}
 	return verified.SHA256, sig, nil
 }
 
-// save finishes a download: to savePath when it's given, otherwise into the
-// local store under file_name or defaultName.
-func (a *downloadAction) save(ctx context.Context, moduleName string, kwargs []starlark.Tuple, savePath *string, defaultName, expectedHash string, sig []byte, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
-	if savePath == nil {
-		fileName, err := optionalString(kwargs, "file_name")
-		if err != nil {
-			return nil, err
-		}
+// save finishes a download: to req.SaveTo when it's set, otherwise into the
+// local store under req.FileName or defaultName.
+func (f *Fetcher) save(ctx context.Context, req Request, defaultName, expectedHash string, sig []byte, get func(context.Context) (io.ReadCloser, error)) (Fetched, error) {
+	if req.SaveTo == "" {
 		name := defaultName
-		if fileName != nil {
-			name = *fileName
+		if req.FileName != "" {
+			name = req.FileName
 		}
-		return a.toStore(ctx, moduleName, name, expectedHash, sig, get, liveProgress)
+		return f.toStore(ctx, req, name, expectedHash, sig, get)
 	}
-	if a.storeOnly {
-		return nil, fmt.Errorf("%s(label=%q): save_to is disabled by --store-only; omit it to download into the store", a.fn, moduleName)
+	if f.storeOnly {
+		return Fetched{}, req.errorf("save_to is disabled by --store-only; omit it to download into the store")
 	}
-	return a.toPath(ctx, moduleName, *savePath, expectedHash, sig, get, liveProgress)
+	if !filepath.IsAbs(req.SaveTo) {
+		return Fetched{}, req.errorf("save_to %q is not an absolute path", req.SaveTo)
+	}
+	return f.toPath(ctx, req, expectedHash, sig, get)
 }
 
-// toPath downloads url to savePath. The data goes to a temporary file next to
-// savePath and is renamed into place once its sha256 matches, so savePath
-// never holds unverified data.
-func (a *downloadAction) toPath(ctx context.Context, moduleName, savePath, expectedHash string, sig []byte, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
-	r, err := a.fileToPath(ctx, moduleName, savePath, expectedHash, get, liveProgress)
+// toPath downloads to req.SaveTo. The data goes to a temporary file next to
+// it and is renamed into place once its sha256 matches, so SaveTo never
+// holds unverified data.
+func (f *Fetcher) toPath(ctx context.Context, req Request, expectedHash string, sig []byte, get func(context.Context) (io.ReadCloser, error)) (Fetched, error) {
+	got, err := f.fileToPath(ctx, req, expectedHash, get)
 	if err != nil || sig == nil {
-		return r, err
+		return got, err
 	}
 	// Keep the signature next to the file, where --trusted-keys and
 	// verify() look for it.
-	sigPath := savePath + signing.SignatureSuffix
-	if old, err := afero.ReadFile(a.fsys, sigPath); err == nil && bytes.Equal(old, sig) {
-		return r, nil
+	sigPath := req.SaveTo + signing.SignatureSuffix
+	if old, err := afero.ReadFile(f.fsys, sigPath); err == nil && bytes.Equal(old, sig) {
+		return got, nil
 	}
-	if err := afero.WriteFile(a.fsys, sigPath, sig, 0o644); err != nil {
-		return nil, fmt.Errorf("%s(label=%q): writing %s: %w", a.fn, moduleName, sigPath, err)
+	if err := afero.WriteFile(f.fsys, sigPath, sig, 0o644); err != nil {
+		return Fetched{}, req.errorf("writing %s: %w", sigPath, err)
 	}
-	r.Changed = true
-	return r, nil
+	got.Changed = true
+	return got, nil
 }
 
 // fileToPath is toPath without the signature.
-func (a *downloadAction) fileToPath(ctx context.Context, moduleName, savePath, expectedHash string, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
-	if _, err := a.fsys.Stat(savePath); err == nil {
-		existingHash, err := starcmsha256.File(a.fsys, savePath)
+func (f *Fetcher) fileToPath(ctx context.Context, req Request, expectedHash string, get func(context.Context) (io.ReadCloser, error)) (Fetched, error) {
+	savePath := req.SaveTo
+	if _, err := f.fsys.Stat(savePath); err == nil {
+		existingHash, err := starcmsha256.File(f.fsys, savePath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to hash existing file %q: %w", savePath, err)
+			return Fetched{}, fmt.Errorf("failed to hash existing file %q: %w", savePath, err)
 		}
 		if existingHash == expectedHash {
-			return unchanged(moduleName, fmt.Sprintf("%q already present and sha256 verified", savePath), starlark.None), nil
+			return Fetched{Path: savePath, Message: fmt.Sprintf("%q already present and sha256 verified", savePath)}, nil
 		}
 		// Exists but wrong hash: re-download; the rename below replaces it.
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("failed to stat %q: %w", savePath, err)
+		return Fetched{}, fmt.Errorf("failed to stat %q: %w", savePath, err)
 	}
 
 	body, err := get(ctx)
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
 	defer body.Close()
 
 	dir := filepath.Dir(savePath)
-	if err := a.fsys.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create directory for %q: %w", savePath, err)
+	if err := f.fsys.MkdirAll(dir, 0o755); err != nil {
+		return Fetched{}, fmt.Errorf("failed to create directory for %q: %w", savePath, err)
 	}
-	tmp, err := afero.TempFile(a.fsys, dir, "."+filepath.Base(savePath)+".tmp-")
+	tmp, err := afero.TempFile(f.fsys, dir, "."+filepath.Base(savePath)+".tmp-")
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
 	tmpName := tmp.Name()
 	// Every path below closes tmp before this runs, and before the rename:
 	// Windows can't delete or rename a file that is still open.
-	defer a.fsys.Remove(tmpName) // no-op once renamed
+	defer f.fsys.Remove(tmpName) // no-op once renamed
 
 	hasher := starcmsha256.New()
 	if _, err := io.Copy(io.MultiWriter(tmp, hasher), body); err != nil {
 		tmp.Close()
-		return nil, err
+		return Fetched{}, err
 	}
-	a.endProgress(liveProgress)
+	f.endProgress(req.LiveProgress)
 	if err := tmp.Close(); err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
 	if actualHash := starcmsha256.Hex(hasher); actualHash != expectedHash {
-		return nil, fmt.Errorf("expected sha256 hash %s, got %s", expectedHash, actualHash)
+		return Fetched{}, fmt.Errorf("expected sha256 hash %s, got %s", expectedHash, actualHash)
 	}
 	// Temp files are created 0600; give the download the usual file mode.
-	if err := a.fsys.Chmod(tmpName, 0o644); err != nil {
-		return nil, err
+	if err := f.fsys.Chmod(tmpName, 0o644); err != nil {
+		return Fetched{}, err
 	}
-	if err := a.fsys.Rename(tmpName, savePath); err != nil {
-		return nil, err
+	if err := f.fsys.Rename(tmpName, savePath); err != nil {
+		return Fetched{}, err
 	}
-	return changed(moduleName, fmt.Sprintf("downloaded file to %s", savePath), starlark.None), nil
+	return Fetched{Path: savePath, Changed: true, Message: fmt.Sprintf("downloaded file to %s", savePath)}, nil
 }
 
 // toStore downloads into the local store as name and returns its path there.
-func (a *downloadAction) toStore(ctx context.Context, moduleName, name, expectedHash string, sig []byte, get func(context.Context) (io.ReadCloser, error), liveProgress bool) (*base.Result, error) {
-	if a.store == nil {
-		return nil, fmt.Errorf("%s(label=%q): save_to must be provided; no store is configured", a.fn, moduleName)
+func (f *Fetcher) toStore(ctx context.Context, req Request, name, expectedHash string, sig []byte, get func(context.Context) (io.ReadCloser, error)) (Fetched, error) {
+	if f.store == nil {
+		return Fetched{}, req.errorf("save_to must be provided; no store is configured")
 	}
 	if name == "" || name == "." || name == "/" {
-		return nil, fmt.Errorf("%s(label=%q): can't name the stored file; pass file_name", a.fn, moduleName)
+		return Fetched{}, req.errorf("can't name the stored file; pass file_name")
 	}
 
-	store, err := a.store()
+	store, err := f.store()
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
 	stored, ok, err := store.Get(expectedHash, name)
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
 	if ok {
-		r := unchanged(moduleName, fmt.Sprintf("%q already in the store and sha256 verified", stored), starlark.String(stored))
-		return a.storeSignature(store, moduleName, expectedHash, name, sig, r)
+		got := Fetched{Path: stored, Message: fmt.Sprintf("%q already in the store and sha256 verified", stored)}
+		return f.storeSignature(store, req, expectedHash, name, sig, got)
 	}
 
 	body, err := get(ctx)
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
 	defer body.Close()
 	stored, err = store.Put(expectedHash, name, body)
-	a.endProgress(liveProgress)
+	f.endProgress(req.LiveProgress)
 	if err != nil {
-		return nil, err
+		return Fetched{}, err
 	}
-	r := changed(moduleName, fmt.Sprintf("downloaded file to %s", stored), starlark.String(stored))
-	return a.storeSignature(store, moduleName, expectedHash, name, sig, r)
+	got := Fetched{Path: stored, Changed: true, Message: fmt.Sprintf("downloaded file to %s", stored)}
+	return f.storeSignature(store, req, expectedHash, name, sig, got)
 }
 
 // storeSignature keeps sig, when the download was pinned by one, next to
 // the stored file, so --trusted-keys can load a stored .star file.
-func (a *downloadAction) storeSignature(store *localstore.Store, moduleName, hash, name string, sig []byte, r *base.Result) (*base.Result, error) {
+func (f *Fetcher) storeSignature(store *localstore.Store, req Request, hash, name string, sig []byte, got Fetched) (Fetched, error) {
 	if sig == nil {
-		return r, nil
+		return got, nil
 	}
 	_, sigChanged, err := store.PutSignature(hash, name, sig)
 	if err != nil {
-		return nil, fmt.Errorf("%s(label=%q): storing signature: %w", a.fn, moduleName, err)
+		return Fetched{}, req.errorf("storing signature: %w", err)
 	}
 	if sigChanged {
-		r.Changed = true
+		got.Changed = true
 	}
-	return r, nil
+	return got, nil
 }
 
 // httpGet starts an HTTP GET of url, returning the body and its size (-1
 // when unknown).
-func (a *downloadAction) httpGet(ctx context.Context, url string) (io.ReadCloser, int64, error) {
+func (f *Fetcher) httpGet(ctx context.Context, url string) (io.ReadCloser, int64, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, 0, err
 	}
-	resp, err := a.httpClient.Do(req)
+	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -311,13 +366,13 @@ func (a *downloadAction) httpGet(ctx context.Context, url string) (io.ReadCloser
 
 // withProgress makes reading body print progress for name when
 // liveProgress is set.
-func (a *downloadAction) withProgress(body io.ReadCloser, size int64, name string, liveProgress bool) io.ReadCloser {
+func (f *Fetcher) withProgress(body io.ReadCloser, size int64, name string, liveProgress bool) io.ReadCloser {
 	if !liveProgress {
 		return body
 	}
 	pw := &progressWriter{
 		total: size,
-		out:   a.output,
+		out:   f.output,
 		name:  name,
 	}
 	if pw.out == nil {
@@ -329,30 +384,10 @@ func (a *downloadAction) withProgress(body io.ReadCloser, size int64, name strin
 	}{io.TeeReader(body, pw), body}
 }
 
-func (a *downloadAction) endProgress(liveProgress bool) {
-	if liveProgress && a.output != nil {
-		fmt.Fprintln(a.output)
+func (f *Fetcher) endProgress(liveProgress bool) {
+	if liveProgress && f.output != nil {
+		fmt.Fprintln(f.output)
 	}
-}
-
-// optionalString returns the value of key in kwargs, or nil if it wasn't passed.
-func optionalString(kwargs []starlark.Tuple, key string) (*string, error) {
-	idx, err := starlarkhelpers.FindIndexOfValueInKwargs(kwargs, key)
-	if errors.Is(err, starlarkhelpers.ErrIndexNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return starlarkhelpers.FindValueFromIndexInKwargs(kwargs, idx)
-}
-
-func changed(label, message string, value starlark.Value) *base.Result {
-	return &base.Result{Label: label, Message: &message, Success: true, Changed: true, Return: value}
-}
-
-func unchanged(label, message string, value starlark.Value) *base.Result {
-	return &base.Result{Label: label, Message: &message, Success: true, Changed: false, Return: value}
 }
 
 type progressWriter struct {
@@ -380,43 +415,47 @@ func (pw *progressWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// Option configures download().
-type Option func(*downloadAction)
+// Option configures a Fetcher.
+type Option func(*Fetcher)
 
 // WithKeyring sets the --trusted-keys keyring that downloads pinned by
 // signature are checked against.
 func WithKeyring(k *signing.Keyring) Option {
-	return func(a *downloadAction) { a.keyring = k }
+	return func(f *Fetcher) { f.keyring = k }
 }
 
-// WithStore lets download() save into the local store when save_to is
-// omitted. open is called the first time a download needs the store.
+// WithStore lets the Fetcher save into the local store when SaveTo is
+// empty. open is called the first time a download needs the store.
 func WithStore(open func() (*localstore.Store, error)) Option {
-	return func(a *downloadAction) { a.store = open }
+	return func(f *Fetcher) { f.store = open }
 }
 
-// FunctionName names the Starlark function in error messages, for functions
-// such as load_remote() that download with this action.
-func FunctionName(name string) Option {
-	return func(a *downloadAction) { a.fn = name }
-}
-
-// StoreOnly makes download() refuse save_to, so every download goes into the
-// store.
+// StoreOnly makes the Fetcher refuse SaveTo, so every download goes into
+// the store.
 func StoreOnly(storeOnly bool) Option {
-	return func(a *downloadAction) { a.storeOnly = storeOnly }
+	return func(f *Fetcher) { f.storeOnly = storeOnly }
 }
 
-func New(ctx context.Context, httpClient http.Client, fsys afero.Fs, writer io.Writer, opts ...Option) *base.Module {
-	a := &downloadAction{
-		httpClient: &httpClient,
-		fsys:       fsys,
-		output:     writer,
-		fn:         "download",
-	}
+// WithHTTPClient sets the client for HTTP(S) downloads. The default is
+// http.DefaultClient.
+func WithHTTPClient(c *http.Client) Option {
+	return func(f *Fetcher) { f.httpClient = c }
+}
+
+// NewFetcher returns a Fetcher that writes to fsys and prints live progress
+// to output.
+func NewFetcher(fsys afero.Fs, output io.Writer, opts ...Option) *Fetcher {
+	f := &Fetcher{httpClient: http.DefaultClient, fsys: fsys, output: output}
 	for _, opt := range opts {
-		opt(a)
+		opt(f)
 	}
+	return f
+}
+
+// New returns the download() builtin.
+//
+//	download(label = "fetch agent", url = "https://example.com/agent.pkg", save_to = "/tmp/agent.pkg", sha256 = "...")
+func New(ctx context.Context, f *Fetcher) *base.Module {
 	return base.NewModule(
 		ctx,
 		"download",
@@ -428,6 +467,6 @@ func New(ctx context.Context, httpClient http.Client, fsys afero.Fs, writer io.W
 			base.OptionalArg[string]("signature"),
 			base.OptionalArgAllowNone[bool]("live_progress"),
 		},
-		a,
+		&downloadAction{f: f},
 	)
 }

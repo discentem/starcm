@@ -1,2 +1,2 @@
-load("starcm", "read_file")
-read_file("missing.txt", label = "missing")
+load("starcm", "read_file", "here")
+read_file(here("missing.txt"), label = "missing")

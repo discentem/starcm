@@ -15,7 +15,6 @@ import (
 	"github.com/discentem/starcm/libraries/fileutils"
 	"github.com/discentem/starcm/libraries/macsig"
 	shelllib "github.com/discentem/starcm/libraries/shell"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"go.starlark.net/starlark"
 	"go.starlark.net/starlarkstruct"
 )
@@ -28,40 +27,35 @@ type checkAction struct {
 	checkStored func(path string) error
 }
 
-var _ base.Runnable = (*checkAction)(nil)
+var _ base.Action = (*checkAction)(nil)
 
-func (a *checkAction) Run(ctx context.Context, workingDirectory string, label string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
-	var path string
-	if args.Len() == 1 {
-		path = args.Index(0).(starlark.String).GoString()
-	} else {
-		v, err := starlarkhelpers.FindValueinKwargs(kwargs, "path")
-		if err != nil {
-			return nil, err
-		}
-		path = *v
-	}
-	signer, err := starlarkhelpers.FindValueinKwargs(kwargs, "signer")
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(*signer) == "" {
+func (a *checkAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	label := inst.Label
+	rawPath, _ := base.Get[string](inst, "path")
+	signer, _ := base.Get[string](inst, "signer")
+	if strings.TrimSpace(signer) == "" {
 		return nil, fmt.Errorf("check_mac_signature(label=%q): signer must name the certificate, e.g. \"Developer ID Application: Example Corp (ABCDE12345)\"", label)
 	}
-	requireNotarized, err := starlarkhelpers.FindOptionalBoolInKwargs(kwargs, "require_notarized", true)
-	if err != nil {
-		return nil, err
+	requireNotarized := true
+	if v, ok := base.Get[bool](inst, "require_notarized"); ok {
+		requireNotarized = v
 	}
-	kindArg, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, "kind", macsig.KindAuto)
-	if err != nil {
-		return nil, err
+	kindArg, given := base.Get[string](inst, "kind")
+	if !given {
+		kindArg = macsig.KindAuto
 	}
-	kind, err := macsig.ResolveKind(path, *kindArg)
+	kind, err := macsig.ResolveKind(rawPath, kindArg)
 	if err != nil {
 		return nil, fmt.Errorf("check_mac_signature(label=%q): %w", label, err)
 	}
 	if a.goos != "darwin" {
 		return nil, fmt.Errorf("check_mac_signature(label=%q): check_mac_signature() only works on macOS", label)
+	}
+	// Whether a path is absolute depends on the OS, so check it once we
+	// know we're on macOS.
+	path, _, err := inst.AbsPath("path")
+	if err != nil {
+		return nil, err
 	}
 	if a.checkStored != nil {
 		if err := a.checkStored(path); err != nil {
@@ -92,7 +86,7 @@ func (a *checkAction) Run(ctx context.Context, workingDirectory string, label st
 	if err != nil {
 		return nil, fmt.Errorf("check_mac_signature(label=%q): %s: %w", label, path, err)
 	}
-	if err := sig.Check(*signer, requireNotarized); err != nil {
+	if err := sig.Check(signer, requireNotarized); err != nil {
 		return nil, fmt.Errorf("check_mac_signature(label=%q): %s: %w", label, path, err)
 	}
 	fields := sig.Fields()
@@ -105,6 +99,14 @@ func (a *checkAction) Run(ctx context.Context, workingDirectory string, label st
 		Message: &msg,
 		Return:  starlarkstruct.FromStringDict(starlark.String("mac_signature"), fields),
 	}, nil
+}
+
+// checkArgs are check_mac_signature()'s own arguments.
+var checkArgs = []base.ArgPair{
+	base.Arg[string]("path"),
+	base.Arg[string]("signer"),
+	base.OptionalArgAllowNone[bool]("require_notarized"),
+	base.OptionalArg[string]("kind"),
 }
 
 // Option configures check_mac_signature().
@@ -125,7 +127,7 @@ func WithGOOS(goos string) Option {
 // New returns the check_mac_signature() builtin, which runs pkgutil or
 // codesign with executor.
 //
-//	check_mac_signature("terraform", signer = "Developer ID Application: Hashicorp, Inc. (D38WU7D763)", label = "check terraform")
+//	check_mac_signature(terraform_path, signer = "Developer ID Application: Hashicorp, Inc. (D38WU7D763)", label = "check terraform")
 func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.Module {
 	a := &checkAction{executor: executor, goos: runtime.GOOS}
 	for _, opt := range opts {
@@ -134,12 +136,7 @@ func New(ctx context.Context, executor shelllib.Executor, opts ...Option) *base.
 	return base.NewModule(
 		ctx,
 		"check_mac_signature",
-		[]base.ArgPair{
-			base.Arg[string]("path"),
-			base.Arg[string]("signer"),
-			base.OptionalArgAllowNone[bool]("require_notarized"),
-			base.OptionalArg[string]("kind"),
-		},
+		checkArgs,
 		a,
 	)
 }

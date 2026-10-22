@@ -199,9 +199,9 @@ nothing on stdout
 ```scrut {output_stream: combined}
 $ starcm -v 3 hello.star
 INFO: [LoadFromFile]: loading file "hello.star"
-INFO: [base.go]: calling m.Action.Run(ctx, workingDirectory=".", label="greet", args, kwargs)
+INFO: [base.go]: calling write(label="greet")
 hello, world
-INFO: [base.go]: finished m.Action.Run for label="greet"
+INFO: [base.go]: finished write(label="greet")
 ```
 
 `--timestamps` starts each log line with the date and time, in UTC:

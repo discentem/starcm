@@ -24,7 +24,7 @@ write("no newline", end = "", label = "greet")
 | `end` | string | `"\n"` | Written after the value. |
 
 `write` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout`, `working_directory` and
+(required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -154,19 +154,19 @@ Error in write: write requires a value, either positionally or as str=
 [1]
 ```
 
+### A second positional argument is end
+
 ```python
-# examples/write/edge/too_many.star
+# examples/write/edge/positional_end.star
 load("starcm", "write")
 
-write("a", "b", label = "two values")
+# Positional arguments fill str, then end, the same as keywords would.
+write("a", "b\n", label = "two values")
 ```
 
 ```scrut
-$ starcm too_many.star 2>&1
-Traceback (most recent call last):
-  too_many.star:3:6: in <toplevel>
-Error in write: write takes at most one positional argument, got 2
-[1]
+$ starcm positional_end.star
+ab
 ```
 
 ```python

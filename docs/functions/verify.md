@@ -19,19 +19,19 @@ expiry and release checks, including
 ```python
 load("starcm", "verify")
 
-verify("agent.pkg", label = "check agent")                       # reads agent.pkg.sig
-verify(path = "agent.pkg", signature = "sigs/agent.pkg.sig", label = "check agent")
+verify("/opt/agent/agent.pkg", label = "check agent")          # reads agent.pkg.sig next to it
+verify(path = "/opt/agent/agent.pkg", signature = "/opt/agent/sigs/agent.pkg.sig", label = "check agent")
 ```
 
 ## Arguments
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `path` | string | required | The file to check, positionally or as `path =`. |
-| `signature` | string | `path + ".sig"` | The signature file. |
+| `path` | string | required | The file to check, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
+| `signature` | string | `path + ".sig"` | The signature file, as an absolute path. |
 
 `verify` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -70,10 +70,10 @@ signed detached.star with key "release" until 2099-01-01T00:00:00Z -> detached.s
 
 ```python
 # examples/verify/check.star
-load("starcm", "verify")
+load("starcm", "here", "verify")
 
 for f in ["agent.pkg", "unsigned.pkg"]:
-    r = verify(f, label = "check " + f)
+    r = verify(here(f), label = "check " + f)
     print("%s: success=%s key=%s" % (f, r.success, r.value))
     if not r.success:
         print("  error: %s" % r.error)
@@ -83,16 +83,16 @@ for f in ["agent.pkg", "unsigned.pkg"]:
 $ starcm --trusted-keys trusted check.star
 agent.pkg: success=True key=release
 unsigned.pkg: success=False key=None
-  error: unsigned\.pkg: reading signature: open unsigned\.pkg\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
+  error: .*[/\\]unsigned\.pkg: reading signature: open .*[/\\]unsigned\.pkg\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
 ```
 
 ### Refuse to install a tampered file
 
 ```python
 # examples/verify/must_verify.star
-load("starcm", "exec", "verify")
+load("starcm", "exec", "verify", "here")
 
-check = verify("agent.pkg", label = "check agent signature")
+check = verify(here("agent.pkg"), label = "check agent signature")
 if not check.success:
     fail(check.error)
 exec(label = "install agent", cmd = "cat", args = ["agent.pkg"], live_output = True)
@@ -107,7 +107,7 @@ agent payload
 $ cp agent.pkg agent.orig && echo "malware" >> agent.pkg && starcm --trusted-keys trusted must_verify.star 2>&1
 Traceback (most recent call last):
   must_verify.star:5:9: in <toplevel>
-Error in fail: fail: agent.pkg: key "release": signature does not match
+Error in fail: fail: *agent.pkg: key "release": signature does not match (glob)
 [1]
 ```
 
@@ -117,7 +117,7 @@ An expired signature fails the same way:
 $ mv agent.orig agent.pkg && starcm sign --expires 2020-01-01 --key release.pem agent.pkg >/dev/null && starcm --trusted-keys trusted must_verify.star 2>&1
 Traceback (most recent call last):
   must_verify.star:5:9: in <toplevel>
-Error in fail: fail: agent.pkg: key "release": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
+Error in fail: fail: *agent.pkg: key "release": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
 [1]
 ```
 
@@ -125,9 +125,9 @@ Error in fail: fail: agent.pkg: key "release": signature expired at 2020-01-01T0
 
 ```python
 # examples/verify/detached.star
-load("starcm", "verify")
+load("starcm", "verify", "here")
 
-r = verify("agent.pkg", signature = "sigs/agent.pkg.sig", label = "check with a detached signature")
+r = verify(here("agent.pkg"), signature = here("sigs/agent.pkg.sig"), label = "check with a detached signature")
 print("success=%s key=%s" % (r.success, r.value))
 ```
 

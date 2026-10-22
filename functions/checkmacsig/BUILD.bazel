@@ -10,7 +10,6 @@ go_library(
         "//libraries/fileutils",
         "//libraries/macsig",
         "//libraries/shell",
-        "//starlark-helpers",
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",
     ],
@@ -22,6 +21,7 @@ go_test(
     data = ["//libraries/macsig:testdata"],
     embed = [":checkmacsig"],
     deps = [
+        "//functions/base",
         "//libraries/shell",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

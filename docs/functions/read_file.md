@@ -11,18 +11,18 @@ changing it.
 ```python
 load("starcm", "read_file")
 
-read_file("settings.json", label = "read settings").value
-read_file(path = "settings.json", label = "read settings").value
+read_file("/etc/agent/settings.json", label = "read settings").value
+read_file(path = "~/.agent/settings.json", label = "read settings").value
 ```
 
 ## Arguments
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `path` | string | required | The file to read, positionally or as `path =`. A leading `~` expands to the home directory; other relative paths are relative to the directory starcm runs in. |
+| `path` | string | required | The file to read, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
 
 `read_file` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout`, `working_directory` and
+`label` (required), `only_if`, `not_if`, `timeout` and
 `what_if`. Only `only_if` and `not_if` affect it.
 
 ## Returns
@@ -44,9 +44,9 @@ $ cp -R "$TESTDIR/../../examples/read_file/." "$TMPDIR" && cd "$TMPDIR"
 
 ```python
 # examples/read_file/read.star
-load("starcm", "read_file")
+load("starcm", "read_file", "here")
 
-r = read_file("notes.txt", label = "read notes")
+r = read_file(here("notes.txt"), label = "read notes")
 print("success=%s changed=%s" % (r.success, r.changed))
 print(repr(r.value))
 print(r.value.splitlines())
@@ -69,9 +69,9 @@ success=True changed=False
 
 ```python
 # examples/read_file/json_config.star
-load("starcm", "json", "read_file")
+load("starcm", "json", "read_file", "here")
 
-settings = json.decode(read_file(path = "settings.json", label = "read settings").value)
+settings = json.decode(read_file(path = here("settings.json"), label = "read settings").value)
 print("channel=%s hosts=%s" % (settings["channel"], settings["hosts"]))
 ```
 
@@ -111,15 +111,15 @@ $ cd "$TMPDIR/edge"
 
 ```python
 # examples/read_file/edge/missing.star
-load("starcm", "read_file")
-read_file("missing.txt", label = "missing")
+load("starcm", "read_file", "here")
+read_file(here("missing.txt"), label = "missing")
 ```
 
 ```scrut
 $ starcm missing.star 2>&1
 Traceback (most recent call last):
   missing.star:2:10: in <toplevel>
-Error in read_file: failed to read file "missing\.txt": open .*[/\\]missing\.txt: (no such file or directory|The system cannot find the file specified\.) (regex)
+Error in read_file: failed to read file ".*[/\\]missing\.txt": open .*[/\\]missing\.txt: (no such file or directory|The system cannot find the file specified\.) (regex)
 [1]
 ```
 

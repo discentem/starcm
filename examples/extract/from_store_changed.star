@@ -1,4 +1,4 @@
-load("starcm", "download", "exec", "extract")
+load("starcm", "download", "exec", "extract", "vars")
 
 tool = download(
     label  = "fetch tool",
@@ -10,4 +10,4 @@ tool = download(
 exec(label = "tamper", cmd = "sh", args = ["-c", "chmod u+w \"$1\" && echo malware >> \"$1\"", "sh", tool.value])
 
 # ...so extract() refuses to read it.
-extract(label = "unpack tool", archive = tool.value, dest = "tampered-out")
+extract(label = "unpack tool", archive = tool.value, dest = vars["managed_dir"] + "/tampered-out")

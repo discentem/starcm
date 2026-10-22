@@ -26,7 +26,7 @@ func Abs(p string) (string, error) {
 		return "", err
 	}
 	if !filepath.IsAbs(expanded) {
-		return "", fmt.Errorf("%q is not an absolute path: pass the result of the step that made it, here(%q) for a file next to the .star file, or an absolute path", p, p)
+		return "", fmt.Errorf("%q is not an absolute path: write the full path, or pass the result of the step that made the file", p)
 	}
 	return filepath.Clean(expanded), nil
 }
@@ -78,4 +78,24 @@ func CallerDir(thread *starlark.Thread) (string, bool) {
 		return "", false
 	}
 	return filepath.Dir(file), true
+}
+
+// storeCheckKey is the thread-local key SetStoreCheck records under.
+const storeCheckKey = "starcm.paths.inStore"
+
+// SetStoreCheck records on thread how to tell whether a .star file runs from
+// starcm's store, as modules loaded with load_remote do. The loader sets it
+// on every thread it runs code on.
+func SetStoreCheck(thread *starlark.Thread, inStore func(path string) bool) {
+	thread.SetLocal(storeCheckKey, inStore)
+}
+
+// InStore reports whether file runs from starcm's store, by the check
+// SetStoreCheck recorded on thread. Without one it reports false.
+func InStore(thread *starlark.Thread, file string) bool {
+	if thread == nil {
+		return false
+	}
+	inStore, ok := thread.Local(storeCheckKey).(func(string) bool)
+	return ok && inStore(file)
 }

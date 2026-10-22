@@ -8,7 +8,6 @@ import (
 
 	"github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/libraries/logging"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
 	"go.starlark.net/starlark"
 	"go.starlark.net/syntax"
@@ -16,37 +15,25 @@ import (
 
 type LoadAction struct{}
 
-func (a *LoadAction) Run(
-	ctx context.Context,
-	workingDirectory string,
-	moduleName string,
-	thread *starlark.Thread,
-	args starlark.Tuple,
-	kwargs []starlark.Tuple,
-) (*base.Result, error) {
-	if thread == nil || thread.Load == nil {
-		return nil, fmt.Errorf("%s: thread.Load is nil", moduleName)
-	}
-	var module string
-	v, err := starlarkhelpers.FindValueinKwargs(kwargs, "module")
-	if err != nil {
-		if args.Len() > 1 {
-			return nil, fmt.Errorf("%s: expected at most one positional argument", moduleName)
-		}
-		module = args.Index(0).(starlark.String).GoString()
-	} else {
-		module = *v
-	}
+var _ base.Action = (*LoadAction)(nil)
 
+// Execute loads module, a bundled resource: a relative path resolves next
+// to the .star file the call is written in, and a // path against the
+// loader's root.
+func (a *LoadAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	thread := inst.Thread
+	if thread == nil || thread.Load == nil {
+		return nil, fmt.Errorf("%s: thread.Load is nil", inst.Label)
+	}
+	module, _ := base.Get[string](inst, "module")
 	logging.Log("load_dynamic", deck.V(4), "info", "passing module path to thread.Load: %q", module)
 
-	// For relative paths (not //, not absolute), resolve them relative to the caller's directory
-	// Use At(1) to skip the current load_dynamic call and get to the actual caller
-	if !filepath.IsAbs(module) && !strings.HasPrefix(module, "//") && len(thread.CallStack()) > 1 {
-		callerPos := thread.CallStack().At(1)
-		callerDir := filepath.Dir(callerPos.Pos.Filename())
-		module = filepath.Join(callerDir, module)
-		module = filepath.ToSlash(module)
+	if !strings.HasPrefix(module, "//") {
+		p, _, err := inst.ResourcePath("module")
+		if err != nil {
+			return nil, err
+		}
+		module = filepath.ToSlash(p)
 	}
 	d, err := loadGlobals(thread, module)
 	if err != nil {
@@ -91,7 +78,7 @@ func loadGlobals(thread *starlark.Thread, module string) (*starlark.Dict, error)
 func New(ctx context.Context) *base.Module {
 	return base.NewModule(
 		ctx,
-		"load",
+		"load_dynamic",
 		[]base.ArgPair{
 			base.Arg[string]("module"),
 		},

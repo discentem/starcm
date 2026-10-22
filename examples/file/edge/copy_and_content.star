@@ -1,3 +1,3 @@
-load("starcm", "file")
+load("starcm", "file", "here", "vars")
 
-file(label = "both", path = "copy.txt", source = "source.txt", content = "x")
+file(label = "both", path = vars["managed_dir"] + "/copy.txt", source = here("source.txt"), content = "x")

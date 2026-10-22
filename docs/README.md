@@ -20,13 +20,13 @@ All of these functions can be enhanced by:
 
 - [Common functionality across starcm functions](common-functionality.md): the arguments every
   function takes (`label`, `only_if`, `not_if`, `timeout`,
-  `working_directory`, `what_if`) and the `starcm_result` they return.
+  `what_if`), how paths work, and the `starcm_result` they return.
 - [Loading additional files](loading.md): `load()`, the `starcm` and `stdlib` modules,
   and how paths resolve.
 - [Command line flags](cli.md): `--var`, `--trusted-keys`, `--max-expiry`, `--release`, `--store-dir`, `--store-only`, `-v`, `--timestamps`,
   `starcm sign` and `starcm inspect`.
 - [Design: paths and arguments](design/paths-and-arguments.md): the rule for
-  relative paths, `here()`, and how arguments are parsed (being rolled out).
+  relative paths, `here()`, and how arguments are parsed.
 
 
 ### Managing the machine

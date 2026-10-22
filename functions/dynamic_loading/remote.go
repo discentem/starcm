@@ -9,24 +9,21 @@ import (
 	"strings"
 
 	"github.com/discentem/starcm/functions/base"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
-	"go.starlark.net/starlark"
+	"github.com/discentem/starcm/functions/download"
 )
 
-// RemoteAction is load_remote(): download() or s3_download() into the local
-// store, then load_dynamic() of the stored file. Pinning, signatures and the
-// store are download's; loading, --trusted-keys and the once-per-run cache
-// are the loader's.
+// RemoteAction is load_remote(): fetch into the local store with the
+// download Fetcher, then load_dynamic() of the stored file. Pinning,
+// signatures and the store are the Fetcher's; loading, --trusted-keys and the
+// once-per-run cache are the loader's.
 type RemoteAction struct {
-	// HTTP is download()'s action, for http:// and https:// URLs.
-	HTTP base.Runnable
-	// S3 is s3_download()'s action, for s3:// URLs.
-	S3 base.Runnable
+	Fetcher *download.Fetcher
 }
 
-var _ base.Runnable = (*RemoteAction)(nil)
+var _ base.Action = (*RemoteAction)(nil)
 
-func (a *RemoteAction) Run(ctx context.Context, workingDirectory string, label string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *RemoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	thread, label := inst.Thread, inst.Label
 	if thread == nil || thread.Load == nil {
 		return nil, fmt.Errorf("%s: thread.Load is nil", label)
 	}
@@ -34,16 +31,7 @@ func (a *RemoteAction) Run(ctx context.Context, workingDirectory string, label s
 		return fmt.Errorf("load_remote(label=%q): %s", label, fmt.Sprintf(format, v...))
 	}
 
-	var rawURL string
-	if args.Len() == 1 {
-		rawURL = args.Index(0).(starlark.String).GoString()
-	} else {
-		v, err := starlarkhelpers.FindValueinKwargs(kwargs, "url")
-		if err != nil {
-			return nil, err
-		}
-		rawURL = *v
-	}
+	rawURL, _ := base.Get[string](inst, "url")
 	u, err := neturl.Parse(rawURL)
 	if err != nil {
 		return nil, fail("%v", err)
@@ -52,77 +40,45 @@ func (a *RemoteAction) Run(ctx context.Context, workingDirectory string, label s
 	if path.Ext(name) != ".star" {
 		return nil, fail("%s doesn't name a .star file", rawURL)
 	}
+	sha, _ := base.Get[string](inst, "sha256")
+	sig, _ := base.Get[string](inst, "signature")
+	endpoint, _ := base.Get[string](inst, "endpoint")
+	region, _ := base.Get[string](inst, "region")
 
-	opt := func(key string) (string, error) {
-		v, err := starlarkhelpers.FindValueInKwargsWithDefault(kwargs, key, "")
-		if err != nil {
-			return "", err
-		}
-		return *v, nil
-	}
-	pin := map[string]string{}
-	for _, k := range []string{"sha256", "signature", "endpoint", "region"} {
-		if pin[k], err = opt(k); err != nil {
-			return nil, err
-		}
-	}
-
-	// Always into the store: no save_to, so the loaded file is the one
+	// Always into the store: no SaveTo, so the loaded file is the one
 	// stored under its verified sha256.
-	fetchArgs := []starlark.Tuple{{starlark.String("file_name"), starlark.String(name)}}
-	add := func(k, v string) {
-		if v != "" {
-			fetchArgs = append(fetchArgs, starlark.Tuple{starlark.String(k), starlark.String(v)})
-		}
-	}
-	var fetch base.Runnable
+	req := download.Request{Function: "load_remote", Label: label, FileName: name, SHA256: sha, Signature: sig}
+	var got download.Fetched
 	switch u.Scheme {
 	case "http", "https":
-		if pin["endpoint"] != "" || pin["region"] != "" {
+		if endpoint != "" || region != "" {
 			return nil, fail("endpoint and region are only for s3:// URLs")
 		}
-		fetch = a.HTTP
-		add("url", rawURL)
-		add("sha256", pin["sha256"])
-		add("signature", pin["signature"])
+		got, err = a.Fetcher.FetchURL(inst.Ctx, rawURL, req)
 	case "s3":
 		key := strings.TrimPrefix(u.Path, "/")
 		if u.Host == "" || key == "" {
 			return nil, fail("want s3://bucket/key, got %s", rawURL)
 		}
-		fetch = a.S3
-		add("bucket", u.Host)
-		add("key", key)
-		add("sha256", pin["sha256"])
-		add("endpoint", pin["endpoint"])
-		add("region", pin["region"])
-		if sig := pin["signature"]; sig != "" {
-			// s3_download takes the signature's key; it must be in the same
+		if sig != "" {
+			// FetchS3 takes the signature's key; it must be in the same
 			// bucket as the module.
 			su, err := neturl.Parse(sig)
 			if err != nil || su.Scheme != "s3" || su.Host != u.Host || strings.TrimPrefix(su.Path, "/") == "" {
 				return nil, fail("signature %s must be an s3:// URL in bucket %q", sig, u.Host)
 			}
-			add("signature", strings.TrimPrefix(su.Path, "/"))
+			req.Signature = strings.TrimPrefix(su.Path, "/")
 		}
+		got, err = a.Fetcher.FetchS3(inst.Ctx, download.S3Object{Bucket: u.Host, Key: key, Endpoint: endpoint, Region: region}, req)
 	default:
 		return nil, fail("url must start with http://, https:// or s3://, got %s", rawURL)
 	}
-	if fetch == nil {
-		return nil, fail("%s:// URLs aren't supported here", u.Scheme)
-	}
-
-	got, err := fetch.Run(ctx, workingDirectory, label, thread, nil, fetchArgs)
 	if err != nil {
 		return nil, err
 	}
-	stored, ok := got.Return.(starlark.String)
-	if !ok {
-		return nil, fail("download returned no stored path")
-	}
 	// An absolute path, so the loader doesn't resolve it against the
 	// calling file's directory.
-	modulePath, err := filepath.Abs(stored.GoString())
+	modulePath, err := filepath.Abs(got.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +86,7 @@ func (a *RemoteAction) Run(ctx context.Context, workingDirectory string, label s
 	if err != nil {
 		return nil, err
 	}
-	msg := fmt.Sprintf("loaded %s from %s", rawURL, stored.GoString())
+	msg := fmt.Sprintf("loaded %s from %s", rawURL, got.Path)
 	return &base.Result{
 		Label:   label,
 		Success: true,
@@ -140,12 +96,11 @@ func (a *RemoteAction) Run(ctx context.Context, workingDirectory string, label s
 	}, nil
 }
 
-// NewRemote returns the load_remote() builtin. fetchHTTP and fetchS3 are
-// download()'s and s3_download()'s actions.
+// NewRemote returns the load_remote() builtin, which fetches with f.
 //
 //	r = load_remote("https://config.example.com/agent.star", signature = "https://config.example.com/agent.star.sig", label = "agent")
 //	r.value["configure"]()
-func NewRemote(ctx context.Context, fetchHTTP, fetchS3 base.Runnable) *base.Module {
+func NewRemote(ctx context.Context, f *download.Fetcher) *base.Module {
 	return base.NewModule(
 		ctx,
 		"load_remote",
@@ -156,6 +111,6 @@ func NewRemote(ctx context.Context, fetchHTTP, fetchS3 base.Runnable) *base.Modu
 			base.OptionalArg[string]("endpoint"),
 			base.OptionalArg[string]("region"),
 		},
-		&RemoteAction{HTTP: fetchHTTP, S3: fetchS3},
+		&RemoteAction{Fetcher: f},
 	)
 }

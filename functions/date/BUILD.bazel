@@ -7,7 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
-        "//starlark-helpers",
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",
     ],

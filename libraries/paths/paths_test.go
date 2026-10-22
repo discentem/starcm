@@ -37,7 +37,7 @@ func TestAbs(t *testing.T) {
 
 	_, err = Abs("x.txt")
 	require.ErrorContains(t, err, `"x.txt" is not an absolute path`)
-	require.ErrorContains(t, err, `here("x.txt")`)
+	require.ErrorContains(t, err, "write the full path, or pass the result of the step that made the file")
 }
 
 func TestResource(t *testing.T) {

@@ -4,7 +4,7 @@ load("starcm", "file", "vars")
 # place, so what's installed is exactly what was checked.
 r = file(
     label             = "install tool",
-    path              = "bin/tool",
+    path              = vars["managed_dir"] + "/bin/tool",
     source            = vars["source"],
     signer            = "macOS Software Signing",
     require_notarized = False,  # Apple doesn't notarize its own code

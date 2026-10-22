@@ -23,8 +23,6 @@ import (
 	"strings"
 
 	"github.com/discentem/starcm/functions/base"
-	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
-	"github.com/mitchellh/go-homedir"
 	"go.starlark.net/starlark"
 )
 
@@ -35,7 +33,7 @@ type extractAction struct {
 	checkStored func(path string) error
 }
 
-var _ base.Runnable = (*extractAction)(nil)
+var _ base.Action = (*extractAction)(nil)
 
 const (
 	formatZip   = "zip"
@@ -186,50 +184,23 @@ func walk(path, format string, fn func(e entry, open func() (io.Reader, error)) 
 	}
 }
 
-// absPath expands a leading ~ and makes path absolute.
-func absPath(path string) (string, error) {
-	p, err := homedir.Expand(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to expand home directory in path %q: %w", path, err)
-	}
-	if !filepath.IsAbs(p) {
-		if p, err = filepath.Abs(p); err != nil {
-			return "", fmt.Errorf("failed to resolve path %q: %w", path, err)
-		}
-	}
-	return p, nil
-}
-
-func (a *extractAction) Run(ctx context.Context, workingDirectory string, label string, thread *starlark.Thread, args starlark.Tuple, kwargs []starlark.Tuple) (*base.Result, error) {
+func (a *extractAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	ctx, label := inst.Ctx, inst.Label
 	fail := func(format string, args ...any) error {
 		return fmt.Errorf("extract(label=%q): %s", label, fmt.Sprintf(format, args...))
 	}
 
-	var archiveArg string
-	if args.Len() >= 1 {
-		s, ok := starlark.AsString(args.Index(0))
-		if !ok {
-			return nil, fail("archive must be a string, not %s", args.Index(0).Type())
-		}
-		archiveArg = s
-	} else {
-		v, err := starlarkhelpers.FindValueinKwargs(kwargs, "archive")
-		if err != nil {
-			return nil, fail("%v", err)
-		}
-		archiveArg = *v
-	}
-	destArg, err := starlarkhelpers.FindValueinKwargs(kwargs, "dest")
+	archive, _, err := inst.AbsPath("archive")
 	if err != nil {
-		return nil, fail("%v", err)
+		return nil, err
+	}
+	dest, _, err := inst.AbsPath("dest")
+	if err != nil {
+		return nil, err
 	}
 	var members map[string]bool
 	var memberOrder []string
-	if v, err := starlarkhelpers.FindRawValueInKwargs(kwargs, "members"); err == nil && v != nil && v != starlark.None {
-		list, ok := v.(*starlark.List)
-		if !ok {
-			return nil, fail("members must be a list of strings, not %s", v.Type())
-		}
+	if list, ok := base.Get[*starlark.List](inst, "members"); ok {
 		members = map[string]bool{}
 		for i := 0; i < list.Len(); i++ {
 			s, ok := starlark.AsString(list.Index(i))
@@ -241,14 +212,6 @@ func (a *extractAction) Run(ctx context.Context, workingDirectory string, label 
 		}
 	}
 
-	archive, err := absPath(archiveArg)
-	if err != nil {
-		return nil, fail("%v", err)
-	}
-	dest, err := absPath(*destArg)
-	if err != nil {
-		return nil, fail("%v", err)
-	}
 	format, err := formatOf(archive)
 	if err != nil {
 		return nil, fail("%v", err)
@@ -468,6 +431,13 @@ func pathDir(name string) string {
 	return name[:i]
 }
 
+// extractArgs are extract()'s own arguments.
+var extractArgs = []base.ArgPair{
+	base.Arg[string]("archive"),
+	base.Arg[string]("dest"),
+	base.OptionalArgAllowNone[*starlark.List]("members"),
+}
+
 // Option configures extract().
 type Option func(*extractAction)
 
@@ -479,7 +449,7 @@ func WithStoreCheck(check func(path string) error) Option {
 
 // New returns the extract() builtin.
 //
-//	extract("terraform.zip", dest = "/usr/local/lib/terraform", members = ["terraform"], label = "unpack terraform")
+//	extract(zip.value, dest = "/usr/local/lib/terraform", members = ["terraform"], label = "unpack terraform")
 func New(ctx context.Context, opts ...Option) *base.Module {
 	a := &extractAction{goos: runtime.GOOS}
 	for _, opt := range opts {
@@ -488,11 +458,7 @@ func New(ctx context.Context, opts ...Option) *base.Module {
 	return base.NewModule(
 		ctx,
 		"extract",
-		[]base.ArgPair{
-			base.Arg[string]("archive"),
-			base.Arg[string]("dest"),
-			base.OptionalArgAllowNone[*starlark.List]("members"),
-		},
+		extractArgs,
 		a,
 	)
 }

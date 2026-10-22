@@ -3,6 +3,8 @@ package shell
 import (
 	"context"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -32,8 +34,9 @@ func runExec(t *testing.T, cmd string, args []string, extra ...starlark.Tuple) (
 		{starlark.String("args"), starlark.NewList(list)},
 	}
 	kwargs = append(kwargs, extra...)
+	kwargs = append(kwargs, starlark.Tuple{starlark.String("label"), starlark.String("test")})
 	a := &shellAction{executor: &shelllib.RealExecutor{}}
-	return a.Run(context.Background(), t.TempDir(), "test", nil, nil, kwargs)
+	return base.NewModule(context.Background(), "exec", execArgs, a).Call(nil, nil, kwargs)
 }
 
 func TestExec_CheckOffKeepsSuccessFalse(t *testing.T) {
@@ -85,4 +88,26 @@ func TestExec_CheckOffMissingCommandIsNotSuccess(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, res.Success)
 	require.NotEmpty(t, res.Error.Error())
+}
+
+func TestExec_Cwd(t *testing.T) {
+	skipWithoutSh(t)
+	if runtime.GOOS == "windows" {
+		t.Skip("Git Bash's pwd prints /c/... paths")
+	}
+	dir := t.TempDir()
+	res, err := runExec(t, "sh", []string{"-c", "pwd -P"},
+		starlark.Tuple{starlark.String("cwd"), starlark.String(dir)},
+	)
+	require.NoError(t, err)
+	want, err := filepath.EvalSymlinks(dir)
+	require.NoError(t, err)
+	require.Equal(t, filepath.ToSlash(want), strings.TrimSpace(res.Return.(starlark.String).GoString()))
+}
+
+func TestExec_RelativeCwdRefused(t *testing.T) {
+	_, err := runExec(t, "true", nil,
+		starlark.Tuple{starlark.String("cwd"), starlark.String("sub")},
+	)
+	require.ErrorContains(t, err, `exec(label="test"): cwd: "sub" is not an absolute path`)
 }

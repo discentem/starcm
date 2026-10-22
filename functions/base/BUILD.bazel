@@ -28,6 +28,7 @@ go_test(
     ],
     embed = [":base"],
     deps = [
+        "//libraries/paths",
         "@com_github_mitchellh_go_homedir//:go-homedir",
         "@com_github_stretchr_testify//require",
         "@net_starlark_go//starlark",

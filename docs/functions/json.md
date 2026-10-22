@@ -34,7 +34,7 @@ Each example runs in a scratch copy of
 [examples/json/](../../examples/json).
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/json/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/json/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Encode, decode and indent
@@ -70,19 +70,19 @@ file, and [file](file.md) reports `changed = False` when nothing changed.
 
 ```python
 # examples/json/write_json.star
-load("starcm", "file", "json")
+load("starcm", "file", "json", "vars")
 
 settings = {"channel": "beta", "auto_update": True, "hosts": ["a", "b"]}
 r = file(
     label   = "settings.json",
-    path    = "settings.json",
+    path    = vars["managed_dir"] + "/settings.json",
     content = json.indent(json.encode(settings), indent = "  ") + "\n",
 )
 print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm write_json.star && cat settings.json
+$ starcm --var managed_dir="$managed" write_json.star && cat settings.json
 changed=True
 {
   "auto_update": true,
@@ -95,7 +95,7 @@ changed=True
 ```
 
 ```scrut
-$ starcm write_json.star
+$ starcm --var managed_dir="$managed" write_json.star
 changed=False
 ```
 

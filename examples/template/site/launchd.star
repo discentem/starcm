@@ -1,10 +1,10 @@
-load("starcm", "template")
+load("starcm", "template", "vars")
 
 # A launchd job that runs the agent's check-in every 15 minutes.
 r = template(
     label       = "agent launchd job",
     template    = "agent.plist.tpl",
-    destination = "com.example.agent.plist",
+    destination = vars["managed_dir"] + "/com.example.agent.plist",
     data        = {
         "label":            "com.example.agent",
         "program":          ["/usr/local/bin/agent", "check-in"],

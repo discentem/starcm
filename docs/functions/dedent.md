@@ -45,14 +45,14 @@ characters, so mix them consistently.
 ## Examples
 
 ```scrut
-$ cp -R "$TESTDIR/../../examples/dedent/." "$TMPDIR" && cd "$TMPDIR"
+$ cp -R "$TESTDIR/../../examples/dedent/." "$TMPDIR" && cd "$TMPDIR" && managed="$(pwd -W 2>/dev/null || pwd)"
 ```
 
 ### Write a settings file from a function
 
 ```python
 # examples/dedent/settings.star
-load("starcm", "dedent", "file")
+load("starcm", "dedent", "file", "vars")
 
 def agent_settings(channel):
     # Indented with the code; dedent() takes the indentation off.
@@ -63,12 +63,12 @@ def agent_settings(channel):
             level = info
         """ % channel)
 
-r = file(label = "agent settings", path = "agent.conf", content = agent_settings("beta"))
+r = file(label = "agent settings", path = vars["managed_dir"] + "/agent.conf", content = agent_settings("beta"))
 print("changed=%s" % r.changed)
 ```
 
 ```scrut
-$ starcm settings.star && cat agent.conf
+$ starcm --var managed_dir="$managed" settings.star && cat agent.conf
 changed=True
 server = https://config.example.com
 channel = beta

@@ -1,3 +1,3 @@
-load("starcm", "install_mac_pkg")
+load("starcm", "install_mac_pkg", "here")
 
-install_mac_pkg("agent.pkg", signer = "", label = "no signer")
+install_mac_pkg(here("agent.pkg"), signer = "", label = "no signer")

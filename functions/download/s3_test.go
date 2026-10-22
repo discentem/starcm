@@ -67,7 +67,7 @@ func TestGetS3SignsRequests(t *testing.T) {
 	srv := httptest.NewServer(fake)
 	defer srv.Close()
 
-	body, size, err := getS3(context.Background(), "releases", "agent/agent.txt", s3Options{endpoint: srv.URL, region: "eu-west-1"})
+	body, size, err := getS3(context.Background(), "releases", "agent/agent.txt", S3Object{Endpoint: srv.URL, Region: "eu-west-1"})
 	require.NoError(t, err)
 	b, err := io.ReadAll(body)
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestGetS3DefaultsRegion(t *testing.T) {
 	srv := httptest.NewServer(fake)
 	defer srv.Close()
 
-	_, _, err := getS3(context.Background(), "b", "k", s3Options{endpoint: srv.URL})
+	_, _, err := getS3(context.Background(), "b", "k", S3Object{Endpoint: srv.URL})
 	require.NoError(t, err)
 	assert.Contains(t, fake.auth[0], "/"+defaultS3Region+"/s3/aws4_request")
 }
@@ -99,7 +99,7 @@ func TestGetS3Errors(t *testing.T) {
 	srv := httptest.NewServer(fake)
 	defer srv.Close()
 
-	_, _, err := getS3(context.Background(), "releases", "missing.txt", s3Options{endpoint: srv.URL})
+	_, _, err := getS3(context.Background(), "releases", "missing.txt", S3Object{Endpoint: srv.URL})
 	assert.ErrorContains(t, err, "failed to download s3://releases/missing.txt")
 	assert.ErrorContains(t, err, "NoSuchKey")
 }
@@ -118,33 +118,33 @@ func TestRunS3(t *testing.T) {
 	srv := httptest.NewServer(fake)
 	defer srv.Close()
 	fsys := afero.NewMemMapFs()
-	a := &s3DownloadAction{&downloadAction{httpClient: http.DefaultClient, fsys: fsys, fn: "s3_download"}}
+	a := &Fetcher{httpClient: http.DefaultClient, fsys: fsys}
 	run := func(pairs ...string) (*base.Result, error) {
-		return a.Run(context.Background(), "", "fetch", nil, nil, s3Kwargs(pairs...))
+		return runS3(a, "fetch", s3Kwargs(pairs...))
 	}
 
-	r, err := run("bucket", "releases", "key", "agent/agent.txt", "save_to", "agent.txt", "sha256", helloSHA256, "endpoint", srv.URL)
+	r, err := run("bucket", "releases", "key", "agent/agent.txt", "save_to", abs("agent.txt"), "sha256", helloSHA256, "endpoint", srv.URL)
 	require.NoError(t, err)
 	assert.True(t, r.Changed)
-	got, err := afero.ReadFile(fsys, "agent.txt")
+	got, err := afero.ReadFile(fsys, abs("agent.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", string(got))
 
 	// Present with the right hash: nothing is fetched again.
-	r, err = run("bucket", "releases", "key", "agent/agent.txt", "save_to", "agent.txt", "sha256", helloSHA256, "endpoint", srv.URL)
+	r, err = run("bucket", "releases", "key", "agent/agent.txt", "save_to", abs("agent.txt"), "sha256", helloSHA256, "endpoint", srv.URL)
 	require.NoError(t, err)
 	assert.False(t, r.Changed)
 	assert.Len(t, fake.paths, 1)
 
 	// The sha256 pin applies to S3 downloads too.
-	_, err = run("bucket", "releases", "key", "agent/agent.txt", "save_to", "other.txt", "sha256", strings.Repeat("0", 64), "endpoint", srv.URL)
+	_, err = run("bucket", "releases", "key", "agent/agent.txt", "save_to", abs("other.txt"), "sha256", strings.Repeat("0", 64), "endpoint", srv.URL)
 	assert.ErrorContains(t, err, "expected sha256 hash")
 
-	_, err = run("bucket", "", "key", "agent/agent.txt", "save_to", "x.txt", "sha256", helloSHA256)
+	_, err = run("bucket", "", "key", "agent/agent.txt", "save_to", abs("x.txt"), "sha256", helloSHA256)
 	assert.ErrorContains(t, err, `s3_download(label="fetch"): bucket must not be empty`)
 
 	// --store-only messages name s3_download, not download.
 	a.storeOnly = true
-	_, err = run("bucket", "releases", "key", "agent/agent.txt", "save_to", "x.txt", "sha256", helloSHA256, "endpoint", srv.URL)
+	_, err = run("bucket", "releases", "key", "agent/agent.txt", "save_to", abs("x.txt"), "sha256", helloSHA256, "endpoint", srv.URL)
 	assert.ErrorContains(t, err, `s3_download(label="fetch"): save_to is disabled by --store-only`)
 }
