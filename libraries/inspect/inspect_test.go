@@ -116,3 +116,22 @@ exec(label = "field names aren't names", cmd = read_file("x", label = "x").value
 	  {"module": "starcm", "function": "read_file", "line": 25}
 	]`, string(got))
 }
+
+func TestLoadRemoteURL(t *testing.T) {
+	src := `load("starcm", "load_remote", "vars")
+
+load_remote("https://config.example.com/a.star", sha256 = "h", label = "literal")
+load_remote(label = "kwarg", url = "s3://config/b.star", sha256 = "h")
+load_remote(vars["url"], sha256 = "h", label = "computed")
+`
+	r, err := File("main.star", []byte(src))
+	require.NoError(t, err)
+	got, err := json.Marshal(r.Calls)
+	require.NoError(t, err)
+	require.JSONEq(t, `[
+	  {"module": "starcm", "function": "load_remote", "line": 3, "url": "https://config.example.com/a.star"},
+	  {"module": "starcm", "function": "load_remote", "line": 4, "url": "s3://config/b.star"},
+	  {"module": "starcm", "function": "load_remote", "line": 5, "url": null,
+	   "inputs": [{"arg": "0", "uses": [{"module": "starcm", "function": "vars"}]}]}
+	]`, string(got))
+}

@@ -1,14 +1,11 @@
-load("starcm", "load_dynamic", "s3_download", "vars")
+load("starcm", "load_remote", "vars")
 
-# The only configuration on the machine to start with. main.star comes from
-# s3://config into the local store, pinned by its signature, and runs from
-# there: its .sig is stored next to it for --trusted-keys.
-main = s3_download(
-    label     = "fetch main.star",
-    bucket    = "config",
-    key       = "main.star",
-    signature = "main.star.sig",
+# The only configuration on the machine to start with. load_remote() fetches
+# main.star from s3://config into the local store, pinned by its signature,
+# and runs it from there: its .sig is stored next to it for --trusted-keys.
+load_remote(
+    label     = "run main.star",
+    url       = "s3://config/main.star",
+    signature = "s3://config/main.star.sig",
     endpoint  = vars["s3_endpoint"],
-).value
-
-load_dynamic(main, label = "run main.star")
+)

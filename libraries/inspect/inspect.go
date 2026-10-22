@@ -45,18 +45,23 @@ type Call struct {
 	// Path is load_dynamic's module argument when it's a string literal, or
 	// nil when it's computed at runtime. Only set for starcm's load_dynamic.
 	Path *string
+	// URL is load_remote's url argument when it's a string literal, or nil
+	// when it's computed at runtime. Only set for starcm's load_remote.
+	URL *string
 	// Inputs are the arguments whose values come from loaded names, such as
 	// exec(args = ["-c", "echo " + vars["name"]]). Omitted when there are none.
 	Inputs []Input
 }
 
 // MarshalJSON writes "path" for load_dynamic calls only, as null when the
-// path is computed, so tools can tell "computed" from "not load_dynamic", and
+// path is computed, so tools can tell "computed" from "not load_dynamic";
+// "url" likewise for load_remote; and
 // "inputs" only when there are some.
 func (c Call) MarshalJSON() ([]byte, error) {
 	out := struct {
 		Ref
 		Path   json.RawMessage `json:"path,omitempty"`
+		URL    json.RawMessage `json:"url,omitempty"`
 		Inputs []Input         `json:"inputs,omitempty"`
 	}{Ref: c.Ref, Inputs: c.Inputs}
 	if c.isLoadDynamic() {
@@ -66,10 +71,18 @@ func (c Call) MarshalJSON() ([]byte, error) {
 		}
 		out.Path = p
 	}
+	if c.isLoadRemote() {
+		u, err := json.Marshal(c.URL) // nil marshals as null
+		if err != nil {
+			return nil, err
+		}
+		out.URL = u
+	}
 	return json.Marshal(out)
 }
 
 func (c Call) isLoadDynamic() bool { return c.Module == "starcm" && c.Function == "load_dynamic" }
+func (c Call) isLoadRemote() bool  { return c.Module == "starcm" && c.Function == "load_remote" }
 
 // File parses src as starcm does and reports on it.
 func File(filename string, src []byte) (*Report, error) {
@@ -129,10 +142,10 @@ func File(filename string, src []byte) (*Report, error) {
 		called[fn] = true
 		c := Call{Ref: Ref{Module: b.module, Function: b.name, Line: line(call)}, Inputs: fl.inputs(call)}
 		if c.isLoadDynamic() {
-			if lit, ok := moduleArg(call).(*syntax.Literal); ok && lit.Token == syntax.STRING {
-				p := lit.Value.(string)
-				c.Path = &p
-			}
+			c.Path = literalString(firstArg(call, "module"))
+		}
+		if c.isLoadRemote() {
+			c.URL = literalString(firstArg(call, "url"))
 		}
 		r.Calls = append(r.Calls, c)
 		return true
@@ -154,13 +167,22 @@ func File(filename string, src []byte) (*Report, error) {
 	return r, nil
 }
 
-// moduleArg returns load_dynamic's module argument: module= or the first
-// positional argument.
-func moduleArg(call *syntax.CallExpr) syntax.Expr {
+// literalString returns e's value when it's a string literal, else nil.
+func literalString(e syntax.Expr) *string {
+	if lit, ok := e.(*syntax.Literal); ok && lit.Token == syntax.STRING {
+		s := lit.Value.(string)
+		return &s
+	}
+	return nil
+}
+
+// firstArg returns a call's argument named keyword, or else its first
+// positional argument: load_dynamic's module, load_remote's url.
+func firstArg(call *syntax.CallExpr, keyword string) syntax.Expr {
 	var positional syntax.Expr
 	for _, a := range call.Args {
 		if kw, ok := a.(*syntax.BinaryExpr); ok && kw.Op == syntax.EQ {
-			if id, ok := kw.X.(*syntax.Ident); ok && id.Name == "module" {
+			if id, ok := kw.X.(*syntax.Ident); ok && id.Name == keyword {
 				return kw.Y
 			}
 			continue

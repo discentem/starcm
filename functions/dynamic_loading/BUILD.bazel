@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "dynamic_loading",
-    srcs = ["dynamic.go"],
+    srcs = [
+        "dynamic.go",
+        "remote.go",
+    ],
     importpath = "github.com/discentem/starcm/functions/dynamic_loading",
     visibility = ["//visibility:public"],
     deps = [

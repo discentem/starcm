@@ -422,43 +422,8 @@ starcm_result(changed = True, error = "<nil>", label = "Downloading Ghostty 1.2.
 
 ### Fetch a `.star` file from a server and run it
 
-A small macro wraps `download` and [load_dynamic](load_dynamic.md):
-
-```python
-# examples/download/load_remote/load_remote_macro.star
-load("starcm", "load_dynamic")
-load("starcm", "download")
-
-def load_remote(url, sha256):
-    fname = url.split("/")[-1]
-    d = download(
-        label = "downloading {}".format(fname),
-        url = url,
-        save_to = fname,
-        sha256 = sha256
-    )
-    load_dynamic(fname, label = "loading {}".format(fname))
-```
-
-```python
-# examples/download/load_remote/load_remote.star
-load("load_remote_macro.star", "load_remote")
-
-# use the load_remote macro to download and load the remote file.
-# Served by `python3 -m http.server 8000` from the repo root.
-load_remote(
-    url = "http://localhost:8000/examples/loading/nested_files/e.star",
-    sha256 = "6a6afe8b43b89e345842f74d84cf92e280862d648f01f8f0fa356a9d4c6e8796"
-)
-```
-
-The second run finds the file already downloaded, and runs it again:
-
-```scrut
-$ (cd load_remote && starcm load_remote.star && starcm load_remote.star)
-hello from e.star
-hello from e.star
-```
+Use [load_remote](load_remote.md), which downloads a `.star` file into the
+store and loads it in one call.
 
 ## Errors and edge cases
 

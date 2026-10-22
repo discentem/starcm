@@ -61,6 +61,7 @@ All of these functions can be enhanced by:
 | --- | --- |
 | [write](functions/write.md) | Print a value, subject to `only_if` / `not_if`. |
 | [load_dynamic](functions/load_dynamic.md) | Load a `.star` file whose path is computed at runtime. |
+| [load_remote](functions/load_remote.md) | Fetch a `.star` file over HTTP(S) or from S3, pinned by sha256 or signature, and load it. |
 
 ### Values and helpers
 

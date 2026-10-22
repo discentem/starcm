@@ -13,10 +13,11 @@ test credentials before running this file.
 The chain:
 
 ```text
-bootstrap.star                 local; starcm runs this. It fetches main.star
-                               from the bucket and runs it.
+bootstrap.star                 local; starcm runs this. It loads main.star
+                               from the bucket with load_remote().
 s3://config/
-  main.star                    fetches the two files below and uses them
+  main.star                    loads lib/settings.star with load_remote() and
+                               fetches the install script with s3_download()
   lib/settings.star            writes the agent's settings file
   scripts/install-agent.sh     installs the agent
 ```
@@ -27,34 +28,32 @@ s3://config/
 
 ```python
 # tests/integration/s3/fixtures/bootstrap.star
-load("starcm", "load_dynamic", "s3_download", "vars")
+load("starcm", "load_remote", "vars")
 
-# The only configuration on the machine to start with. main.star comes from
-# s3://config into the local store, pinned by its signature, and runs from
-# there: its .sig is stored next to it for --trusted-keys.
-main = s3_download(
-    label     = "fetch main.star",
-    bucket    = "config",
-    key       = "main.star",
-    signature = "main.star.sig",
+# The only configuration on the machine to start with. load_remote() fetches
+# main.star from s3://config into the local store, pinned by its signature,
+# and runs it from there: its .sig is stored next to it for --trusted-keys.
+load_remote(
+    label     = "run main.star",
+    url       = "s3://config/main.star",
+    signature = "s3://config/main.star.sig",
     endpoint  = vars["s3_endpoint"],
-).value
-
-load_dynamic(main, label = "run main.star")
+)
 ```
 
 `main.star`, in the bucket:
 
 ```python
 # tests/integration/s3/fixtures/config/main.star
-load("starcm", "exec", "load_dynamic", "s3_download", "vars")
+load("starcm", "exec", "load_remote", "s3_download", "vars")
 
 # bootstrap.star fetches this file from s3://config and runs it. Everything
 # it fetches is pinned by its signature, so a new release only needs new
 # files and .sig files in the bucket, not a change here.
 
 def fetch(key):
-    """Fetches key and its signature, key.sig, into the local store."""
+    """Fetches key and its signature, key.sig, into the local store and
+    returns its path there."""
     return s3_download(
         label     = "fetch " + key,
         bucket    = "config",
@@ -63,7 +62,12 @@ def fetch(key):
         endpoint  = vars["s3_endpoint"],
     ).value
 
-settings = load_dynamic(fetch("lib/settings.star"), label = "load settings").value
+settings = load_remote(
+    label     = "load settings",
+    url       = "s3://config/lib/settings.star",
+    signature = "s3://config/lib/settings.star.sig",
+    endpoint  = vars["s3_endpoint"],
+).value
 settings["apply"]()
 
 exec(label = "install agent", cmd = "sh", args = [fetch("scripts/install-agent.sh")], live_output = True)
@@ -177,7 +181,7 @@ after its sha256, with its signature next to it:
 
 ```scrut
 $ ls store/sha256/*/
-store/sha256/ac2c374ce948e9994baff90748c8fb577ee7244bff12c287d782686fa5947f5b/:
+store/sha256/4aad939f74ad480db56c05dba830d5e7321dce8ca7d032821aac99be089420d0/:
 main.star
 main.star.sig
 

@@ -180,4 +180,5 @@ Error in load_dynamic: loading module "nope\.star": open nope\.star: (no such fi
 ## See also
 
 - [Loading files](../loading.md) for `load()` and how paths resolve.
+- [load_remote](load_remote.md) to fetch a `.star` file from a server or S3 bucket and load it.
 - [inspect](inspect.md) reports each `load_dynamic` call's path, or `null` when it's computed.
