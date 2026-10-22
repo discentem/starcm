@@ -7,11 +7,11 @@
 # background tee processes to race with the next command, and this works with
 # bash 3.2 (macOS). When stdout and stderr are the same pipe (a scrut block
 # with output_stream: combined), one file keeps the two streams in order.
+# Git Bash can't tell that they're the same pipe, so CI doesn't use this on
+# Windows.
 set -u
 
 real=$STARCM_REAL
-# Git Bash on Windows: $RUNNER_TEMP is a Windows path.
-if command -v cygpath >/dev/null; then real=$(cygpath -u "$real"); fi
 
 out=$(mktemp)
 err=$(mktemp)

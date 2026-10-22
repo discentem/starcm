@@ -60,7 +60,9 @@ jobs:
 
       - name: Show starcm's output
         if: always()
-        run: cat "$STARCM_TRANSCRIPT" 2>/dev/null || echo "starcm never ran"
+        run: |
+          if [ -z "${STARCM_TRANSCRIPT:-}" ]; then echo "not recorded on $RUNNER_OS"; exit 0; fi
+          cat "$STARCM_TRANSCRIPT" 2>/dev/null || echo "starcm never ran"
 
   # Runs tests/integration/s3/chain.md: a chain of .star files fetched from a real
   # S3-compatible server.
@@ -141,4 +143,6 @@ jobs:
 
       - name: Show starcm's output
         if: always()
-        run: cat "$STARCM_TRANSCRIPT" 2>/dev/null || echo "starcm never ran"
+        run: |
+          if [ -z "${STARCM_TRANSCRIPT:-}" ]; then echo "not recorded on $RUNNER_OS"; exit 0; fi
+          cat "$STARCM_TRANSCRIPT" 2>/dev/null || echo "starcm never ran"
