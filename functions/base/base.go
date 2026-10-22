@@ -68,7 +68,10 @@ type Module struct {
 	Type   string
 	Args   []ArgPair
 	Action Runnable
-	Ctx    context.Context
+	// Exec, when set, is used instead of Action: it receives the
+	// arguments parsed once, as a *FunctionInstance.
+	Exec Action
+	Ctx  context.Context
 }
 
 // Function produces a starlark Function that has common behavior which is useful for all modules like
@@ -90,10 +93,17 @@ func (m Module) Function() starlarkhelpers.Function {
 		)
 
 		finalArgs := make([]any, 0, 2*(len(m.Args)+6))
-		// Add arguments that are specific to this module. Actions read these
-		// from kwargs themselves; unpacking here only validates them.
+		// names and targets let a Exec read the parsed values; a plain
+		// Action re-reads args and kwargs itself, so for it unpacking here
+		// only validates them.
+		names := make([]string, 0, len(m.Args)+6)
+		targets := make(map[string]any, len(m.Args))
+		// Add arguments that are specific to this module.
 		for _, arg := range m.Args {
-			finalArgs = append(finalArgs, arg.Key, arg.newTarget())
+			target := arg.newTarget()
+			finalArgs = append(finalArgs, arg.Key, target)
+			names = append(names, arg.Key)
+			targets[argName(arg.Key)] = target
 		}
 		// Common arguments automatically available for all Starcm functions
 		finalArgs = append(finalArgs,
@@ -104,6 +114,7 @@ func (m Module) Function() starlarkhelpers.Function {
 			"working_directory?", &workingDirectory,
 			"what_if?", &whatIf,
 		)
+		names = append(names, "label", "only_if?", "not_if?", "timeout?", "working_directory?", "what_if?")
 
 		// Name argument errors after this call's label when it has one.
 		fnName := builtin.Name()
@@ -152,7 +163,7 @@ func (m Module) Function() starlarkhelpers.Function {
 		} else {
 			finalWorkingDir = workingDirectory.GoString()
 		}
-		if m.Action == nil {
+		if m.Action == nil && m.Exec == nil {
 			return starlark.None, fmt.Errorf("no action defined for module %s", label)
 		}
 
@@ -168,8 +179,19 @@ func (m Module) Function() starlarkhelpers.Function {
 		} else {
 			ctx = m.Ctx
 		}
-		logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, label=%q, args, kwargs)", finalWorkingDir, label)
-		r, err := m.Action.Run(ctx, finalWorkingDir, label, thread, args, kwargs)
+		var r *Result
+		var err error
+		if m.Exec != nil {
+			logging.Log("base.go", deck.V(3), "info", "calling m.Exec.Execute(label=%q)", label)
+			inst := newInstance(ctx, builtin.Name(), label, bool(whatIf), thread, names, targets, args, kwargs)
+			if err := inst.checkRequired(fnName, m.Args); err != nil {
+				return starlark.None, err
+			}
+			r, err = m.Exec.Execute(inst)
+		} else {
+			logging.Log("base.go", deck.V(3), "info", "calling m.Action.Run(ctx, workingDirectory=%q, label=%q, args, kwargs)", finalWorkingDir, label)
+			r, err = m.Action.Run(ctx, finalWorkingDir, label, thread, args, kwargs)
+		}
 		if r == nil && err != nil {
 			return starlark.None, err
 		}
@@ -181,6 +203,12 @@ func (m Module) Function() starlarkhelpers.Function {
 		return starResult, nil
 	}
 
+}
+
+// NewActionModule is NewModule for actions that take their arguments parsed
+// once, as a *FunctionInstance.
+func NewActionModule(ctx context.Context, fnType string, args []ArgPair, action Action) *Module {
+	return &Module{Type: fnType, Args: args, Exec: action, Ctx: ctx}
 }
 
 func NewModule(ctx context.Context, fnType string, args []ArgPair, action Runnable) *Module {
