@@ -38,7 +38,9 @@ jobs:
           bazel build //:starcm
           cp bazel-bin/starcm_/starcm "$RUNNER_TEMP/bin/"
 
-      - name: Install a signed package
+      # install_mac_pkg.md installs a signed package; terraform.md installs
+      # a signed binary with download, extract and file(signer = ...).
+      - name: Install a signed package and a signed binary
         run: scrut test --work-directory . tests/integration/macos/
 
       # README.md's quick start runs `sudo starcm`, so starcm must be on
