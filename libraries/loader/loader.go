@@ -332,7 +332,8 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					}
 				}
 				vars.Freeze()
-				// download, s3_download and load_remote share one Fetcher, so
+				// download, s3_download, load_remote and
+				// install_remote_mac_pkg share one Fetcher, so
 				// they pin, store and verify the same way.
 				fetcher := starcmdownload.NewFetcher(fsys, os.Stdout,
 					starcmdownload.WithStore(l.Store),
@@ -395,6 +396,15 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"install_mac_pkg",
 						starcmmacpkg.New(
 							ctx,
+							ex,
+							starcmmacpkg.WithStoreCheck(l.StoreCheck),
+						).Function(),
+					),
+					"install_remote_mac_pkg": starlark.NewBuiltin(
+						"install_remote_mac_pkg",
+						starcmmacpkg.NewRemote(
+							ctx,
+							fetcher,
 							ex,
 							starcmmacpkg.WithStoreCheck(l.StoreCheck),
 						).Function(),

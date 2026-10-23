@@ -36,7 +36,12 @@ func (a *pkgAction) run(name string, args ...string) ([]byte, error) {
 }
 
 type parsedArgs struct {
-	path             string
+	// fn names the builtin in errors, e.g. install_mac_pkg.
+	fn, label string
+	path      string
+	// name is how messages and errors name the package: its path, or the
+	// URL it was fetched from.
+	name             string
 	signer           string
 	sha256           string // "" when not pinned
 	requireNotarized bool
@@ -45,16 +50,22 @@ type parsedArgs struct {
 	whatIf           bool
 }
 
-func (a *pkgAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) {
-	label := inst.Label
-	p := &parsedArgs{whatIf: inst.WhatIf}
+func (p *parsedArgs) errorf(format string, args ...any) error {
+	return fmt.Errorf("%s(label=%q): "+format, append([]any{p.fn, p.label}, args...)...)
+}
+
+// parseArgs reads the arguments install_mac_pkg() and
+// install_remote_mac_pkg() share, except paths, which are only checked once
+// we know we're on macOS (see checkPlatform).
+func (a *pkgAction) parseArgs(inst *base.FunctionInstance, fn string) (*parsedArgs, error) {
+	p := &parsedArgs{fn: fn, label: inst.Label, whatIf: inst.WhatIf}
 	signer, _ := base.Get[string](inst, "signer")
 	if p.signer = strings.TrimSpace(signer); p.signer == "" {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): signer must name the certificate, e.g. \"Developer ID Installer: Example Corp (ABCDE12345)\"", label)
+		return nil, p.errorf("signer must name the certificate, e.g. \"Developer ID Installer: Example Corp (ABCDE12345)\"")
 	}
 	sum, _ := base.Get[string](inst, "sha256")
 	if p.sha256 = strings.ToLower(sum); p.sha256 != "" && !sha256Hex.MatchString(p.sha256) {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): sha256 %q is not 64 hex characters", label, sum)
+		return nil, p.errorf("sha256 %q is not 64 hex characters", sum)
 	}
 	p.requireNotarized = true
 	if v, ok := base.Get[bool](inst, "require_notarized"); ok {
@@ -63,48 +74,68 @@ func (a *pkgAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) 
 	p.id, _ = base.Get[string](inst, "id")
 	p.version, _ = base.Get[string](inst, "version")
 	if (p.id == "") != (p.version == "") {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): id and version must be given together", label)
+		return nil, p.errorf("id and version must be given together")
 	}
 	return p, nil
 }
 
-func (a *pkgAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
-	label := inst.Label
-	p, err := a.parseArgs(inst)
-	if err != nil {
-		return nil, err
-	}
+// checkPlatform refuses to run anywhere but macOS, then reads target.
+// Whether a path is absolute depends on the OS, so paths are checked here.
+func (a *pkgAction) checkPlatform(inst *base.FunctionInstance, p *parsedArgs) error {
 	if a.goos != "darwin" {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): install_mac_pkg() only works on macOS", label)
-	}
-	// Whether a path is absolute depends on the OS, so check paths once we
-	// know we're on macOS.
-	if p.path, _, err = inst.AbsPath("path"); err != nil {
-		return nil, err
+		return p.errorf("%s() only works on macOS", p.fn)
 	}
 	target, given, err := inst.AbsPath("target")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !given {
 		target = "/"
 	}
 	p.target = target
+	return nil
+}
 
-	if p.id != "" {
-		installed, err := a.installedVersion(p.id, p.target)
-		if err != nil {
-			return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
-		}
-		if installed == p.version {
-			msg := fmt.Sprintf("%s %s is already installed", p.id, p.version)
-			return &base.Result{Label: label, Success: true, Message: &msg}, nil
-		}
+// alreadyInstalled returns a result when p's id and version are already
+// installed on its target, or nil when the package should be installed.
+func (a *pkgAction) alreadyInstalled(p *parsedArgs) (*base.Result, error) {
+	if p.id == "" {
+		return nil, nil
 	}
+	installed, err := a.installedVersion(p.id, p.target)
+	if err != nil {
+		return nil, p.errorf("%w", err)
+	}
+	if installed != p.version {
+		return nil, nil
+	}
+	msg := fmt.Sprintf("%s %s is already installed", p.id, p.version)
+	return &base.Result{Label: p.label, Success: true, Message: &msg}, nil
+}
 
+func (a *pkgAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+	p, err := a.parseArgs(inst, "install_mac_pkg")
+	if err != nil {
+		return nil, err
+	}
+	if err := a.checkPlatform(inst, p); err != nil {
+		return nil, err
+	}
+	if p.path, _, err = inst.AbsPath("path"); err != nil {
+		return nil, err
+	}
+	p.name = p.path
+	if r, err := a.alreadyInstalled(p); r != nil || err != nil {
+		return r, err
+	}
+	return a.install(p)
+}
+
+// install checks the package at p.path and installs it.
+func (a *pkgAction) install(p *parsedArgs) (*base.Result, error) {
 	if a.checkStored != nil {
 		if err := a.checkStored(p.path); err != nil {
-			return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
+			return nil, p.errorf("%w", err)
 		}
 	}
 
@@ -118,32 +149,32 @@ func (a *pkgAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
 	pkgPath := filepath.Join(dir, filepath.Base(p.path))
 	sum, err := fileutils.CopyNew(p.path, pkgPath, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): %w", label, err)
+		return nil, p.errorf("%w", err)
 	}
 	if p.sha256 != "" && sum != p.sha256 {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s has sha256 %s, not the expected %s", label, p.path, sum, p.sha256)
+		return nil, p.errorf("%s has sha256 %s, not the expected %s", p.name, sum, p.sha256)
 	}
 
 	sig, err := macsig.New(a.executor).ReadPkg(pkgPath)
 	if err != nil {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s: %w", label, p.path, err)
+		return nil, p.errorf("%s: %w", p.name, err)
 	}
 	if err := sig.Check(p.signer, p.requireNotarized); err != nil {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): %s: %w", label, p.path, err)
+		return nil, p.errorf("%s: %w", p.name, err)
 	}
 	value := sig.Value()
 
 	if p.whatIf {
-		msg := fmt.Sprintf("would install %s, signed by %q", p.path, sig.Chain[0].Name)
-		return &base.Result{Label: label, Success: true, Changed: true, Message: &msg, Return: value}, nil
+		msg := fmt.Sprintf("would install %s, signed by %q", p.name, sig.Chain[0].Name)
+		return &base.Result{Label: p.label, Success: true, Changed: true, Message: &msg, Return: value}, nil
 	}
 
 	out, err := a.run("/usr/sbin/installer", "-pkg", pkgPath, "-target", p.target)
 	if err != nil {
-		return nil, fmt.Errorf("install_mac_pkg(label=%q): installer failed: %w\n%s", label, err, strings.TrimSpace(string(out)))
+		return nil, p.errorf("installer failed: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
-	msg := fmt.Sprintf("installed %s, signed by %q", p.path, sig.Chain[0].Name)
-	return &base.Result{Label: label, Success: true, Changed: true, Message: &msg, Return: value}, nil
+	msg := fmt.Sprintf("installed %s, signed by %q", p.name, sig.Chain[0].Name)
+	return &base.Result{Label: p.label, Success: true, Changed: true, Message: &msg, Return: value}, nil
 }
 
 var versionLine = regexp.MustCompile(`(?m)^version: (.+)$`)

@@ -46,7 +46,7 @@ prints a JSON list with one report per file.
 | --- | --- |
 | `file` | The path as given. |
 | `loads` | One entry per `load()` statement: `module`, `line`, and `names`, which maps each local name to the name it was loaded as. |
-| `calls` | Direct calls to loaded names: `module`, `function` (the original name, after aliases) and `line`. Calls to `load_dynamic` also have `path`: its literal module path, or `None` / `null` when the path is computed at runtime. Calls to [load_remote](load_remote.md) have `url` the same way. |
+| `calls` | Direct calls to loaded names: `module`, `function` (the original name, after aliases) and `line`. Calls to `load_dynamic` also have `path`: its literal module path, or `None` / `null` when the path is computed at runtime. Calls to [load_remote](load_remote.md) and [install_remote_mac_pkg](install_remote_mac_pkg.md) have `url` the same way. |
 | `calls[].inputs` | Only on calls with arguments that come from loaded names. One entry per such argument: `arg` (the keyword, the position `"0"`, `"1"`, ... of a positional argument, or `"*"` / `"**"`) and `uses`, the loaded names its value is computed from, as `module` and `function`. See [What reaches a call's arguments](#what-reaches-a-calls-arguments). |
 | `values` | Other uses of loaded names, such as `vars["base_url"]` or passing a function around: `module`, `function` and `line`. Calls made through such values can't be known statically. |
 

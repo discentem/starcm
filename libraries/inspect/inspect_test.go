@@ -118,11 +118,12 @@ exec(label = "field names aren't names", cmd = read_file("x", label = "x").value
 }
 
 func TestLoadRemoteURL(t *testing.T) {
-	src := `load("starcm", "load_remote", "vars")
+	src := `load("starcm", "install_remote_mac_pkg", "load_remote", "vars")
 
 load_remote("https://config.example.com/a.star", sha256 = "h", label = "literal")
 load_remote(label = "kwarg", url = "s3://config/b.star", sha256 = "h")
 load_remote(vars["url"], sha256 = "h", label = "computed")
+install_remote_mac_pkg("https://releases.example.com/agent.pkg", sha256 = "h", signer = "s", label = "pkg")
 `
 	r, err := File("main.star", []byte(src))
 	require.NoError(t, err)
@@ -132,6 +133,7 @@ load_remote(vars["url"], sha256 = "h", label = "computed")
 	  {"module": "starcm", "function": "load_remote", "line": 3, "url": "https://config.example.com/a.star"},
 	  {"module": "starcm", "function": "load_remote", "line": 4, "url": "s3://config/b.star"},
 	  {"module": "starcm", "function": "load_remote", "line": 5, "url": null,
-	   "inputs": [{"arg": "0", "uses": [{"module": "starcm", "function": "vars"}]}]}
+	   "inputs": [{"arg": "0", "uses": [{"module": "starcm", "function": "vars"}]}]},
+	  {"module": "starcm", "function": "install_remote_mac_pkg", "line": 6, "url": "https://releases.example.com/agent.pkg"}
 	]`, string(got))
 }

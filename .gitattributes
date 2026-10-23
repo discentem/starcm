@@ -2,3 +2,4 @@
 # over fixture bytes, which CRLF conversion would change.
 * text=auto eol=lf
 *.raw-sig binary
+*.pkg binary

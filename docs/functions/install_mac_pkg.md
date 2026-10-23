@@ -120,6 +120,8 @@ macOS and Windows. On Linux and Windows the same calls fail because
 `download` without `save_to` puts the package in the local store, and
 `install_mac_pkg` re-hashes it there before checking its signature. With `id`
 and `version`, later runs do nothing once 1.2.0 is installed.
+[install_remote_mac_pkg](install_remote_mac_pkg.md) does both steps in one
+call, and doesn't fetch the package at all once that version is installed.
 
 ```python
 # examples/install_mac_pkg/install.star
@@ -261,4 +263,5 @@ Error in install_mac_pkg: install_mac_pkg(label="no version"): id and version mu
 ## See also
 
 - [download](download.md) to fetch the package first.
+- [install_remote_mac_pkg](install_remote_mac_pkg.md) to fetch and install in one step.
 - [verify](verify.md) to check files signed with `starcm sign` instead.

@@ -2,11 +2,15 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "macpkg",
-    srcs = ["macpkg.go"],
+    srcs = [
+        "macpkg.go",
+        "remote.go",
+    ],
     importpath = "github.com/discentem/starcm/functions/macpkg",
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
+        "//functions/download",
         "//libraries/fileutils",
         "//libraries/macsig",
         "//libraries/shell",
@@ -15,12 +19,19 @@ go_library(
 
 go_test(
     name = "macpkg_test",
-    srcs = ["macpkg_test.go"],
+    srcs = [
+        "macpkg_test.go",
+        "remote_test.go",
+    ],
     data = ["//libraries/macsig:testdata"],
     embed = [":macpkg"],
     deps = [
         "//functions/base",
+        "//functions/download",
+        "//libraries/local_store",
         "//libraries/shell",
+        "//libraries/signing",
+        "@com_github_spf13_afero//:afero",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@net_starlark_go//starlark",

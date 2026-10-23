@@ -4,6 +4,7 @@ go_library(
     name = "download",
     srcs = [
         "download.go",
+        "remote.go",
         "s3.go",
     ],
     importpath = "github.com/discentem/starcm/functions/download",
