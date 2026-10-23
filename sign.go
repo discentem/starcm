@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/discentem/starcm/libraries/signing"
@@ -59,7 +61,12 @@ func signCommand() *cli.Command {
 				if err != nil {
 					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
 				}
-				manifestPath := filepath.Join(dir, signing.ManifestName)
+				// Print the path the way DIR was written, so "agent" gives
+				// agent/starcm-manifest.json on every platform.
+				manifestPath := path.Join(dir, signing.ManifestName)
+				if strings.Contains(dir, `\`) {
+					manifestPath = filepath.Join(dir, signing.ManifestName)
+				}
 				files := "files"
 				if len(m.Files) == 1 {
 					files = "file"
