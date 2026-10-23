@@ -15,10 +15,12 @@ import (
 //
 //	here("templates", "motd.jinja")   # "/repo/site/templates/motd.jinja"
 //
-// inStore reports whether a path is inside starcm's store. Modules loaded with
-// load_remote run from the store, where files that would ship next to them
-// don't exist, so here() refuses to run in them. inStore may be nil.
-func New(inStore func(path string) bool) *starlark.Builtin {
+// check tells where a .star file runs from. A single module loaded with
+// load_remote runs from the store, where files that would ship next to it
+// don't exist, so here() refuses to run in it. A module in a folder fetched
+// with load_remote works as in a checkout, except that the path can't leave
+// the folder. check may be nil.
+func New(check paths.StoreCheck) *starlark.Builtin {
 	return starlark.NewBuiltin("here", func(thread *starlark.Thread, b *starlark.Builtin, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Value, error) {
 		if len(kwargs) > 0 {
 			return nil, fmt.Errorf("%s: unexpected keyword argument %s", b.Name(), kwargs[0][0])
@@ -38,9 +40,18 @@ func New(inStore func(path string) bool) *starlark.Builtin {
 		if !ok {
 			return nil, fmt.Errorf("%s: can't tell which .star file the call is in", b.Name())
 		}
-		if inStore != nil && inStore(file) {
+		var origin paths.Origin
+		if check != nil {
+			origin = check(file)
+		}
+		if !origin.Shipped() {
 			return nil, fmt.Errorf("%s: not available in a module loaded with load_remote: it runs from starcm's store, so nothing ships next to it", b.Name())
 		}
-		return starlark.String(filepath.Join(append([]string{filepath.Dir(file)}, parts...)...)), nil
+		// Slash separated, so errors read the same on every platform.
+		p, err := origin.Resolve(filepath.Dir(file), filepath.ToSlash(filepath.Join(parts...)))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", b.Name(), err)
+		}
+		return starlark.String(p), nil
 	})
 }

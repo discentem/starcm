@@ -7,6 +7,7 @@ package paths
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/mitchellh/go-homedir"
 	"go.starlark.net/starlark"
@@ -80,22 +81,64 @@ func CallerDir(thread *starlark.Thread) (string, bool) {
 	return filepath.Dir(file), true
 }
 
-// storeCheckKey is the thread-local key SetStoreCheck records under.
-const storeCheckKey = "starcm.paths.inStore"
-
-// SetStoreCheck records on thread how to tell whether a .star file runs from
-// starcm's store, as modules loaded with load_remote do. The loader sets it
-// on every thread it runs code on.
-func SetStoreCheck(thread *starlark.Thread, inStore func(path string) bool) {
-	thread.SetLocal(storeCheckKey, inStore)
+// Origin says where a .star file runs from, for the rule that relative paths
+// name files that ship next to it.
+type Origin struct {
+	// Store is set for a file that runs from starcm's store, as modules
+	// loaded with load_remote do.
+	Store bool
+	// Root, for a file in a folder load_remote fetched (a store folder whose
+	// manifest was checked), is that folder's directory. Files ship next to
+	// such a file, so relative paths work, but only inside Root. Empty for a
+	// single file in the store, next to which nothing ships.
+	Root string
 }
 
-// InStore reports whether file runs from starcm's store, by the check
-// SetStoreCheck recorded on thread. Without one it reports false.
-func InStore(thread *starlark.Thread, file string) bool {
-	if thread == nil {
+// Shipped reports whether files can ship next to a .star file from o: it's
+// not in the store, or it's in a folder fetched from a manifest.
+func (o Origin) Shipped() bool { return !o.Store || o.Root != "" }
+
+// Resolve joins rel onto dir, the directory of a .star file from o, and
+// returns the result cleaned. For a file in a fetched folder the result must
+// stay inside the folder: ".." past its root is an error.
+func (o Origin) Resolve(dir, rel string) (string, error) {
+	p := filepath.Join(dir, rel)
+	if o.Root != "" && !Within(o.Root, p) {
+		return "", fmt.Errorf("%q is outside the folder %s that this .star file was fetched in with load_remote", rel, o.Root)
+	}
+	return p, nil
+}
+
+// Within reports whether p is root or inside it, comparing the cleaned paths.
+func Within(root, p string) bool {
+	rel, err := filepath.Rel(root, p)
+	if err != nil {
 		return false
 	}
-	inStore, ok := thread.Local(storeCheckKey).(func(string) bool)
-	return ok && inStore(file)
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
+}
+
+// storeCheckKey is the thread-local key SetStoreCheck records under.
+const storeCheckKey = "starcm.paths.origin"
+
+// StoreCheck tells where a .star file runs from.
+type StoreCheck func(path string) Origin
+
+// SetStoreCheck records on thread how to tell where a .star file runs from.
+// The loader sets it on every thread it runs code on.
+func SetStoreCheck(thread *starlark.Thread, check StoreCheck) {
+	thread.SetLocal(storeCheckKey, check)
+}
+
+// OriginOf reports where file runs from, by the check SetStoreCheck recorded
+// on thread. Without one it reports a file outside the store.
+func OriginOf(thread *starlark.Thread, file string) Origin {
+	if thread == nil {
+		return Origin{}
+	}
+	check, ok := thread.Local(storeCheckKey).(StoreCheck)
+	if !ok || check == nil {
+		return Origin{}
+	}
+	return check(file)
 }

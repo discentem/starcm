@@ -1,5 +1,6 @@
 // Package localstore keeps downloaded files on disk under their sha256, at
-// <dir>/sha256/<hash>/<name>, in a directory that only the current user (and
+// <dir>/sha256/<hash>/<name>, and folders assembled from them under their
+// manifest's sha256, at <dir>/folders/<hash>/, in a directory that only the current user (and
 // root or administrators) can change.
 package localstore
 
@@ -219,9 +220,11 @@ func hashFile(path string) (string, error) {
 
 // CheckIfStored returns a function that verifies path if it names something
 // inside the store at dir, and does nothing otherwise. A path inside the
-// store must be a stored file, <dir>/sha256/<hash>/<name>; it's verified
-// with Get, so its permissions are re-checked and it's re-hashed against the
-// hash in its own path. open is only called for paths inside the store.
+// store must be a stored file, <dir>/sha256/<hash>/<name>, verified with Get
+// (its permissions are re-checked and it's re-hashed against the hash in its
+// own path), or a file in an assembled folder,
+// <dir>/folders/<manifest hash>/<path>, verified with GetFolder. open is only
+// called for paths inside the store.
 //
 // Paths are compared against dir both as given and with symlinks resolved,
 // so a symlink into the store is caught too.
@@ -236,6 +239,13 @@ func CheckIfStored(dir string, open func() (*Store, error)) func(path string) er
 		}
 		if rel == "." {
 			return nil // the store directory itself, not a file in it
+		}
+		if _, manifestHash, folderRel, ok := InFolder(dir, path); ok && folderRel != "." {
+			store, err := open()
+			if err != nil {
+				return err
+			}
+			return checkFolderFile(store, path, manifestHash, folderRel)
 		}
 		parts := strings.Split(filepath.ToSlash(rel), "/")
 		if len(parts) != 3 || parts[0] != "sha256" {
@@ -265,13 +275,20 @@ func Contains(dir, path string) (bool, error) {
 
 // relToStore returns path relative to the store at dir, if it's inside it.
 func relToStore(dir, path string) (string, bool, error) {
+	rel, _, inside, err := relToStoreDir(dir, path)
+	return rel, inside, err
+}
+
+// relToStoreDir is relToStore that also returns the form of dir (as given,
+// or with symlinks resolved) that path is inside.
+func relToStoreDir(dir, path string) (rel, base string, inside bool, err error) {
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return "", false, err
+		return "", "", false, err
 	}
 	dirs := []string{absDir}
 	if real, err := filepath.EvalSymlinks(absDir); err == nil && real != absDir {
@@ -288,9 +305,9 @@ func relToStore(dir, path string) (string, bool, error) {
 				continue // e.g. a different drive on Windows
 			}
 			if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-				return rel, true, nil
+				return rel, d, true, nil
 			}
 		}
 	}
-	return "", false, nil
+	return "", "", false, nil
 }

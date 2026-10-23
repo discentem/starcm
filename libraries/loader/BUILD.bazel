@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "loader",
@@ -29,6 +29,7 @@ go_library(
         "//libraries/local_store",
         "//libraries/logging",
         "//libraries/paths",
+        "//libraries/sha256",
         "//libraries/shell",
         "//libraries/signing",
         "//starlark-helpers",
@@ -38,5 +39,20 @@ go_library(
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",
         "@net_starlark_go//syntax",
+    ],
+)
+
+go_test(
+    name = "loader_test",
+    srcs = ["loader_test.go"],
+    embed = [":loader"],
+    deps = [
+        "//libraries/local_store",
+        "//libraries/sha256",
+        "//libraries/shell",
+        "//libraries/signing",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
     ],
 )

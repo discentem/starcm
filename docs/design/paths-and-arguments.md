@@ -58,9 +58,10 @@ to the `.star` file.** Everything else must be absolute.
   ```
 
   `here()` is for read-only files that ship with the code, never for
-  outputs. In a module loaded with `load_remote`, whose directory is
+  outputs. In a single module loaded with `load_remote`, whose directory is
   starcm's store, it is an error, and so is any relative bundled-resource
-  path.
+  path. In a folder loaded with `load_remote` both work, inside the folder
+  (see [remote folders](remote-folders.md)).
 - `home_dir(*parts)`, `temp_dir()`: unchanged.
 
 ### exec runs somewhere explicit

@@ -33,10 +33,11 @@ type FunctionInstance struct {
 	// without changing it.
 	WhatIf bool
 
-	// inStore is set when the call is written in a module loaded with
-	// load_remote, which runs from the store: nothing ships next to it, so
-	// relative resource paths can't resolve.
-	inStore bool
+	// origin is where the .star file the call is written in runs from. A
+	// single module loaded with load_remote runs from the store, where
+	// nothing ships next to it, so relative resource paths can't resolve; in
+	// a fetched folder they resolve, but only inside it.
+	origin paths.Origin
 
 	fn     string         // the function's name, for errors
 	values map[string]any // name -> pointer to the parsed value (*T)
@@ -87,9 +88,16 @@ func (c *FunctionInstance) ResourcePath(name string) (string, bool, error) {
 	if !given {
 		return "", false, nil
 	}
-	if c.inStore {
-		if expanded, err := paths.Expand(s); err == nil && !filepath.IsAbs(expanded) {
+	if expanded, err := paths.Expand(s); err == nil && !filepath.IsAbs(expanded) {
+		if !c.origin.Shipped() {
 			return "", true, c.argErr(name, fmt.Errorf("%q is relative, but this .star file was loaded with load_remote and runs from starcm's store, where nothing ships next to it: fetch the file with download() or pass its absolute path", s))
+		}
+		if c.Dir != "" {
+			p, err := c.origin.Resolve(c.Dir, expanded)
+			if err != nil {
+				return "", true, c.argErr(name, err)
+			}
+			return p, true, nil
 		}
 	}
 	p, err := paths.Resource(c.Dir, s)
@@ -150,15 +158,19 @@ func newInstance(ctx context.Context, fn, label string, whatIf bool, thread *sta
 	}
 	dir, _ := paths.CallerDir(thread)
 	file, _ := paths.CallerFile(thread)
+	var origin paths.Origin
+	if file != "" {
+		origin = paths.OriginOf(thread, file)
+	}
 	return &FunctionInstance{
-		inStore: file != "" && paths.InStore(thread, file),
-		Ctx:     ctx,
-		Label:   label,
-		Thread:  thread,
-		Dir:     dir,
-		WhatIf:  whatIf,
-		fn:      fn,
-		values:  targets,
-		given:   given,
+		origin: origin,
+		Ctx:    ctx,
+		Label:  label,
+		Thread: thread,
+		Dir:    dir,
+		WhatIf: whatIf,
+		fn:     fn,
+		values: targets,
+		given:  given,
 	}
 }

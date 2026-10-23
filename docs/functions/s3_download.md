@@ -37,11 +37,11 @@ s3_download(
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `bucket` | string | required | The bucket. |
-| `key` | string | required | The object's key, such as `agent/agent-1.2.0.pkg`. |
+| `key` | string | required | The object's key, such as `agent/agent-1.2.0.pkg`. A key ending in `/`, such as `agent/`, is a [folder](#folders). |
 | `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
 | `signature` | string | `sha256` or `signature` | Key of the file's signature in the same bucket, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](download.md#pinning-by-signature) for when to use which. |
 | `save_to` | string | none | Where to save the file, as an absolute path (`~` expands). Leave it out to download into the [local store](download.md#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
-| `file_name` | string | the last part of `key` | The file's name in the local store. Only used without `save_to`. |
+| `file_name` | string | the last part of `key` | The file's name in the local store. Only used without `save_to`, and an error for a folder. |
 | `region` | string | from the AWS configuration, else `us-east-1` | The bucket's region. |
 | `endpoint` | string | AWS S3 | The endpoint of an S3-compatible store. Requests then use path-style addressing (`<endpoint>/<bucket>/<key>`). |
 | `live_progress` | bool | `False` | Print a progress line while downloading. |
@@ -72,6 +72,27 @@ file, or pass them in with [--var](vars.md). Without them, starcm uses the
 AWS configuration (`AWS_REGION`, `AWS_ENDPOINT_URL_S3` or the profile). With
 no region anywhere, it uses `us-east-1`. AWS refuses requests for buckets in
 other regions, so set `region` for those.
+
+## Folders
+
+A `key` ending in `/` is a folder signed with
+[starcm sign --dir](../cli.md#starcm-sign---dir-dir) and uploaded as it is,
+for example with `aws s3 sync agent/ s3://config/agent/`. It works as for
+[download](download.md#folders): `sha256` or `signature` (here the key of
+`<key>starcm-manifest.json.sig`) pins the folder's manifest, each file the
+manifest lists is fetched from `<key><path>` and checked against it, and the
+folder goes into the store, or under `save_to`. No `ListObjects` permission
+is needed: the manifest says what to fetch.
+
+```python
+s3_download(
+    label     = "fetch agent files",
+    bucket    = "config",
+    key       = "agent/",
+    signature = "agent/starcm-manifest.json.sig",
+    save_to   = vars["managed_dir"] + "/agent",
+)
+```
 
 ## Returns
 
@@ -162,6 +183,39 @@ $ AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --var managed_d
 downloaded file to *agent.txt (glob)
 agent.txt
 agent.txt.sig
+```
+
+### Download a folder
+
+The same server holds the signed folder
+[examples/folders/agent/](../../examples/folders/agent), as the prefix
+`folders/agent/` of the bucket `examples`:
+
+```python
+# examples/s3_download/folder.star
+load("starcm", "s3_download", "vars")
+
+# A key ending in / names a folder. signature is the key of its manifest's
+# signature, in the same bucket; the manifest pins every file in the folder.
+r = s3_download(
+    label     = "fetch agent files from S3",
+    bucket    = "examples",
+    key       = "folders/agent/",
+    signature = "folders/agent/starcm-manifest.json.sig",
+    save_to   = vars["managed_dir"] + "/agent",
+    endpoint  = "http://localhost:8000",
+)
+print(r.message)
+```
+
+```scrut
+$ starcm sign --expires 2099-01-01 --key "$TESTDIR/../keys/private/test.pem" folder.star >/dev/null && AWS_ACCESS_KEY_ID=example AWS_SECRET_ACCESS_KEY=example starcm --var managed_dir="$managed" --trusted-keys trusted folder.star && ls agent
+downloaded 3 of 3 files to *agent (glob)
+lib
+main.star
+starcm-manifest.json
+starcm-manifest.json.sig
+templates
 ```
 
 ### Download from AWS S3

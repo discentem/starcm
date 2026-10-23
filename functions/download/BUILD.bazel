@@ -4,6 +4,7 @@ go_library(
     name = "download",
     srcs = [
         "download.go",
+        "folder.go",
         "s3.go",
     ],
     importpath = "github.com/discentem/starcm/functions/download",
@@ -25,6 +26,7 @@ go_test(
     name = "download_test",
     srcs = [
         "download_test.go",
+        "folder_test.go",
         "s3_test.go",
         "signature_test.go",
     ],
@@ -32,6 +34,7 @@ go_test(
     deps = [
         "//functions/base",
         "//libraries/local_store",
+        "//libraries/sha256",
         "//libraries/signing",
         "@com_github_spf13_afero//:afero",
         "@com_github_stretchr_testify//assert",

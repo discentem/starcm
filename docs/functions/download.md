@@ -7,7 +7,8 @@ sha256. The file goes either to a path you choose with `save_to`, or, without
 `save_to`, into starcm's [local store](#the-local-store), and `value` is the
 path it was stored at. If the file is already there with the right hash,
 nothing is downloaded, so running the same configuration again is cheap and
-reports `changed = False`.
+reports `changed = False`. A URL ending in `/` fetches a whole
+[folder](#folders) instead, pinned by one signed manifest.
 
 ## Syntax
 
@@ -29,11 +30,11 @@ download(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `url` | string | required | URL to fetch. Any status other than `200 OK` fails the run. |
+| `url` | string | required | URL to fetch. Any status other than `200 OK` fails the run. A URL ending in `/` is a [folder](#folders). |
 | `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
 | `signature` | string | `sha256` or `signature` | URL of the file's signature, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](#pinning-by-signature). |
 | `save_to` | string | none | Where to save the file, as an absolute path (`~` expands). Missing parent directories are created. Leave it out to download into the [local store](#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
-| `file_name` | string | the last part of the URL's path | The file's name in the local store. Only used without `save_to`. |
+| `file_name` | string | the last part of the URL's path | The file's name in the local store. Only used without `save_to`, and an error for a folder. |
 | `live_progress` | bool | `False` | Print a `Downloading <url>... N%` progress line while downloading. |
 
 `download` also takes the [common arguments](../common-functionality.md#common-arguments):
@@ -107,6 +108,42 @@ are read-only.
   [--store-only](../cli.md#--store-dir-dir-and---store-only), `save_to` is
   refused, so every download goes into the store.
 
+## Folders
+
+A `url` ending in `/` names a folder: every file listed in its
+`starcm-manifest.json`, which [starcm sign --dir](../cli.md#starcm-sign---dir-dir)
+writes and signs. Publishing a folder is signing it and uploading it as it is:
+
+```bash
+starcm sign --dir agent/ --key release.pem --expires 30d
+aws s3 sync agent/ s3://config/agent/   # or copy it to the web server
+```
+
+- **Pin:** `sha256` or `signature` pins the manifest
+  (`<url>starcm-manifest.json`, signature usually
+  `<url>starcm-manifest.json.sig`), exactly as they pin one file. There's no
+  pin per file: each file must have the sha256 the manifest lists.
+- **What's fetched:** the manifest, then each file it lists, relative to
+  `url`. Files in the folder that the manifest doesn't list are never
+  fetched, so no directory listing is needed, and a missing file or a wrong
+  hash stops the run.
+- **Without `save_to`:** each file is stored once under its sha256, and the
+  folder is assembled from them at `<store>/folders/<manifest sha256>/`
+  (hard links, or copies where links don't work). `value` is that folder.
+  A new release only downloads the files whose hashes changed. A stored
+  folder is re-checked against its manifest each time it's used, and one
+  that was changed, or that holds files its manifest doesn't list, stops the
+  run.
+- **With `save_to`:** an absolute directory. Each listed file is written
+  there the way one file is: to a temporary file, checked, then renamed into
+  place. Files already there with the right hash aren't fetched again, and
+  files the manifest doesn't list are left alone. The manifest, and its
+  signature when pinned by one, are written there last. `value` is
+  `save_to`, and `changed` is `True` when anything was written.
+
+To run a `.star` file from a fetched folder, use
+[load_remote](load_remote.md#folders), which fetches the folder the same way.
+
 ## Returns
 
 A [starcm_result](../common-functionality.md#starcm_result):
@@ -115,8 +152,8 @@ A [starcm_result](../common-functionality.md#starcm_result):
 | --- | --- |
 | `success` | `True` |
 | `changed` | `True` when the file was downloaded, `False` when it was already present |
-| `message` | `downloaded file to <path>`, `"<save_to>" already present and sha256 verified` or `"<path>" already in the store and sha256 verified` |
-| `value` | The file's absolute path: `save_to`, or its place in the store. |
+| `message` | `downloaded file to <path>`, `"<save_to>" already present and sha256 verified` or `"<path>" already in the store and sha256 verified`; for a folder, `downloaded <n> of <total> files to <path>` or the same "already" messages |
+| `value` | The file's absolute path: `save_to`, or its place in the store. For a folder, the folder's. |
 
 Network errors, HTTP errors and hash mismatches stop the run with an error
 instead of returning a result.
@@ -394,6 +431,81 @@ Error in download: download(label="fetch agent to a path"): save_to is disabled 
 [1]
 ```
 
+### Download a folder
+
+[examples/folders/agent/](../../examples/folders/agent) is signed with
+`starcm sign --dir`, so it has a `starcm-manifest.json` listing its three
+files. A URL ending in `/` fetches all of them:
+
+```python
+# examples/download/folder.star
+load("starcm", "download", "vars")
+
+# A URL ending in / names a folder. sha256 pins its manifest,
+# starcm-manifest.json, which lists every file in the folder with its sha256.
+r = download(
+    label   = "fetch agent files",
+    url     = "http://localhost:8000/examples/folders/agent/",
+    sha256  = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
+    save_to = vars["managed_dir"] + "/agent",
+)
+print(r.message)
+```
+
+```scrut
+$ starcm --var managed_dir="$managed" folder.star && find agent -type f | sort
+downloaded 3 of 3 files to *agent (glob)
+agent/lib/settings.star
+agent/main.star
+agent/starcm-manifest.json
+agent/templates/motd.jinja
+```
+
+Run it again and every file is checked instead of downloaded. A file that
+was changed is fetched again; a file the manifest doesn't list is left alone:
+
+```scrut
+$ starcm --var managed_dir="$managed" folder.star
+"*agent" already present and sha256 verified (glob)
+```
+
+```scrut
+$ echo edited >> agent/main.star && echo mine > agent/notes.txt && starcm --var managed_dir="$managed" folder.star && cat agent/notes.txt
+downloaded 1 of 3 files to *agent (glob)
+mine
+```
+
+Without `save_to`, the folder is assembled in the store:
+
+```python
+# examples/download/folder_store.star
+load("starcm", "download")
+
+r = download(
+    label  = "fetch agent files into the store",
+    url    = "http://localhost:8000/examples/folders/agent/",
+    sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
+)
+print("changed=%s" % r.changed)
+print(r.value.replace("\\", "/"))  # / on every platform, for this example
+```
+
+```scrut
+$ starcm --store-dir "$store" folder_store.star
+changed=True
+*/store/folders/f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca (glob)
+```
+
+```scrut
+$ starcm --store-dir "$store" folder_store.star && ls "$store/folders/f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca/"
+changed=False
+*/store/folders/f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca (glob)
+lib
+main.star
+starcm-manifest.json
+templates
+```
+
 ```scrut
 $ rm -rf "$store" ${store_root:+"$store_root"}
 ```
@@ -564,6 +676,58 @@ Traceback (most recent call last):
   store_only.star:3:9: in <toplevel>
 Error in download: download(label="to a path"): save_to is disabled by --store-only; omit it to download into the store
 [1]
+```
+
+### Folders
+
+`file_name` names one stored file, so it's an error for a folder:
+
+```python
+# examples/download/edge/folder_file_name.star
+load("starcm", "download")
+
+download(
+    label     = "folder with file_name",
+    url       = "http://localhost:8000/examples/folders/agent/",
+    sha256    = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
+    file_name = "agent",
+)
+```
+
+```scrut
+$ starcm --store-dir "$store" folder_file_name.star 2>&1
+Traceback (most recent call last):
+  folder_file_name.star:3:9: in <toplevel>
+Error in download: download(label="folder with file_name"): file_name doesn't apply to a folder (http://localhost:8000/examples/folders/agent/ ends in /)
+[1]
+```
+
+A manifest that doesn't match its pin stops the run before any file is
+fetched:
+
+```python
+# examples/download/edge/folder_wrong_hash.star
+load("starcm", "download", "vars")
+
+download(
+    label   = "folder with the wrong pin",
+    url     = "http://localhost:8000/examples/folders/agent/",
+    sha256  = "0000000000000000000000000000000000000000000000000000000000000000",
+    save_to = vars["managed_dir"] + "/agent",
+)
+```
+
+```scrut
+$ starcm --var managed_dir="$managed" folder_wrong_hash.star 2>&1
+Traceback (most recent call last):
+  folder_wrong_hash.star:3:9: in <toplevel>
+Error in download: http://localhost:8000/examples/folders/agent/starcm-manifest.json: expected sha256 hash 0000000000000000000000000000000000000000000000000000000000000000, got f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca
+[1]
+```
+
+```scrut
+$ test ! -e agent && echo "nothing was written"
+nothing was written
 ```
 
 ```scrut

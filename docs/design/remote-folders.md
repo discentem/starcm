@@ -2,7 +2,12 @@
 
 [← Documentation index](../README.md)
 
-Status: proposed. Not implemented.
+Status: implemented. See [download](../functions/download.md#folders),
+[s3_download](../functions/s3_download.md#folders),
+[load_remote](../functions/load_remote.md#folders) and
+[starcm sign --dir](../cli.md#starcm-sign---dir-dir). The
+[implementation notes](#implementation-notes) at the end say where it
+differs from, or adds to, the design below.
 
 ## Problem
 
@@ -53,8 +58,8 @@ aws s3 sync config/agent/ s3://config/agent/
 - `starcm-manifest.json.sig`: an ordinary starcm signature of the manifest,
   with the same key ids, expiry and release as any other signature.
 
-Files whose names start with `.`, and the manifest and its signature, are
-left out. Individual files don't need their own `.sig`.
+Files and directories whose names start with `.`, and the manifest and its
+signature, are left out. Individual files don't need their own `.sig`.
 
 ### Loading
 
@@ -127,6 +132,7 @@ folder is assembled under the manifest's sha256:
 ```text
 <store>/sha256/<file hash>/<name>                      each file, once
 <store>/folders/<manifest hash>/starcm-manifest.json
+<store>/folders/<manifest hash>/starcm-manifest.json.sig  when pinned by signature
 <store>/folders/<manifest hash>/main.star              hard link, or copy
 <store>/folders/<manifest hash>/templates/motd.jinja
 ```
@@ -173,6 +179,15 @@ New:
 
 ## Not doing
 
+- **A Starlark manifest** (a `.star`-like file holding a dict or struct):
+  the manifest is data that `starcm sign --dir` writes and starcm reads
+  back; nobody edits hashes by hand. Reading a `.star` file means running
+  it, before any file it pins is checked, and lets a manifest compute its
+  list. With a `.star` name, `--trusted-keys`, `inspect` and
+  `list_files("**/*.star")` would treat it as a module; with another name
+  it's Starlark syntax without Starlark. JSON is parsed strictly and other
+  tools (CI, `jq`) can read it.
+
 - **Directory listings** (HTML indexes or S3 `ListObjects`) instead of a
   manifest: they can't be pinned, and anyone who can write to the bucket
   could add a file.
@@ -181,3 +196,41 @@ New:
 - **Partial uploads**: a machine that fetches mid-upload sees a hash
   mismatch and fails cleanly; it never runs a mix of releases. Upload the
   manifest and its signature last.
+
+## Implementation notes
+
+What the implementation settled that the design above left open:
+
+- **Manifest rules.** `version` must be 1 and unknown fields are refused.
+  Paths are relative and slash separated, with no empty, `.` or `..` parts,
+  no `\`, `:` or NUL, and not the manifest or its signature. Two paths that
+  differ only in case, or a path that's also another's directory, are
+  refused, since they can't be laid out on every platform; `starcm sign
+  --dir` refuses such a folder rather than publishing it. Anything in the
+  folder that isn't a regular file or directory, such as a symlink, is an
+  error when signing.
+- **Store files.** Each file is stored as `<store>/sha256/<hash>/<name>`,
+  `<name>` being the last part of its path, so identical files in two
+  folders, or two releases, are stored once.
+- **Re-check.** `GetFolder` re-hashes every file and the manifest, and also
+  refuses a folder holding files its manifest doesn't list, or missing one.
+  The loader checks each module's bytes against the manifest again right
+  before running it, and `exec` re-checks a script from a folder. A folder
+  is assembled in a temporary directory and renamed into place, so
+  `<store>/folders/<hash>/` is never partial.
+- **`save_to`.** The manifest, and its signature when pinned by one, are
+  written into `save_to` after the files, as `download` keeps a file's
+  `.sig` next to it. With the manifest already there, it's used to check
+  the files instead of being fetched again.
+- **`--trusted-keys` and `sha256`.** A folder pinned by `sha256` has no
+  signature in the store, so its modules are refused under
+  `--trusted-keys`, as a single module pinned by `sha256` is.
+- **`entry`** must be a `.star` path the manifest lists, and is an error for
+  a URL that isn't a folder.
+- **Once per run.** The loader caches modules by the path they resolve to
+  rather than the string passed to `load()`, so `load("lib/x.star")` in a
+  fetched folder and in the local checkout are two modules.
+- **Escaping the folder.** `..` past the folder's root is refused
+  lexically, for `load()`, `here()` and relative resource paths. Absolute
+  paths, and `//` workspace paths in `load()`, mean what they mean outside
+  a folder.

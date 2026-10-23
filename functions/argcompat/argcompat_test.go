@@ -111,7 +111,7 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"load_dynamic": loading.New(ctx),
 		"date":         starcmdate.New(ctx),
 	}
-	d := starlark.StringDict{"here": starcmhere.New(func(string) bool { return false })}
+	d := starlark.StringDict{"here": starcmhere.New(nil)}
 	for name, m := range mods {
 		d[name] = starlark.NewBuiltin(name, m.Function())
 	}

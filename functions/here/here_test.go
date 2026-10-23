@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/discentem/starcm/libraries/paths"
 	"github.com/stretchr/testify/require"
 	"go.starlark.net/starlark"
 )
@@ -18,7 +19,7 @@ func abs(parts ...string) string {
 	return filepath.Join(append([]string{root}, parts...)...)
 }
 
-func run(t *testing.T, inStore func(string) bool, file, src string, extra starlark.StringDict) (starlark.StringDict, error) {
+func run(t *testing.T, inStore paths.StoreCheck, file, src string, extra starlark.StringDict) (starlark.StringDict, error) {
 	t.Helper()
 	predeclared := starlark.StringDict{"here": New(inStore)}
 	for k, v := range extra {
@@ -66,13 +67,34 @@ from_site = passthrough(here("motd.jinja"))
 
 func TestHereRefusesStoreModules(t *testing.T) {
 	store := abs("store")
-	inStore := func(p string) bool { return strings.HasPrefix(p, store+string(filepath.Separator)) }
+	inStore := func(p string) paths.Origin {
+		return paths.Origin{Store: strings.HasPrefix(p, store+string(filepath.Separator))}
+	}
 	_, err := run(t, inStore, abs("store", "sha256", "abc", "remote.star"), `here("x")`, nil)
 	require.ErrorContains(t, err, "not available in a module loaded with load_remote")
 
 	globals, err := run(t, inStore, abs("repo", "local.star"), `p = here("x")`, nil)
 	require.NoError(t, err)
 	require.Equal(t, starlark.String(abs("repo", "x")), globals["p"])
+}
+
+// In a folder fetched with load_remote, here() works as in a checkout but
+// can't leave the folder.
+func TestHereInFetchedFolder(t *testing.T) {
+	root := abs("store", "folders", "abc")
+	check := func(p string) paths.Origin { return paths.Origin{Store: true, Root: root} }
+	file := filepath.Join(root, "site", "main.star")
+
+	globals, err := run(t, check, file, `a = here("motd.jinja")
+b = here("..", "templates", "x.jinja")
+c = here("..")`, nil)
+	require.NoError(t, err)
+	require.Equal(t, starlark.String(filepath.Join(root, "site", "motd.jinja")), globals["a"])
+	require.Equal(t, starlark.String(filepath.Join(root, "templates", "x.jinja")), globals["b"])
+	require.Equal(t, starlark.String(root), globals["c"])
+
+	_, err = run(t, check, file, `here("..", "..", "elsewhere")`, nil)
+	require.ErrorContains(t, err, "is outside the folder")
 }
 
 func TestHereArgumentErrors(t *testing.T) {
