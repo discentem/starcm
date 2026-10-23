@@ -55,17 +55,10 @@ func ReadCode(path string) (*Signature, error) {
 	return New(&shelllib.RealExecutor{}).ReadCode(path)
 }
 
-// run runs a command and returns its combined stdout and stderr. err is
-// non-nil when the command couldn't start or exited non-zero.
-func (r *Reader) run(name string, args ...string) ([]byte, error) {
-	r.Executor.Command(name, args...)
-	return r.Executor.CombinedOutput()
-}
-
 // ReadPkg reads the signature of the installer package at path.
 func (r *Reader) ReadPkg(path string) (*Signature, error) {
 	// pkgutil exits non-zero for unsigned packages; the output says why.
-	out, runErr := r.run("/usr/sbin/pkgutil", "--check-signature", path)
+	out, runErr := shelllib.CombinedOutput(r.Executor, "/usr/sbin/pkgutil", "--check-signature", path)
 	sig, err := ParseCheckSignature(string(out))
 	if err != nil {
 		if runErr != nil {
@@ -145,7 +138,7 @@ func (r *Reader) ReadCode(path string) (*Signature, error) {
 	} else if info.IsDir() {
 		verify = append(verify, "--deep")
 	}
-	out, err := r.run(codesign, append(verify, path)...)
+	out, err := shelllib.CombinedOutput(r.Executor, codesign, append(verify, path)...)
 	if err != nil {
 		if strings.Contains(string(out), "code object is not signed at all") {
 			return &Signature{Status: StatusUnsigned}, nil
@@ -153,7 +146,7 @@ func (r *Reader) ReadCode(path string) (*Signature, error) {
 		return nil, fmt.Errorf("codesign --verify: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
 
-	out, err = r.run(codesign, "-dvvv", path)
+	out, err = shelllib.CombinedOutput(r.Executor, codesign, "-dvvv", path)
 	if err != nil {
 		return nil, fmt.Errorf("codesign -dvvv: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
@@ -206,7 +199,7 @@ func (r *Reader) satisfies(path, requirement string, flags ...string) (bool, err
 	// "-R=<text>": an argument starting with "=" is requirement source text
 	// rather than a file (man codesign, SPECIFYING REQUIREMENTS).
 	args = append(args, "-R="+requirement, path)
-	out, err := r.run(codesign, args...)
+	out, err := shelllib.CombinedOutput(r.Executor, codesign, args...)
 	switch {
 	case err == nil:
 		return true, nil
@@ -226,7 +219,7 @@ func (r *Reader) certificateSHA256s(path string) ([]string, error) {
 	}
 	defer os.RemoveAll(dir)
 	prefix := filepath.Join(dir, "cert")
-	if out, err := r.run(codesign, "-d", "--extract-certificates="+prefix, path); err != nil {
+	if out, err := shelllib.CombinedOutput(r.Executor, codesign, "-d", "--extract-certificates="+prefix, path); err != nil {
 		return nil, fmt.Errorf("codesign --extract-certificates: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
 	var sums []string
