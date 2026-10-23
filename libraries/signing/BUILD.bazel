@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "signing",
-    srcs = ["signing.go"],
+    srcs = [
+        "manifest.go",
+        "signing.go",
+    ],
     importpath = "github.com/discentem/starcm/libraries/signing",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,7 +17,10 @@ go_library(
 
 go_test(
     name = "signing_test",
-    srcs = ["signing_test.go"],
+    srcs = [
+        "manifest_test.go",
+        "signing_test.go",
+    ],
     data = glob(["testdata/**"]),
     embed = [":signing"],
     deps = [

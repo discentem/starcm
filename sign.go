@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/discentem/starcm/libraries/signing"
@@ -14,8 +17,8 @@ import (
 func signCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "sign",
-		Usage:     "sign files, writing <file>.sig next to each",
-		ArgsUsage: "FILE...",
+		Usage:     "sign files, writing <file>.sig next to each; or, with --dir, a folder's manifest",
+		ArgsUsage: "FILE... | --dir DIR",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "key",
@@ -32,12 +35,20 @@ func signCommand() *cli.Command {
 				Usage: "key id to record in the signature; defaults to the key file's name before the first dot",
 			},
 			&cli.StringFlag{
+				Name:  "dir",
+				Usage: "write `DIR`/" + signing.ManifestName + ", listing every file in DIR with its sha256, and sign it, for download() and load_remote() of the folder",
+			},
+			&cli.StringFlag{
 				Name:  "release",
 				Usage: "release `ID` to sign the files for; `starcm --release ID` refuses files signed for any other release",
 			},
 		},
 		Action: func(c *cli.Context) error {
-			if c.NArg() == 0 {
+			dir := c.String("dir")
+			if dir != "" && c.NArg() > 0 {
+				return cli.Exit("sign: pass files or --dir, not both", 1)
+			}
+			if dir == "" && c.NArg() == 0 {
 				return cli.Exit("sign: no files given", 1)
 			}
 			expires, err := signing.ParseExpiry(c.String("expires"), time.Now())
@@ -45,6 +56,25 @@ func signCommand() *cli.Command {
 				return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
 			}
 			fsys := afero.NewOsFs()
+			if dir != "" {
+				m, sig, _, err := signing.SignDir(fsys, c.String("key"), c.String("key-id"), c.String("release"), dir, expires)
+				if err != nil {
+					return cli.Exit(fmt.Sprintf("sign: %v", err), 1)
+				}
+				// Print the path the way DIR was written, so "agent" gives
+				// agent/starcm-manifest.json on every platform.
+				manifestPath := path.Join(dir, signing.ManifestName)
+				if strings.Contains(dir, `\`) {
+					manifestPath = filepath.Join(dir, signing.ManifestName)
+				}
+				files := "files"
+				if len(m.Files) == 1 {
+					files = "file"
+				}
+				fmt.Printf("wrote %s listing %d %s\n", manifestPath, len(m.Files), files)
+				fmt.Println(signing.Describe(manifestPath, sig))
+				return nil
+			}
 			for _, path := range c.Args().Slice() {
 				sig, _, err := signing.SignFile(fsys, c.String("key"), c.String("key-id"), c.String("release"), path, expires)
 				if err != nil {

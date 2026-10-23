@@ -315,7 +315,7 @@ func TestWithoutSaveToUsesStore(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, r.Changed)
 
-	_, err = runURL(a, "unnamed", kwargs("url", "http://example.com/", "sha256", hash))
+	_, err = runURL(a, "unnamed", kwargs("url", "http://example.com", "sha256", hash))
 	require.ErrorContains(t, err, "pass file_name")
 }
 

@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "defaultdir_unix.go",
         "defaultdir_windows.go",
+        "folder.go",
         "permissions_unix.go",
         "permissions_windows.go",
         "store.go",
@@ -13,6 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//libraries/sha256",
+        "//libraries/signing",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@org_golang_x_sys//windows",
@@ -24,6 +26,7 @@ go_library(
 go_test(
     name = "local_store_test",
     srcs = [
+        "folder_test.go",
         "permissions_unix_test.go",
         "permissions_windows_test.go",
         "store_test.go",
@@ -31,6 +34,7 @@ go_test(
     embed = [":local_store"],
     deps = [
         "//libraries/sha256",
+        "//libraries/signing",
         "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:windows": [

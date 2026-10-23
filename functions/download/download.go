@@ -65,6 +65,8 @@ type Fetched struct {
 	Path    string
 	Changed bool
 	Message string
+	// Manifest is a folder's manifest (FetchFolder); empty for one file.
+	Manifest signing.Manifest
 }
 
 // S3Object is an object to fetch with FetchS3.
@@ -82,10 +84,14 @@ func (r Request) errorf(format string, args ...any) error {
 	return fmt.Errorf("%s(label=%q): "+format, append([]any{fn, r.Label}, args...)...)
 }
 
-// FetchURL downloads url as req describes.
+// FetchURL downloads url as req describes. A url ending in "/" is a
+// folder, fetched with FetchFolder.
 func (f *Fetcher) FetchURL(ctx context.Context, url string, req Request) (Fetched, error) {
 	if f.fsys == nil {
 		return Fetched{}, fmt.Errorf("fsys must be provided to download module")
+	}
+	if IsFolder(url) {
+		return f.FetchFolder(ctx, Source{URL: url}, req)
 	}
 	expectedHash, sig, err := f.pin(ctx, req, func(ctx context.Context, sigURL string) (io.ReadCloser, error) {
 		body, _, err := f.httpGet(ctx, sigURL)

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "files": {
+    "lib/settings.star": "2fd0f55fc725e6c4d0844f3e5f3be1a58d4cb62b43673ac0184bbefb04a900fc",
+    "main.star": "4554ac7ab8fa570d4b4eb5aa85202e4eb8f20687585387228c93cd1ac4380a5f",
+    "templates/motd.jinja": "e6a92af32114f46a9b524506f7ecf36aa75c3157ce3663573a568650a41a609d"
+  }
+}

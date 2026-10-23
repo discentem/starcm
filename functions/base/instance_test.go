@@ -172,7 +172,7 @@ func TestInstance_ResourcePathInStore(t *testing.T) {
 	action := &callRecorder{}
 	m := NewModule(context.Background(), "fn", callArgs, action)
 	thread := &starlark.Thread{}
-	paths.SetStoreCheck(thread, func(p string) bool { return strings.HasPrefix(p, store) })
+	paths.SetStoreCheck(thread, func(p string) paths.Origin { return paths.Origin{Store: strings.HasPrefix(p, store)} })
 	_, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, file, `
 fn(label = "rel", path = "motd.jinja", args = [])
 fn(label = "abs", path = "`+filepath.ToSlash(absFile("etc", "motd.jinja"))+`", args = [])
@@ -185,4 +185,27 @@ fn(label = "abs", path = "`+filepath.ToSlash(absFile("etc", "motd.jinja"))+`", a
 	p, _, err := action.calls[1].ResourcePath("path")
 	require.NoError(t, err)
 	require.Equal(t, absFile("etc", "motd.jinja"), p)
+}
+
+// In a folder fetched with load_remote, relative resource paths resolve next
+// to the .star file but can't leave the folder.
+func TestInstance_ResourcePathInFetchedFolder(t *testing.T) {
+	root := absFile("store", "folders", "abc")
+	file := filepath.Join(root, "site", "main.star")
+	action := &callRecorder{}
+	m := NewModule(context.Background(), "fn", callArgs, action)
+	thread := &starlark.Thread{}
+	paths.SetStoreCheck(thread, func(string) paths.Origin { return paths.Origin{Store: true, Root: root} })
+	_, err := starlark.ExecFileOptions(&syntax.FileOptions{}, thread, file, `
+fn(label = "inside", path = "../templates/motd.jinja", args = [])
+fn(label = "outside", path = "../../motd.jinja", args = [])
+`, starlark.StringDict{"fn": starlark.NewBuiltin("fn", m.Function())})
+	require.NoError(t, err)
+
+	p, _, err := action.calls[0].ResourcePath("path")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(root, "templates", "motd.jinja"), p)
+
+	_, _, err = action.calls[1].ResourcePath("path")
+	require.ErrorContains(t, err, `fn(label="outside"): path: "../../motd.jinja" is outside the folder`)
 }

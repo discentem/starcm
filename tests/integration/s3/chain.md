@@ -286,6 +286,155 @@ $ aws --endpoint-url http://127.0.0.1:9000 s3 rm --quiet s3://config/main.star.s
 NoSuchKey
 ```
 
+## Load a signed folder
+
+Instead of a `.sig` per file, a folder can be published with one signed
+manifest: `starcm sign --dir` lists every file in it with its sha256, and
+`load_remote` of a URL ending in `/` fetches and checks all of them, then
+runs a module from the folder in the store. Inside it, relative `load()`,
+templates and `here()` work as in a checkout.
+
+```text
+s3://config/agent/
+  starcm-manifest.json         every file below, with its sha256
+  starcm-manifest.json.sig     the manifest's signature
+  main.star                    loads lib/settings.star, renders the template,
+                               runs scripts/version.sh
+  lib/settings.star
+  templates/agent.conf.jinja
+  scripts/version.sh
+```
+
+```python
+# tests/integration/s3/fixtures/bootstrap_folder.star
+load("starcm", "load_remote", "s3_download", "vars")
+
+# One signature, on the folder's manifest, pins every file under
+# s3://config/agent/. load_remote runs main.star from the folder in the store.
+agent = load_remote(
+    label     = "run the agent folder",
+    url       = "s3://config/agent/",
+    entry     = "main.star",
+    signature = "s3://config/agent/starcm-manifest.json.sig",
+    endpoint  = vars["s3_endpoint"],
+).value
+agent["apply"]()
+
+# s3_download fetches the same folder to a directory of your choosing.
+r = s3_download(
+    label     = "copy the agent folder",
+    bucket    = "config",
+    key       = "agent/",
+    signature = "agent/starcm-manifest.json.sig",
+    save_to   = vars["managed_dir"] + "/agent",
+    endpoint  = vars["s3_endpoint"],
+)
+print("agent copy: changed=%s" % r.changed)
+```
+
+```python
+# tests/integration/s3/fixtures/agent/main.star
+load("starcm", "exec", "here", "template", "vars")
+load("lib/settings.star", "SETTINGS")
+
+def apply():
+    """Renders the agent's settings from the template next to this file and
+    runs the version script, both from the folder in the store."""
+    r = template(
+        label       = "agent settings",
+        template    = "templates/agent.conf.jinja",
+        data        = SETTINGS,
+        destination = vars["managed_dir"] + "/agent-folder.conf",
+    )
+    print("agent settings: changed=%s" % r.changed)
+    exec(label = "agent version", cmd = "sh", args = [here("scripts", "version.sh")], live_output = True)
+```
+
+```python
+# tests/integration/s3/fixtures/agent/lib/settings.star
+SETTINGS = {"channel": "stable"}
+```
+
+```jinja
+{# tests/integration/s3/fixtures/agent/templates/agent.conf.jinja #}
+channel = {{ channel }}
+```
+
+```sh
+# tests/integration/s3/fixtures/agent/scripts/version.sh
+echo "agent folder 1.0"
+```
+
+Sign the folder, which writes its manifest and the manifest's signature, and
+upload it:
+
+```scrut
+$ starcm sign --expires 30d --key keys/test.pem --dir agent
+wrote agent/starcm-manifest.json listing 4 files
+signed agent/starcm-manifest.json with key "test" until * -> agent/starcm-manifest.json.sig (glob)
+```
+
+```scrut
+$ aws --endpoint-url http://127.0.0.1:9000 s3 sync --quiet agent s3://config/agent/ && starcm sign --expires 30d --key keys/test.pem bootstrap_folder.star >/dev/null && starcm --trusted-keys trusted --store-dir folder-store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap_folder.star
+agent settings: changed=True
+agent folder 1.0
+agent copy: changed=True
+```
+
+```scrut
+$ cat managed/agent-folder.conf && find managed/agent -type f | sort
+channel = stable
+managed/agent/lib/settings.star
+managed/agent/main.star
+managed/agent/scripts/version.sh
+managed/agent/starcm-manifest.json
+managed/agent/starcm-manifest.json.sig
+managed/agent/templates/agent.conf.jinja
+```
+
+The folder is assembled in the store under its manifest's sha256, from files
+stored once each under their own:
+
+```scrut
+$ ls folder-store/folders/*/ && ls folder-store/sha256 | wc -l | tr -d ' '
+lib
+main.star
+scripts
+starcm-manifest.json
+starcm-manifest.json.sig
+templates
+4
+```
+
+Running it again fetches only the manifest's signature:
+
+```scrut
+$ starcm --trusted-keys trusted --store-dir folder-store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap_folder.star
+agent settings: changed=False
+agent folder 1.0
+agent copy: changed=False
+```
+
+A new release is a new upload of the folder. Only the changed file is
+downloaded:
+
+```scrut
+$ printf 'SETTINGS = {"channel": "beta"}\n' > agent/lib/settings.star && starcm sign --expires 30d --key keys/test.pem --dir agent >/dev/null && aws --endpoint-url http://127.0.0.1:9000 s3 sync --quiet agent s3://config/agent/ && starcm --trusted-keys trusted --store-dir folder-store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap_folder.star && cat managed/agent-folder.conf && ls folder-store/sha256 | wc -l | tr -d ' '
+agent settings: changed=True
+agent folder 1.0
+agent copy: changed=True
+channel = beta
+5
+```
+
+A file replaced in the bucket without re-signing is refused, because it
+doesn't match the sha256 the signed manifest lists:
+
+```scrut
+$ printf 'echo pwned\n' > evil.sh && aws --endpoint-url http://127.0.0.1:9000 s3 cp --quiet evil.sh s3://config/agent/scripts/version.sh && rm -rf folder-store && starcm --trusted-keys trusted --store-dir folder-store --var s3_endpoint=http://127.0.0.1:9000 --var managed_dir="$(pwd -W 2>/dev/null || pwd)/managed" bootstrap_folder.star 2>&1 | tail -1
+Error in load_remote: s3://config/agent/scripts/version.sh: expected sha256 hash *, got * (glob)
+```
+
 ## Clean up
 
 ```scrut
