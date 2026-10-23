@@ -28,13 +28,6 @@ type pkgAction struct {
 
 var _ base.Action = (*pkgAction)(nil)
 
-// run runs a command with the executor and returns its combined stdout and
-// stderr. err is non-nil when the command couldn't start or exited non-zero.
-func (a *pkgAction) run(name string, args ...string) ([]byte, error) {
-	a.executor.Command(name, args...)
-	return a.executor.CombinedOutput()
-}
-
 type parsedArgs struct {
 	// fn names the builtin in errors, e.g. install_mac_pkg.
 	fn, label string
@@ -169,7 +162,7 @@ func (a *pkgAction) install(p *parsedArgs) (*base.Result, error) {
 		return &base.Result{Label: p.label, Success: true, Changed: true, Message: &msg, Return: value}, nil
 	}
 
-	out, err := a.run("/usr/sbin/installer", "-pkg", pkgPath, "-target", p.target)
+	out, err := shelllib.CombinedOutput(a.executor, "/usr/sbin/installer", "-pkg", pkgPath, "-target", p.target)
 	if err != nil {
 		return nil, p.errorf("installer failed: %w\n%s", err, strings.TrimSpace(string(out)))
 	}
@@ -182,7 +175,7 @@ var versionLine = regexp.MustCompile(`(?m)^version: (.+)$`)
 // installedVersion is the version of package id installed on target, or ""
 // when it isn't installed.
 func (a *pkgAction) installedVersion(id, target string) (string, error) {
-	out, err := a.run("/usr/sbin/pkgutil", "--pkg-info", id, "--volume", target)
+	out, err := shelllib.CombinedOutput(a.executor, "/usr/sbin/pkgutil", "--pkg-info", id, "--volume", target)
 	if err != nil {
 		if strings.Contains(string(out), "No receipt for") {
 			return "", nil

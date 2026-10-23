@@ -32,6 +32,14 @@ var (
 	_ = Executor(&RealExecutor{})
 )
 
+// CombinedOutput runs name with args on ex and returns its combined stdout
+// and stderr. err is non-nil when the command couldn't start or exited
+// non-zero.
+func CombinedOutput(ex Executor, name string, args ...string) ([]byte, error) {
+	ex.Command(name, args...)
+	return ex.CombinedOutput()
+}
+
 type RealExecutor struct {
 	*exec.Cmd
 }
