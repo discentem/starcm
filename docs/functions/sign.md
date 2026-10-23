@@ -49,7 +49,11 @@ sign(path = here("main.star"), key = "~/keys/release.pem", expires = "2026-12-31
 
 ```bash
 starcm sign --key release.pem --expires 30d [--key-id ID] [--release ID] FILE...
+starcm sign --key release.pem --expires 30d [--key-id ID] [--release ID] --dir DIR
 ```
+
+`--dir DIR` signs a folder through one manifest instead of one file at a
+time; see [starcm sign --dir](../cli.md#starcm-sign---dir-dir).
 
 ## Arguments
 

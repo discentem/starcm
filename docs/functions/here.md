@@ -113,8 +113,10 @@ Error in here: here: argument 2: got int, want string
 ```
 
 Parts must also be relative (`here("/etc/motd")` is an error), and `here()`
-is an error in modules loaded with [load_remote](load_remote.md): they run
-from starcm's store, where nothing ships next to them.
+is an error in a single module loaded with [load_remote](load_remote.md): it
+runs from starcm's store, where nothing ships next to it. In a
+[folder loaded with load_remote](load_remote.md#folders) it works as in a
+checkout, but can't leave the folder.
 
 ## See also
 

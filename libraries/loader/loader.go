@@ -1,9 +1,11 @@
 package loading
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 
 	localstore "github.com/discentem/starcm/libraries/local_store"
 	"github.com/discentem/starcm/libraries/logging"
+	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	"github.com/discentem/starcm/libraries/signing"
 	starlarkhelpers "github.com/discentem/starcm/starlark-helpers"
 	"github.com/google/deck"
@@ -116,22 +119,83 @@ type Loader struct {
 	StoreDir string
 }
 
-// inStore reports whether path is inside the store, without opening it.
-func (l *Loader) inStore(path string) bool {
+// origin tells whether path is inside the store, and in which fetched
+// folder, without opening it.
+func (l *Loader) origin(path string) paths.Origin {
 	if l.StoreDir == "" {
-		return false
+		return paths.Origin{}
+	}
+	if root, _, _, ok := localstore.InFolder(l.StoreDir, path); ok {
+		return paths.Origin{Store: true, Root: root}
 	}
 	inside, err := localstore.Contains(l.StoreDir, path)
-	return err == nil && inside
+	return paths.Origin{Store: err == nil && inside}
 }
 
 // CheckSignature verifies data, the content of the module at path, when the
-// loader has a Keyring. Without one it does nothing.
+// loader has a Keyring. Without one it does nothing, except for modules in a
+// folder fetched into the store, which are always checked against the
+// folder's manifest (see checkFolderModule).
 func (l *Loader) CheckSignature(path string, data []byte) error {
+	if l.StoreDir != "" {
+		if root, manifestHash, rel, ok := localstore.InFolder(l.StoreDir, path); ok {
+			return l.checkFolderModule(path, root, manifestHash, rel, data)
+		}
+	}
 	if l.Keyring == nil {
 		return nil
 	}
 	return l.Keyring.CheckFile(l.Fsys, path, data)
+}
+
+// checkFolderModule checks data, the module at rel inside the store folder
+// root, against the folder's manifest: the manifest must still have the
+// sha256 the folder is named after, and list rel with data's sha256. Under
+// --trusted-keys the manifest's signature, next to it, must verify too; one
+// signature on the manifest stands in for a .sig next to each module.
+func (l *Loader) checkFolderModule(path, root, manifestHash, rel string, data []byte) error {
+	fail := func(format string, args ...any) error {
+		return fmt.Errorf("checking %s against its folder's manifest: %s", path, fmt.Sprintf(format, args...))
+	}
+	manifestPath := filepath.Join(root, signing.ManifestName)
+	manifest, err := afero.ReadFile(l.Fsys, manifestPath)
+	if err != nil {
+		return fail("%v", err)
+	}
+	if got := sha256Of(manifest); got != manifestHash {
+		return fail("%s has sha256 %s; it was changed after it was stored", manifestPath, got)
+	}
+	m, err := signing.ParseManifest(manifest)
+	if err != nil {
+		return fail("%v", err)
+	}
+	want, listed := m.Files[rel]
+	if !listed {
+		return fail("the manifest doesn't list %s", rel)
+	}
+	if got := sha256Of(data); got != want {
+		return fail("%s has sha256 %s, but the manifest lists %s", rel, got, want)
+	}
+	if l.Keyring == nil {
+		return nil
+	}
+	sigPath := manifestPath + signing.SignatureSuffix
+	sig, err := afero.ReadFile(l.Fsys, sigPath)
+	if errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("signature check failed for %s: no signature file %s; fetch the folder pinned by signature", path, sigPath)
+	}
+	if err != nil {
+		return fmt.Errorf("signature check failed for %s: %w", path, err)
+	}
+	if _, err := l.Keyring.Verify(manifest, sig); err != nil {
+		return fmt.Errorf("signature check failed for %s: %s: %w", path, manifestPath, err)
+	}
+	return nil
+}
+
+func sha256Of(b []byte) string {
+	sum, _ := starcmsha256.FromReader(bytes.NewReader(b)) // reading memory can't fail
+	return sum
 }
 
 // Sequential implements sequential module loading.
@@ -149,20 +213,16 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 	load = func(thread *starlark.Thread, module string) (starlark.StringDict, error) {
 		// Every script loads the starcm module, so this marks each thread
 		// that can call starcm functions.
-		paths.SetStoreCheck(thread, l.inStore)
-		if e, ok := cache[module]; ok {
-			if e == nil {
-				return nil, fmt.Errorf("cycle in load graph %q", module)
+		paths.SetStoreCheck(thread, l.origin)
+		// Builtins are cached by name and files by the path they resolve to,
+		// so the same relative name in two folders is two modules.
+		key := "builtin:" + module
+		if _, isBuiltin := cache[key]; !isBuiltin {
+			if builtin, err := l.Predeclared(module); builtin != nil || err != nil {
+				cache[key] = &entry{builtin, err}
 			}
-			return e.globals, e.err
 		}
-
-		cache[module] = nil // mark as loading
-
-		// Try resolving as a built-in module first
-		if builtin, err := l.Predeclared(module); builtin != nil || err != nil {
-			e := &entry{builtin, err}
-			cache[module] = e
+		if e, ok := cache[key]; ok {
 			return e.globals, e.err
 		}
 
@@ -170,11 +230,21 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 			return nil, fmt.Errorf("module %q is not valid, modules should have a .star extension", module)
 		}
 
-		modulePath := l.resolveModulePath(thread, module)
+		modulePath, err := l.resolveModulePath(thread, module)
+		if err != nil {
+			return nil, err
+		}
+		key = "file:" + filepath.Clean(modulePath)
+		if e, ok := cache[key]; ok {
+			if e == nil {
+				return nil, fmt.Errorf("cycle in load graph %q", module)
+			}
+			return e.globals, e.err
+		}
+		cache[key] = nil // mark as loading
 
 		globals, err := l.execModule("exec "+module, modulePath, load)
-		e := &entry{globals, err}
-		cache[module] = e
+		cache[key] = &entry{globals, err}
 		return globals, err
 	}
 
@@ -182,7 +252,9 @@ func (l *Loader) Sequential(ctx context.Context) func(thread *starlark.Thread, m
 }
 
 // resolveModulePath determines the actual filesystem path to the module based on workspace, call stack, or absolute logic.
-func (l *Loader) resolveModulePath(thread *starlark.Thread, module string) string {
+// A relative load() in a folder fetched with load_remote must stay inside
+// the folder.
+func (l *Loader) resolveModulePath(thread *starlark.Thread, module string) (string, error) {
 	switch {
 	case strings.HasPrefix(module, "//"):
 		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving workspace-relative module path %q with WorkspacePath %q", module, l.WorkspacePath)
@@ -190,21 +262,25 @@ func (l *Loader) resolveModulePath(thread *starlark.Thread, module string) strin
 		stripped := module[2:]
 		resolved := filepath.Join(l.WorkspacePath, stripped)
 		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "stripped to %q, resolved to %q", stripped, resolved)
-		return resolved
+		return resolved, nil
 	case filepath.IsAbs(module):
 		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving absolute module path %q", module)
-		return module
+		return module, nil
 	case len(thread.CallStack()) > 0:
 		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving caller-relative module path %q", module)
 		// Relative to the caller module
 		caller := thread.CallStack().At(0)
-		callerDir := filepath.Dir(caller.Pos.Filename())
-		return filepath.Join(callerDir, module)
+		callerFile := caller.Pos.Filename()
+		p, err := l.origin(callerFile).Resolve(filepath.Dir(callerFile), module)
+		if err != nil {
+			return "", fmt.Errorf("load(%q) in %s: %w", module, callerFile, err)
+		}
+		return p, nil
 
 	default:
 		logging.Log("Loader.resolveModulePath", deck.V(4), "info", "resolving default workspace-relative module path %q", module)
 		// Default fallback: relative to workspace
-		return filepath.Join(l.WorkspacePath, module)
+		return filepath.Join(l.WorkspacePath, module), nil
 	}
 }
 
@@ -223,7 +299,7 @@ func (l *Loader) execModule(threadName, modulePath string, loadFunc func(*starla
 		Load:  loadFunc,
 		Print: func(_ *starlark.Thread, msg string) { fmt.Println(msg) },
 	}
-	paths.SetStoreCheck(thread, l.inStore)
+	paths.SetStoreCheck(thread, l.origin)
 
 	globals, err := starlark.ExecFileOptions(
 		&syntax.FileOptions{TopLevelControl: true},
@@ -442,7 +518,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"platform": starcmsysinfo.Platform(),
 					"env":      starcmsysinfo.Env(),
 					"home_dir": starcmsysinfo.HomeDir(),
-					"here":     starcmhere.New(l.inStore),
+					"here":     starcmhere.New(l.origin),
 					"json":     starlarkjson.Module,
 					"vars":     vars,
 				}, nil

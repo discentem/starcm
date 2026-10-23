@@ -27,15 +27,15 @@ All of these functions can be enhanced by:
   `starcm sign` and `starcm inspect`.
 - [Design: paths and arguments](design/paths-and-arguments.md): the rule for
   relative paths, `here()`, and how arguments are parsed.
-- [Design: loading remote folders](design/remote-folders.md) (proposed):
-  `load_remote` of a folder pinned by a signed manifest.
+- [Design: loading remote folders](design/remote-folders.md): `download`,
+  `s3_download` and `load_remote` of a folder pinned by a signed manifest.
 
 
 ### Managing the machine
 
 | Function | Description |
 | --- | --- |
-| [download](functions/download.md) | Download a file over HTTP(S), to a path or into a local store, and check its sha256. Does nothing if it's already there. |
+| [download](functions/download.md) | Download a file or a signed folder over HTTP(S), to a path or into a local store, and check its sha256. Does nothing if it's already there. |
 | [s3_download](functions/s3_download.md) | The same, for an object in S3 or an S3-compatible store, with AWS credentials. |
 | [exec](functions/exec.md) | Run a command, capture its output and check its exit code. |
 | [file](functions/file.md) | Create a file with given content or as a copy of another file (optionally only if it's signed by the macOS developer you name), or delete it. |
@@ -68,7 +68,7 @@ All of these functions can be enhanced by:
 | --- | --- |
 | [write](functions/write.md) | Print a value, subject to `only_if` / `not_if`. |
 | [load_dynamic](functions/load_dynamic.md) | Load a `.star` file whose path is computed at runtime. |
-| [load_remote](functions/load_remote.md) | Fetch a `.star` file over HTTP(S) or from S3, pinned by sha256 or signature, and load it. |
+| [load_remote](functions/load_remote.md) | Fetch a `.star` file, or a folder of them, over HTTP(S) or from S3, pinned by sha256 or signature, and load it. |
 
 ### Values and helpers
 

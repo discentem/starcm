@@ -16,6 +16,7 @@ go_test(
     srcs = ["here_test.go"],
     embed = [":here"],
     deps = [
+        "//libraries/paths",
         "@com_github_stretchr_testify//require",
         "@net_starlark_go//starlark",
     ],

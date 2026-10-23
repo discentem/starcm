@@ -5,6 +5,7 @@
 ```bash
 starcm [--var name=value]... [--trusted-keys DIR [--max-expiry DURATION] [--release ID]] [--store-dir DIR] [--store-only] [-v N] [--timestamps] FILE
 starcm sign --key KEY --expires WHEN [--key-id ID] [--release ID] FILE...
+starcm sign --key KEY --expires WHEN [--key-id ID] [--release ID] --dir DIR
 starcm inspect FILE...
 ```
 
@@ -34,7 +35,7 @@ Options go before the file name.
 
 | Command | Description |
 | --- | --- |
-| [starcm sign](functions/sign.md) | Sign files, writing `<file>.sig` next to each. |
+| [starcm sign](functions/sign.md) | Sign files, writing `<file>.sig` next to each; with [--dir](#starcm-sign---dir-dir), sign a folder's manifest. |
 | [starcm inspect](functions/inspect.md) | Print what `.star` files load and call, as JSON, without running them. |
 
 ## Examples
@@ -71,7 +72,9 @@ hello, fleet
 `release.pub.pem` for key id `release`. With it, starcm checks each `.star`
 file's `<file>.sig` before running it, including files loaded with `load()`
 and `load_dynamic()`, and stops at the first one that isn't signed by a
-trusted key. [verify()](functions/verify.md) checks other files against the
+trusted key. A `.star` file in a [folder loaded with
+load_remote](functions/load_remote.md#folders) is covered by the signature on
+the folder's manifest instead. [verify()](functions/verify.md) checks other files against the
 same keys, and [sign()](functions/sign.md) is disabled. See
 [sign](functions/sign.md) for making keys and signatures.
 
@@ -170,6 +173,51 @@ The store is only created when a run uses it:
 $ starcm --store-dir "$TMPDIR/unused-store" hello.star && test ! -e "$TMPDIR/unused-store" && echo "no store was created"
 hello, world
 no store was created
+```
+
+### `starcm sign --dir DIR`
+
+`--dir` signs a whole folder for [download](functions/download.md#folders),
+[s3_download](functions/s3_download.md#folders) and
+[load_remote](functions/load_remote.md#folders). It writes two files into
+`DIR`:
+
+- `starcm-manifest.json`: every file in `DIR`, recursively, by its path
+  relative to `DIR` (slash separated), with its sha256. Files and
+  directories whose names start with `.` are left out, as are the manifest
+  and its signature.
+- `starcm-manifest.json.sig`: the manifest's signature, the same kind
+  `starcm sign FILE` writes, with `--key-id`, `--expires` and `--release` as
+  usual.
+
+The files in the folder need no `.sig` of their own. Upload the folder as it
+is, the manifest and its signature last, so a machine that fetches during the
+upload sees a mismatch and fails instead of running a mix of releases.
+
+```scrut
+$ cp -R "$TESTDIR/../examples/folders/agent" agent && rm agent/starcm-manifest.json* && touch agent/.DS_Store && starcm sign --expires 30d --key "$TESTDIR/keys/private/test.pem" --key-id release --dir agent
+wrote agent/starcm-manifest.json listing 3 files
+signed agent/starcm-manifest.json with key "release" until * -> agent/starcm-manifest.json.sig (glob)
+```
+
+```scrut
+$ cat agent/starcm-manifest.json
+{
+  "version": 1,
+  "files": {
+    "lib/settings.star": "2fd0f55fc725e6c4d0844f3e5f3be1a58d4cb62b43673ac0184bbefb04a900fc",
+    "main.star": "4554ac7ab8fa570d4b4eb5aa85202e4eb8f20687585387228c93cd1ac4380a5f",
+    "templates/motd.jinja": "e6a92af32114f46a9b524506f7ecf36aa75c3157ce3663573a568650a41a609d"
+  }
+}
+```
+
+`--dir` and files can't be mixed:
+
+```scrut
+$ starcm sign --expires 30d --key "$TESTDIR/keys/private/test.pem" --dir agent hello.star 2>&1
+sign: pass files or --dir, not both
+[1]
 ```
 
 ### Verbosity and logs

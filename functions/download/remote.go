@@ -15,6 +15,9 @@ type Remote struct {
 	URL string
 	// Name is the base name of the URL's path, e.g. "agent.pkg".
 	Name string
+	// Folder is set when the URL's path ends in "/": a folder, which
+	// FetchRemote fetches with FetchFolder.
+	Folder bool
 	// S3 is the object for s3:// URLs, nil for http(s).
 	S3 *S3Object
 	// Signature locates the signature, "" when not pinned by one: a URL
@@ -30,7 +33,7 @@ func ParseRemote(rawURL, signature, endpoint, region string) (Remote, error) {
 	if err != nil {
 		return Remote{}, err
 	}
-	r := Remote{URL: rawURL, Name: path.Base(u.Path), Signature: signature}
+	r := Remote{URL: rawURL, Name: path.Base(u.Path), Folder: IsFolder(u.Path), Signature: signature}
 	switch u.Scheme {
 	case "http", "https":
 		if endpoint != "" || region != "" {
