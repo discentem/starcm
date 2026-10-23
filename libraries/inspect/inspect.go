@@ -45,8 +45,9 @@ type Call struct {
 	// Path is load_dynamic's module argument when it's a string literal, or
 	// nil when it's computed at runtime. Only set for starcm's load_dynamic.
 	Path *string
-	// URL is load_remote's url argument when it's a string literal, or nil
-	// when it's computed at runtime. Only set for starcm's load_remote.
+	// URL is the url argument of load_remote and install_remote_mac_pkg
+	// when it's a string literal, or nil when it's computed at runtime. Only
+	// set for those two starcm functions.
 	URL *string
 	// Inputs are the arguments whose values come from loaded names, such as
 	// exec(args = ["-c", "echo " + vars["name"]]). Omitted when there are none.
@@ -55,7 +56,7 @@ type Call struct {
 
 // MarshalJSON writes "path" for load_dynamic calls only, as null when the
 // path is computed, so tools can tell "computed" from "not load_dynamic";
-// "url" likewise for load_remote; and
+// "url" likewise for load_remote and install_remote_mac_pkg; and
 // "inputs" only when there are some.
 func (c Call) MarshalJSON() ([]byte, error) {
 	out := struct {
@@ -71,7 +72,7 @@ func (c Call) MarshalJSON() ([]byte, error) {
 		}
 		out.Path = p
 	}
-	if c.isLoadRemote() {
+	if c.takesURL() {
 		u, err := json.Marshal(c.URL) // nil marshals as null
 		if err != nil {
 			return nil, err
@@ -82,7 +83,11 @@ func (c Call) MarshalJSON() ([]byte, error) {
 }
 
 func (c Call) isLoadDynamic() bool { return c.Module == "starcm" && c.Function == "load_dynamic" }
-func (c Call) isLoadRemote() bool  { return c.Module == "starcm" && c.Function == "load_remote" }
+
+// takesURL reports whether c fetches from a url argument.
+func (c Call) takesURL() bool {
+	return c.Module == "starcm" && (c.Function == "load_remote" || c.Function == "install_remote_mac_pkg")
+}
 
 // File parses src as starcm does and reports on it.
 func File(filename string, src []byte) (*Report, error) {
@@ -144,7 +149,7 @@ func File(filename string, src []byte) (*Report, error) {
 		if c.isLoadDynamic() {
 			c.Path = literalString(firstArg(call, "module"))
 		}
-		if c.isLoadRemote() {
+		if c.takesURL() {
 			c.URL = literalString(firstArg(call, "url"))
 		}
 		r.Calls = append(r.Calls, c)

@@ -3,10 +3,8 @@ package loading
 import (
 	"context"
 	"fmt"
-	neturl "net/url"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/discentem/starcm/functions/base"
 	"github.com/discentem/starcm/functions/download"
@@ -32,47 +30,21 @@ func (a *RemoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 	}
 
 	rawURL, _ := base.Get[string](inst, "url")
-	u, err := neturl.Parse(rawURL)
-	if err != nil {
-		return nil, fail("%v", err)
-	}
-	name := path.Base(u.Path)
-	if path.Ext(name) != ".star" {
-		return nil, fail("%s doesn't name a .star file", rawURL)
-	}
 	sha, _ := base.Get[string](inst, "sha256")
 	sig, _ := base.Get[string](inst, "signature")
 	endpoint, _ := base.Get[string](inst, "endpoint")
 	region, _ := base.Get[string](inst, "region")
+	remote, err := download.ParseRemote(rawURL, sig, endpoint, region)
+	if err != nil {
+		return nil, fail("%v", err)
+	}
+	if path.Ext(remote.Name) != ".star" {
+		return nil, fail("%s doesn't name a .star file", rawURL)
+	}
 
 	// Always into the store: no SaveTo, so the loaded file is the one
 	// stored under its verified sha256.
-	req := download.Request{Function: "load_remote", Label: label, FileName: name, SHA256: sha, Signature: sig}
-	var got download.Fetched
-	switch u.Scheme {
-	case "http", "https":
-		if endpoint != "" || region != "" {
-			return nil, fail("endpoint and region are only for s3:// URLs")
-		}
-		got, err = a.Fetcher.FetchURL(inst.Ctx, rawURL, req)
-	case "s3":
-		key := strings.TrimPrefix(u.Path, "/")
-		if u.Host == "" || key == "" {
-			return nil, fail("want s3://bucket/key, got %s", rawURL)
-		}
-		if sig != "" {
-			// FetchS3 takes the signature's key; it must be in the same
-			// bucket as the module.
-			su, err := neturl.Parse(sig)
-			if err != nil || su.Scheme != "s3" || su.Host != u.Host || strings.TrimPrefix(su.Path, "/") == "" {
-				return nil, fail("signature %s must be an s3:// URL in bucket %q", sig, u.Host)
-			}
-			req.Signature = strings.TrimPrefix(su.Path, "/")
-		}
-		got, err = a.Fetcher.FetchS3(inst.Ctx, download.S3Object{Bucket: u.Host, Key: key, Endpoint: endpoint, Region: region}, req)
-	default:
-		return nil, fail("url must start with http://, https:// or s3://, got %s", rawURL)
-	}
+	got, err := a.Fetcher.FetchRemote(inst.Ctx, remote, download.Request{Function: "load_remote", Label: label, FileName: remote.Name, SHA256: sha})
 	if err != nil {
 		return nil, err
 	}

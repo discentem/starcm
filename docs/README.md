@@ -40,6 +40,7 @@ All of these functions can be enhanced by:
 | [extract](functions/extract.md) | Unpack a `.zip`, `.tar.gz` or `.tgz` archive, refusing entries that would escape the destination. |
 | [template](functions/template.md) | Render a Jinja2-style template to a file. |
 | [install_mac_pkg](functions/install_mac_pkg.md) | Install a macOS `.pkg` only if it's signed by the certificate you pin. |
+| [install_remote_mac_pkg](functions/install_remote_mac_pkg.md) | Fetch a `.pkg` over HTTP(S) or from S3 into the local store, pinned by sha256 or signature, and install it with the same checks. |
 
 ### Reading information
 
