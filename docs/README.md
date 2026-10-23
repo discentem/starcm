@@ -27,6 +27,8 @@ All of these functions can be enhanced by:
   `starcm sign` and `starcm inspect`.
 - [Design: paths and arguments](design/paths-and-arguments.md): the rule for
   relative paths, `here()`, and how arguments are parsed.
+- [Design: loading remote folders](design/remote-folders.md) (proposed):
+  `load_remote` of a folder pinned by a signed manifest.
 
 
 ### Managing the machine
