@@ -122,8 +122,20 @@ func (m Module) Call(thread *starlark.Thread, args starlark.Tuple, kwargs []star
 	if l, err := starlarkhelpers.FindValueinKwargs(kwargs, "label"); err == nil && l != nil {
 		fnName = *l
 	}
+	// A starcm_result passed as an argument stands for its value. One that
+	// didn't succeed stops the run, unless only_if or not_if skip the call.
+	args, kwargs, failed := unwrapArgs(names, args, kwargs)
 	if err := starlark.UnpackArgs(fnName, args, kwargs, finalArgs...); err != nil {
-		return nil, err
+		if failed == nil {
+			return nil, err
+		}
+		// The failed result's value didn't fit the argument. A call that's
+		// skipped anyway shouldn't fail over it.
+		if skippedByKwargs(kwargs) {
+			logging.Log(fnName, nil, "info", "skipping %s(label=%q) because of only_if or not_if", m.Type, fnName)
+			return &Result{}, nil
+		}
+		return nil, failed.err(fnName)
 	}
 	if _, err := starlarkhelpers.FindValueinKwargs(kwargs, "label"); err != nil {
 		return nil, err
@@ -136,6 +148,9 @@ func (m Module) Call(thread *starlark.Thread, args starlark.Tuple, kwargs []star
 	if !onlyIf {
 		logging.Log(label, nil, "info", "skipping %s(label=%q) because only_if was false", m.Type, label)
 		return &Result{}, nil
+	}
+	if failed != nil {
+		return nil, failed.err(fnName)
 	}
 	if m.Action == nil {
 		return nil, fmt.Errorf("no action defined for module %s", label)

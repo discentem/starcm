@@ -1,0 +1,3 @@
+# Claude Code worktrees are full copies of the repository; Bazel and gazelle
+# must not see them as packages of this one.
+.claude

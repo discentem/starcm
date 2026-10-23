@@ -43,7 +43,7 @@ pkg = download(
 
 # Install it only if dockutil's developer signed it and Apple notarized it.
 r = install_mac_pkg(
-    pkg.value,
+    pkg,
     signer  = "Developer ID Installer: Kyle Crawford (Z5J8CJBUWC)",
     id      = "dockutil.cli.tool",
     version = "3.1.3",

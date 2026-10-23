@@ -1,7 +1,7 @@
 load("starcm", "date", "template", "write")
 
-# data can hold nested dicts, lists, tuples, None and structs (including
-# results from other starcm functions). Templates reach into them with
+# data can hold nested dicts, lists, tuples, None and structs (a result
+# from another starcm function stands for its value). Templates reach into them with
 # dots or brackets: server.host, users[0]["name"], now.formatted.
 render = template(
     label = "render config.tpl",

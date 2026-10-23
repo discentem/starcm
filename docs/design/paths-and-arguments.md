@@ -2,8 +2,7 @@
 
 [← Documentation index](../README.md)
 
-Status: accepted. Implemented, except unwrapping results passed as arguments
-(below), which comes next.
+Status: accepted. Implemented.
 
 ## Problem
 

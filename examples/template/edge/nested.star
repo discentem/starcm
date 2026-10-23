@@ -1,4 +1,5 @@
 load("starcm", "template", "write")
+load("stdlib", "struct")
 
 r = template(
     label    = "nested",
@@ -13,8 +14,7 @@ r = template(
         "env": {"ZED": "1", "ALPHA": "2"},
         "point": (3, 4),
         "nothing": None,
-        "greeting": write("hello", label = "greeting", end = ""),
+        "greeting": struct(value = "hello", success = True),
     },
 )
-print("")
 write(r.message, label = "show render", end = "")
