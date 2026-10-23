@@ -186,6 +186,53 @@ starcm_result(changed = True, error = "<nil>", label = "print the date", message
 print the date: success=True changed=True
 ```
 
+### Passing a result to another function
+
+A `starcm_result` passed as an argument to another starcm function stands
+for its `value`, including inside a list or dict. So `extract(archive = zip)`
+works the same as `extract(archive = zip.value)`.
+
+```python
+# examples/common_functionality/pass_result.star
+load("starcm", "exec", "write")
+
+today = exec(label = "print the date", cmd = "echo", args = ["2026-10-17"])
+
+# Passing the result itself passes its value, so these two calls write the
+# same thing. It works inside lists and dicts too.
+write(today, label = "the result", end = "")
+write(today.value, label = "its value", end = "")
+```
+
+```scrut
+$ starcm pass_result.star
+2026-10-17
+2026-10-17
+```
+
+A result that didn't succeed (`success = False`) stops the run instead of
+passing on a value nobody checked, unless `only_if` or `not_if` skip the
+call. To use the value anyway, pass `r.value`. `only_if` and `not_if` are
+never unwrapped: write `only_if = r.success`.
+
+```python
+# examples/common_functionality/failed_result.star
+load("starcm", "exec", "write")
+
+r = exec(label = "check agent", cmd = "sh", args = ["-c", "echo not installed; exit 3"])
+
+# A result that didn't succeed stops the run when it's passed on...
+write(r, label = "skipped", only_if = False)  # ...unless the call is skipped anyway
+write(r, label = "report")
+```
+
+```scrut
+$ starcm failed_result.star 2>&1 | grep -v '^  '
+INFO: [skipped]: skipping write(label="skipped") because only_if was false
+Traceback (most recent call last):
+Error in write: report: str is the result of "check agent", which didn't succeed (exit status 3); pass r.value to use it anyway
+```
+
 ## Errors and edge cases
 
 These are here mostly as tests: CI runs them to check error messages and

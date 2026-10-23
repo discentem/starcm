@@ -33,7 +33,7 @@ template(
 | --- | --- | --- | --- |
 | `template` | string | `template` or `source` | Path to the template file. A relative path is next to the `.star` file the call is written in. |
 | `source` | string | `template` or `source` | The template text itself, instead of a file. A triple-quoted string keeps it readable; see [Render an inline template](#render-an-inline-template). |
-| `data` | dict | required | Values the template can use. Keys must be strings; values can be strings, numbers, bools, `None`, lists, tuples, nested dicts and structs (including other functions' results). |
+| `data` | dict | required | Values the template can use. Keys must be strings; values can be strings, numbers, bools, `None`, lists, tuples, nested dicts and structs. A function's result stands for its value. |
 | `destination` | string | required unless `what_if` | The file to write, as an absolute path. Its parent directories are created. |
 
 Give exactly one of `template` and `source`. The template file ships with
@@ -264,8 +264,8 @@ no value
 
 ### Fill a template from nested data
 
-`data` can hold nested dicts, lists, tuples and other functions' results,
-such as [date](date.md)'s:
+`data` can hold nested dicts, lists, tuples and structs, such as
+[date](date.md)'s value:
 
 ```jinja
 {# examples/template/nested/config.tpl #}
@@ -287,8 +287,8 @@ date = {{ now.formatted }}
 # examples/template/nested/nested.star
 load("starcm", "date", "template", "write")
 
-# data can hold nested dicts, lists, tuples, None and structs (including
-# results from other starcm functions). Templates reach into them with
+# data can hold nested dicts, lists, tuples, None and structs (a result
+# from another starcm function stands for its value). Templates reach into them with
 # dots or brackets: server.host, users[0]["name"], now.formatted.
 render = template(
     label = "render config.tpl",
@@ -307,7 +307,7 @@ write(render.message, label = "print config", end = "")
 ```
 
 ```scrut
-$ (cd nested && starcm --var managed_dir="$managed" nested.star)
+$ (cd nested && starcm nested.star)
 [server]
 host = localhost
 port = 8080
@@ -352,13 +352,14 @@ Error in template: destination is required in template() module if what_if is fa
 
 ### Nested data
 
-`data` can hold nested dicts, lists, tuples, `None` and structs, including
-results from other starcm functions. Dict loops (`for k, v in d`) run in
+`data` can hold nested dicts, lists, tuples, `None` and structs; a result
+from another starcm function stands for its value. Dict loops (`for k, v in d`) run in
 alphabetical key order; use a list when order matters.
 
 ```python
 # examples/template/edge/nested.star
 load("starcm", "template", "write")
+load("stdlib", "struct")
 
 r = template(
     label    = "nested",
@@ -373,16 +374,14 @@ r = template(
         "env": {"ZED": "1", "ALPHA": "2"},
         "point": (3, 4),
         "nothing": None,
-        "greeting": write("hello", label = "greeting", end = ""),
+        "greeting": struct(value = "hello", success = True),
     },
 )
-print("")
 write(r.message, label = "show render", end = "")
 ```
 
 ```scrut
-$ starcm --var managed_dir="$managed" nested.star
-hello
+$ starcm nested.star
 dots: ada lives in london
 brackets: ada rex
 list: cat=tom dog=rex 

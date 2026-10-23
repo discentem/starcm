@@ -6,6 +6,7 @@ go_library(
         "base.go",
         "instance.go",
         "result.go",
+        "unwrap.go",
     ],
     importpath = "github.com/discentem/starcm/functions/base",
     visibility = ["//visibility:public"],
@@ -25,6 +26,7 @@ go_test(
     srcs = [
         "base_test.go",
         "instance_test.go",
+        "unwrap_test.go",
     ],
     embed = [":base"],
     deps = [

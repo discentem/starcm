@@ -132,7 +132,7 @@ pkg = download(
 )
 
 r = install_mac_pkg(
-    pkg.value,
+    pkg,
     # The installer certificate's name, from `pkgutil --check-signature`.
     signer  = "Developer ID Installer: Example Corp (ABCDE12345)",
     id      = "com.example.agent",
