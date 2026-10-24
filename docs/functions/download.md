@@ -7,7 +7,7 @@ sha256. The file goes either to a path you choose with `save_to`, or, without
 `save_to`, into starcm's [local store](#the-local-store), and `value` is the
 path it was stored at. If the file is already there with the right hash,
 nothing is downloaded, so running the same configuration again is cheap and
-reports `changed = False`. A URL ending in `/` fetches a whole
+reports `changed = False`. With `folder = True` it fetches a whole
 [folder](#folders) instead, pinned by one signed manifest.
 
 ## Syntax
@@ -18,6 +18,7 @@ load("starcm", "download")
 download(
     label         = "fetch agent",       # required
     url           = "https://...",       # required
+    folder        = False,               # True: url is a folder
     sha256        = "ffcf2b6c...",       # sha256 or signature is required
     signature     = "https://.../agent.pkg.sig",
     save_to       = "/opt/agent/agent.pkg", # omit to use the local store
@@ -30,7 +31,8 @@ download(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `url` | string | required | URL to fetch. Any status other than `200 OK` fails the run. A URL ending in `/` is a [folder](#folders). |
+| `url` | string | required | URL to fetch. Any status other than `200 OK` fails the run. A URL ending in `/` needs `folder = True`. |
+| `folder` | bool | `False` | `url` is a [folder](#folders) signed with `starcm sign --dir`: fetch every file its manifest lists. The trailing `/` is added when it's missing. |
 | `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
 | `signature` | string | `sha256` or `signature` | URL of the file's signature, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](#pinning-by-signature). |
 | `save_to` | string | none | Where to save the file, as an absolute path (`~` expands). Missing parent directories are created. Leave it out to download into the [local store](#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
@@ -110,7 +112,7 @@ are read-only.
 
 ## Folders
 
-A `url` ending in `/` names a folder: every file listed in its
+With `folder = True`, `url` names a folder: every file listed in its
 `starcm-manifest.json`, which [starcm sign --dir](../cli.md#starcm-sign---dir-dir)
 writes and signs. Publishing a folder is signing it and uploading it as it is:
 
@@ -435,17 +437,18 @@ Error in download: download(label="fetch agent to a path"): save_to is disabled 
 
 [examples/folders/agent/](../../examples/folders/agent) is signed with
 `starcm sign --dir`, so it has a `starcm-manifest.json` listing its three
-files. A URL ending in `/` fetches all of them:
+files. `folder = True` fetches all of them:
 
 ```python
 # examples/download/folder.star
 load("starcm", "download", "vars")
 
-# A URL ending in / names a folder. sha256 pins its manifest,
+# folder = True fetches a folder. sha256 pins its manifest,
 # starcm-manifest.json, which lists every file in the folder with its sha256.
 r = download(
     label   = "fetch agent files",
     url     = "http://localhost:8000/examples/folders/agent/",
+    folder  = True,
     sha256  = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
     save_to = vars["managed_dir"] + "/agent",
 )
@@ -484,6 +487,7 @@ load("starcm", "download")
 r = download(
     label  = "fetch agent files into the store",
     url    = "http://localhost:8000/examples/folders/agent/",
+    folder = True,
     sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
 )
 print("changed=%s" % r.changed)
@@ -689,6 +693,7 @@ load("starcm", "download")
 download(
     label     = "folder with file_name",
     url       = "http://localhost:8000/examples/folders/agent/",
+    folder    = True,
     sha256    = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
     file_name = "agent",
 )
@@ -698,7 +703,29 @@ download(
 $ starcm --store-dir "$store" folder_file_name.star 2>&1
 Traceback (most recent call last):
   folder_file_name.star:3:9: in <toplevel>
-Error in download: download(label="folder with file_name"): file_name doesn't apply to a folder (http://localhost:8000/examples/folders/agent/ ends in /)
+Error in download: download(label="folder with file_name"): file_name doesn't apply to a folder
+[1]
+```
+
+A URL ending in `/` without `folder = True` is an error rather than a
+download of whatever the server returns for it:
+
+```python
+# examples/download/edge/folder_without_flag.star
+load("starcm", "download")
+
+download(
+    label  = "folder without folder = True",
+    url    = "http://localhost:8000/examples/folders/agent/",
+    sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
+)
+```
+
+```scrut
+$ starcm --store-dir "$store" folder_without_flag.star 2>&1
+Traceback (most recent call last):
+  folder_without_flag.star:3:9: in <toplevel>
+Error in download: download(label="folder without folder = True"): http://localhost:8000/examples/folders/agent/ ends in /; pass folder = True to download a folder
 [1]
 ```
 
@@ -712,6 +739,7 @@ load("starcm", "download", "vars")
 download(
     label   = "folder with the wrong pin",
     url     = "http://localhost:8000/examples/folders/agent/",
+    folder  = True,
     sha256  = "0000000000000000000000000000000000000000000000000000000000000000",
     save_to = vars["managed_dir"] + "/agent",
 )

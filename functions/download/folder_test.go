@@ -10,11 +10,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/discentem/starcm/functions/base"
 	localstore "github.com/discentem/starcm/libraries/local_store"
 	starcmsha256 "github.com/discentem/starcm/libraries/sha256"
 	"github.com/discentem/starcm/libraries/signing"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
+	"go.starlark.net/starlark"
 )
 
 func sumOf(b []byte) string {
@@ -250,5 +252,45 @@ func TestFetchFolderS3(t *testing.T) {
 	require.Equal(t, testFolder["templates/motd.jinja"], string(b))
 	for _, p := range s3.paths {
 		require.NotEqual(t, "/config/agent/unlisted.star", p)
+	}
+}
+
+// download() fetches a folder only with folder = True, which adds the
+// trailing / when it's missing; a url ending in / without it is an error.
+func TestDownloadFolderArgument(t *testing.T) {
+	srv := newFolderServer(t, testFolder)
+	f := storeFetcher(t)
+	mh := sumOf(srv.manifest)
+	call := func(label string, kv ...starlark.Tuple) (*base.Result, error) {
+		kwargs := append([]starlark.Tuple{{starlark.String("label"), starlark.String(label)}}, kv...)
+		return New(context.Background(), f).Call(nil, nil, kwargs)
+	}
+	str := func(k, v string) starlark.Tuple { return starlark.Tuple{starlark.String(k), starlark.String(v)} }
+	folder := starlark.Tuple{starlark.String("folder"), starlark.True}
+
+	r, err := call("no slash", str("url", srv.URL+"/cfg"), str("sha256", mh), folder)
+	require.NoError(t, err)
+	require.True(t, strings.HasSuffix(string(r.Return.(starlark.String)), filepath.Join("folders", mh)))
+
+	_, err = call("slash", str("url", srv.URL+"/cfg/"), str("sha256", mh), folder)
+	require.NoError(t, err)
+
+	_, err = call("no folder", str("url", srv.URL+"/cfg/"), str("sha256", mh))
+	require.ErrorContains(t, err, `download(label="no folder"): `+srv.URL+"/cfg/ ends in /; pass folder = True to download a folder")
+
+	_, err = call("file_name", str("url", srv.URL+"/cfg"), str("sha256", mh), str("file_name", "x"), folder)
+	require.ErrorContains(t, err, "file_name doesn't apply to a folder")
+}
+
+func TestFolderURL(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://h/agent":       "https://h/agent/",
+		"https://h/agent/":      "https://h/agent/",
+		"https://h/a%20b?v=1":   "https://h/a%20b/?v=1",
+		"http://localhost:8000": "http://localhost:8000/",
+	} {
+		got, err := FolderURL(in)
+		require.NoError(t, err)
+		require.Equal(t, want, got, in)
 	}
 }

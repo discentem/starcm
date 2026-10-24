@@ -97,6 +97,7 @@ r = load_remote(
 agent = download(
     label     = "fetch agent files",
     url       = "https://config.example.com/agent/",
+    folder    = True,
     signature = "https://config.example.com/agent/starcm-manifest.json.sig",
 )
 # agent.value is the folder's absolute path in the store
@@ -110,8 +111,8 @@ s3_download(
 )
 ```
 
-- A `url` (or `key`) ending in `/` names a folder. `signature` or `sha256`
-  pins its manifest; there's no per-file pin.
+- `download(folder = True)`, or an S3 `key` ending in `/`, names a folder.
+  `signature` or `sha256` pins its manifest; there's no per-file pin.
 - Without `save_to`, the folder is assembled in the store (below) and
   `value` is its absolute path.
 - With `save_to`, an absolute directory, each listed file is written there
@@ -225,6 +226,10 @@ What the implementation settled that the design above left open:
 - **`--trusted-keys` and `sha256`.** A folder pinned by `sha256` has no
   signature in the store, so its modules are refused under
   `--trusted-keys`, as a single module pinned by `sha256` is.
+- **`download(folder = True)`.** A folder is named explicitly rather than
+  by its URL's trailing `/`, which is added when it's missing; a `url`
+  ending in `/` without `folder = True` is an error. (`s3_download` and
+  `load_remote` still go by the trailing `/`.)
 - **`module`** (named `entry` in the first draft of this note; renamed to
   match `load_dynamic`'s `module`) must be a `.star` path the manifest
   lists, and is an error for a URL that isn't a folder.

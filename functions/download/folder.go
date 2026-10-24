@@ -29,9 +29,27 @@ func (s Source) String() string {
 	return s.URL
 }
 
-// IsFolder reports whether a URL or S3 key names a folder: it ends in "/".
+// IsFolder reports whether a URL path or S3 key names a folder: it ends in
+// "/".
 func IsFolder(urlOrKey string) bool {
 	return strings.HasSuffix(urlOrKey, "/")
+}
+
+// FolderURL returns rawURL with its path ending in "/", as FetchFolder
+// needs, so download(url = ".../agent", folder = True) works without it.
+func FolderURL(rawURL string) (string, error) {
+	u, err := neturl.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	if IsFolder(u.Path) {
+		return rawURL, nil
+	}
+	u.Path += "/"
+	if u.RawPath != "" {
+		u.RawPath += "/"
+	}
+	return u.String(), nil
 }
 
 // FetchFolder downloads the folder src as req describes. req.SHA256 or
@@ -50,7 +68,7 @@ func (f *Fetcher) FetchFolder(ctx context.Context, src Source, req Request) (Fet
 		return Fetched{}, fmt.Errorf("fsys must be provided to download module")
 	}
 	if req.FileName != "" {
-		return Fetched{}, req.errorf("file_name doesn't apply to a folder (%s ends in /)", src)
+		return Fetched{}, req.errorf("file_name doesn't apply to a folder")
 	}
 	var get func(ctx context.Context, rel string) (io.ReadCloser, int64, error)
 	var getSig func(ctx context.Context, sig string) (io.ReadCloser, error)

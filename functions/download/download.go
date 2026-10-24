@@ -124,11 +124,23 @@ var _ base.Action = (*downloadAction)(nil)
 
 func (a *downloadAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
 	url, _ := base.Get[string](inst, "url")
+	folder, _ := base.Get[bool](inst, "folder")
 	req, err := requestFrom(inst, "download")
 	if err != nil {
 		return nil, err
 	}
-	got, err := a.f.FetchURL(inst.Ctx, url, req)
+	var got Fetched
+	if folder {
+		if url, err = FolderURL(url); err != nil {
+			return nil, req.errorf("%v", err)
+		}
+		got, err = a.f.FetchFolder(inst.Ctx, Source{URL: url}, req)
+	} else {
+		if u, perr := neturl.Parse(url); perr == nil && IsFolder(u.Path) {
+			return nil, req.errorf("%s ends in /; pass folder = True to download a folder", url)
+		}
+		got, err = a.f.FetchURL(inst.Ctx, url, req)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -461,12 +473,14 @@ func NewFetcher(fsys afero.Fs, output io.Writer, opts ...Option) *Fetcher {
 // New returns the download() builtin.
 //
 //	download(label = "fetch agent", url = "https://example.com/agent.pkg", save_to = "/tmp/agent.pkg", sha256 = "...")
+//	download(label = "fetch agent files", url = "https://example.com/agent/", folder = True, sha256 = "<manifest sha256>")
 func New(ctx context.Context, f *Fetcher) *base.Module {
 	return base.NewModule(
 		ctx,
 		"download",
 		[]base.ArgPair{
 			base.Arg[string]("url"),
+			base.OptionalArgAllowNone[bool]("folder"),
 			base.OptionalArg[string]("save_to"),
 			base.OptionalArg[string]("file_name"),
 			base.OptionalArg[string]("sha256"),
