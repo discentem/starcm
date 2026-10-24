@@ -31,7 +31,7 @@ load_remote(
 )
 load_remote(
     url       = "https://config.example.com/agent/",   # a folder
-    entry     = "main.star",
+    module    = "main.star",
     signature = "https://config.example.com/agent/starcm-manifest.json.sig",
     label     = "agent config",
 )
@@ -48,7 +48,7 @@ load_remote(
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `url` | string | required | The module, positionally or as `url =`: an `http://` or `https://` URL, or `s3://bucket/key`. Its name must end in `.star`, or the URL must end in `/` to load a [folder](#folders). |
-| `entry` | string | `"main.star"` | Folders only: the module to run, as a path in the folder's manifest, such as `"site/main.star"`. |
+| `module` | string | `"main.star"` | Folders only: the `.star` file to run, as a path in the folder's manifest, such as `"site/main.star"`. |
 | `sha256` | string | none | The sha256 the file must have; for a folder, the sha256 of its `starcm-manifest.json`. |
 | `signature` | string | none | The URL of the file's signature, checked against `--trusted-keys`; for a folder, the manifest's (usually `<url>starcm-manifest.json.sig`). For `s3://` URLs, an `s3://` URL in the same bucket. See [pinning by signature](download.md#pinning-by-signature). |
 | `endpoint` | string | AWS | `s3://` only: the S3-compatible server, as for [s3_download](s3_download.md). |
@@ -69,7 +69,7 @@ A [starcm_result](../common-functionality.md#starcm_result):
 | --- | --- |
 | `success` | `True` |
 | `changed` | `True` when the file (for a folder, any of its files), or its signature, was fetched into the store |
-| `message` | `loaded <url> from <path in the store>`; for a folder, `loaded <url><entry> from <path in the store>` |
+| `message` | `loaded <url> from <path in the store>`; for a folder, `loaded <url><module> from <path in the store>` |
 | `value` | A frozen dict of the module's globals: `value["NAME"]` |
 
 A file that doesn't match its pin, a refused signature, a failed download or
@@ -97,7 +97,7 @@ A URL ending in `/` names a folder signed with
 [starcm sign --dir](../cli.md#starcm-sign---dir-dir), which wrote a
 `starcm-manifest.json` listing every file in it with its sha256 and a
 signature for the manifest. `load_remote` fetches it the way
-[download](download.md#folders) does, then runs `entry` from it:
+[download](download.md#folders) does, then runs `module` from it:
 
 1. It fetches the manifest and checks it against `sha256` or, under
    `--trusted-keys`, its signature.
@@ -105,7 +105,7 @@ signature for the manifest. `load_remote` fetches it the way
    manifest. A missing file or a wrong hash stops the run, and files the
    manifest doesn't list are never fetched.
 3. It lays the files out at `<store>/folders/<manifest sha256>/`, re-checks
-   the folder against the manifest, and runs `entry` there.
+   the folder against the manifest, and runs `module` there.
 
 Inside the folder:
 
@@ -120,7 +120,7 @@ Inside the folder:
 - **Re-checked:** every module is checked against the manifest right before
   it runs, and [exec](exec.md) re-checks a script from the folder before
   running it. A file changed after it was stored stops the run.
-- **Once per run**, as for one file: loading the same folder and `entry`
+- **Once per run**, as for one file: loading the same folder and `module`
   again returns the same globals.
 
 A new release is a new upload of the folder, its manifest and signature
@@ -279,10 +279,11 @@ load("starcm", "load_remote")
 
 # A URL ending in / loads a folder. The signature covers the folder's
 # manifest, which pins every file in it, so main.star, lib/settings.star and
-# templates/motd.jinja need no .sig of their own. entry is the module to run.
+# templates/motd.jinja need no .sig of their own. module is the .star file
+# in the folder to run.
 agent = load_remote(
     url       = "http://localhost:8000/examples/folders/agent/",
-    entry     = "main.star",
+    module    = "main.star",
     signature = "http://localhost:8000/examples/folders/agent/starcm-manifest.json.sig",
     label     = "agent config",
 ).value
@@ -516,37 +517,37 @@ Error in load_remote: folder *f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35
 [1]
 ```
 
-`entry` must be a `.star` file the manifest lists:
+`module` must be a `.star` file the manifest lists:
 
 ```python
-# examples/load_remote/edge/folder_entry.star
+# examples/load_remote/edge/folder_module.star
 load("starcm", "load_remote")
 
-load_remote("http://localhost:8000/examples/folders/agent/", entry = "setup.star", sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "no such entry")
+load_remote("http://localhost:8000/examples/folders/agent/", module = "setup.star", sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "no such module")
 ```
 
 ```scrut
-$ rm -rf "$store" && starcm --store-dir "$store" folder_entry.star 2>&1
+$ rm -rf "$store" && starcm --store-dir "$store" folder_module.star 2>&1
 Traceback (most recent call last):
-  folder_entry.star:3:12: in <toplevel>
-Error in load_remote: load_remote(label="no such entry"): entry "setup.star" is not in http://localhost:8000/examples/folders/agent/starcm-manifest.json
+  folder_module.star:3:12: in <toplevel>
+Error in load_remote: load_remote(label="no such module"): module "setup.star" is not in http://localhost:8000/examples/folders/agent/starcm-manifest.json
 [1]
 ```
 
 and is only for folders:
 
 ```python
-# examples/load_remote/edge/entry_file.star
+# examples/load_remote/edge/module_file.star
 load("starcm", "load_remote")
 
-load_remote("http://localhost:8000/examples/load_remote/edge/hello.star", entry = "main.star", sha256 = "d5060e7e366df6090f58f576d6c499df6e44ba7d8b334e68a76dcf1d02b32b03", label = "entry for a file")
+load_remote("http://localhost:8000/examples/load_remote/edge/hello.star", module = "main.star", sha256 = "d5060e7e366df6090f58f576d6c499df6e44ba7d8b334e68a76dcf1d02b32b03", label = "module for a file")
 ```
 
 ```scrut
-$ starcm --store-dir "$store" entry_file.star 2>&1
+$ starcm --store-dir "$store" module_file.star 2>&1
 Traceback (most recent call last):
-  entry_file.star:3:12: in <toplevel>
-Error in load_remote: load_remote(label="entry for a file"): entry is only for a folder: a url ending in /
+  module_file.star:3:12: in <toplevel>
+Error in load_remote: load_remote(label="module for a file"): module is only for a folder: a url ending in /
 [1]
 ```
 

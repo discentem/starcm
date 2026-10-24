@@ -5,7 +5,7 @@ load("starcm", "load_remote", "s3_download", "vars")
 agent = load_remote(
     label     = "run the agent folder",
     url       = "s3://config/agent/",
-    entry     = "main.star",
+    module    = "main.star",
     signature = "s3://config/agent/starcm-manifest.json.sig",
     endpoint  = vars["s3_endpoint"],
 ).value

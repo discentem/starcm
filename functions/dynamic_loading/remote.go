@@ -13,7 +13,7 @@ import (
 
 // RemoteAction is load_remote(): fetch into the local store with the
 // download Fetcher, then load_dynamic() of the stored file. A url ending in
-// "/" is a folder: FetchFolder assembles it in the store and entry, a path
+// "/" is a folder: FetchFolder assembles it in the store and module, a path
 // in its manifest, is loaded from there. Pinning, signatures and the store
 // are the Fetcher's; loading, --trusted-keys and the once-per-run cache are
 // the loader's.
@@ -41,22 +41,22 @@ func (a *RemoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 	if err != nil {
 		return nil, fail("%v", err)
 	}
-	entry, entryGiven := base.Get[string](inst, "entry")
+	module, moduleGiven := base.Get[string](inst, "module")
 	fileName := remote.Name
 	switch {
 	case remote.Folder:
-		if !entryGiven {
-			entry = "main.star"
+		if !moduleGiven {
+			module = "main.star"
 		}
-		if err := signing.CheckManifestPath(entry); err != nil {
-			return nil, fail("entry: %v", err)
+		if err := signing.CheckManifestPath(module); err != nil {
+			return nil, fail("module: %v", err)
 		}
-		if path.Ext(entry) != ".star" {
-			return nil, fail("entry %q doesn't name a .star file", entry)
+		if path.Ext(module) != ".star" {
+			return nil, fail("module %q doesn't name a .star file", module)
 		}
 		fileName = ""
-	case entryGiven:
-		return nil, fail("entry is only for a folder: a url ending in /")
+	case moduleGiven:
+		return nil, fail("module is only for a folder: a url ending in /")
 	case path.Ext(remote.Name) != ".star":
 		return nil, fail("%s doesn't name a .star file", rawURL)
 	}
@@ -69,10 +69,10 @@ func (a *RemoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 	}
 	stored := got.Path
 	if remote.Folder {
-		if _, listed := got.Manifest.Files[entry]; !listed {
-			return nil, fail("entry %q is not in %s%s", entry, rawURL, signing.ManifestName)
+		if _, listed := got.Manifest.Files[module]; !listed {
+			return nil, fail("module %q is not in %s%s", module, rawURL, signing.ManifestName)
 		}
-		stored = filepath.Join(got.Path, filepath.FromSlash(entry))
+		stored = filepath.Join(got.Path, filepath.FromSlash(module))
 	}
 	// An absolute path, so the loader doesn't resolve it against the
 	// calling file's directory.
@@ -86,7 +86,7 @@ func (a *RemoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 	}
 	msg := fmt.Sprintf("loaded %s from %s", rawURL, stored)
 	if remote.Folder {
-		msg = fmt.Sprintf("loaded %s%s from %s", rawURL, entry, stored)
+		msg = fmt.Sprintf("loaded %s%s from %s", rawURL, module, stored)
 	}
 	return &base.Result{
 		Label:   label,
@@ -101,14 +101,14 @@ func (a *RemoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 //
 //	r = load_remote("https://config.example.com/agent.star", signature = "https://config.example.com/agent.star.sig", label = "agent")
 //	r.value["configure"]()
-//	r = load_remote("https://config.example.com/agent/", entry = "main.star", signature = "https://config.example.com/agent/starcm-manifest.json.sig", label = "agent")
+//	r = load_remote("https://config.example.com/agent/", module = "main.star", signature = "https://config.example.com/agent/starcm-manifest.json.sig", label = "agent")
 func NewRemote(ctx context.Context, f *download.Fetcher) *base.Module {
 	return base.NewModule(
 		ctx,
 		"load_remote",
 		[]base.ArgPair{
 			base.Arg[string]("url"),
-			base.OptionalArg[string]("entry"),
+			base.OptionalArg[string]("module"),
 			base.OptionalArg[string]("sha256"),
 			base.OptionalArg[string]("signature"),
 			base.OptionalArg[string]("endpoint"),

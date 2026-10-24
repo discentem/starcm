@@ -149,9 +149,9 @@ P = here("..", "..", "x")
 // pick up.
 const localSettings = `SETTINGS = {"channel": "local"}`
 
-func loadAgent(srvURL, entry, pin string) string {
+func loadAgent(srvURL, module, pin string) string {
 	return `load("starcm", "load_remote")
-r = load_remote("` + srvURL + `/cfg/", entry = "` + entry + `", ` + pin + `, label = "agent")
+r = load_remote("` + srvURL + `/cfg/", module = "` + module + `", ` + pin + `, label = "agent")
 CHANGED = r.changed
 G = r.value
 `
@@ -205,10 +205,10 @@ func TestLoadRemoteFolderStaysInside(t *testing.T) {
 	require.ErrorContains(t, err, "here: \"../../x\" is outside the folder")
 
 	_, err = e.run(t, loadAgent(srv.URL, "missing.star", pin), false)
-	require.ErrorContains(t, err, `entry "missing.star" is not in`)
+	require.ErrorContains(t, err, `module "missing.star" is not in`)
 
 	_, err = e.run(t, loadAgent(srv.URL, "templates/motd.txt", pin), false)
-	require.ErrorContains(t, err, `entry "templates/motd.txt" doesn't name a .star file`)
+	require.ErrorContains(t, err, `module "templates/motd.txt" doesn't name a .star file`)
 }
 
 func TestLoadRemoteFolderTrustedKeys(t *testing.T) {

@@ -66,13 +66,13 @@ signature, are left out. Individual files don't need their own `.sig`.
 ```python
 r = load_remote(
     "s3://config/agent/",
-    entry     = "main.star",
+    module    = "main.star",
     signature = "s3://config/agent/starcm-manifest.json.sig",
     label     = "agent config",
 )
 ```
 
-- **Arguments.** `url` ends in `/` and names the folder; `entry` is the
+- **Arguments.** `url` ends in `/` and names the folder; `module` is the
   module to run, a path in the manifest; `signature` or `sha256` pins the
   manifest, exactly as they pin a single file today. HTTP(S) and `s3://`
   work the same way: the manifest says what to fetch, so no directory
@@ -83,7 +83,7 @@ r = load_remote(
   2. Fetch each listed file, relative to `url`, and check it against the
      manifest's sha256. A missing file or a wrong hash stops the run.
      Files in the folder but not in the manifest are never fetched.
-  3. Lay the files out as a folder in the store and run `entry` there.
+  3. Lay the files out as a folder in the store and run `module` there.
 - **Inside the folder** `here()`, relative bundled-resource paths and
   relative `load()` statements resolve within it, so the folder runs the
   same from the store as it does from a checkout. `load()` and resource
@@ -168,8 +168,8 @@ New:
 3. **`Fetcher.FetchFolder`**: fetch the manifest and each listed file
    relative to a folder URL or S3 prefix, into the store or `save_to`.
    `download` and `s3_download` accept folder URLs through it.
-4. **`load_remote` folders**: the `entry` argument, on top of `FetchFolder`.
-5. **Loader**: run `entry` from the folder; trust `.star` files in a
+4. **`load_remote` folders**: the `module` argument, on top of `FetchFolder`.
+5. **Loader**: run `module` from the folder; trust `.star` files in a
    verified folder under `--trusted-keys`; keep `load()` and resource paths
    inside the folder; stop treating a verified folder as "nothing ships next
    to it" in the store check.
@@ -225,8 +225,9 @@ What the implementation settled that the design above left open:
 - **`--trusted-keys` and `sha256`.** A folder pinned by `sha256` has no
   signature in the store, so its modules are refused under
   `--trusted-keys`, as a single module pinned by `sha256` is.
-- **`entry`** must be a `.star` path the manifest lists, and is an error for
-  a URL that isn't a folder.
+- **`module`** (named `entry` in the first draft of this note; renamed to
+  match `load_dynamic`'s `module`) must be a `.star` path the manifest
+  lists, and is an error for a URL that isn't a folder.
 - **Once per run.** The loader caches modules by the path they resolve to
   rather than the string passed to `load()`, so `load("lib/x.star")` in a
   fetched folder and in the local checkout are two modules.
