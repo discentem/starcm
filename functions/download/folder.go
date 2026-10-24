@@ -35,23 +35,6 @@ func IsFolder(urlOrKey string) bool {
 	return strings.HasSuffix(urlOrKey, "/")
 }
 
-// FolderURL returns rawURL with its path ending in "/", as FetchFolder
-// needs, so download(url = ".../agent", folder = True) works without it.
-func FolderURL(rawURL string) (string, error) {
-	u, err := neturl.Parse(rawURL)
-	if err != nil {
-		return "", err
-	}
-	if IsFolder(u.Path) {
-		return rawURL, nil
-	}
-	u.Path += "/"
-	if u.RawPath != "" {
-		u.RawPath += "/"
-	}
-	return u.String(), nil
-}
-
 // FetchFolder downloads the folder src as req describes. req.SHA256 or
 // req.Signature pins the folder's manifest, src + signing.ManifestName;
 // each file the manifest lists is fetched relative to src and must have the

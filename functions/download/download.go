@@ -129,16 +129,21 @@ func (a *downloadAction) Execute(inst *base.FunctionInstance) (*base.Result, err
 	if err != nil {
 		return nil, err
 	}
+	// A folder is named twice, by folder = True and the url's trailing /,
+	// so a typo in either can't fetch the wrong thing.
+	u, err := neturl.Parse(url)
+	if err != nil {
+		return nil, req.errorf("%v", err)
+	}
 	var got Fetched
-	if folder {
-		if url, err = FolderURL(url); err != nil {
-			return nil, req.errorf("%v", err)
-		}
+	switch {
+	case folder && !IsFolder(u.Path):
+		return nil, req.errorf("folder = True needs a url ending in /, got %s", url)
+	case folder:
 		got, err = a.f.FetchFolder(inst.Ctx, Source{URL: url}, req)
-	} else {
-		if u, perr := neturl.Parse(url); perr == nil && IsFolder(u.Path) {
-			return nil, req.errorf("%s ends in /; pass folder = True to download a folder", url)
-		}
+	case IsFolder(u.Path):
+		return nil, req.errorf("%s ends in /; pass folder = True to download a folder", url)
+	default:
 		got, err = a.f.FetchURL(inst.Ctx, url, req)
 	}
 	if err != nil {

@@ -226,10 +226,10 @@ What the implementation settled that the design above left open:
 - **`--trusted-keys` and `sha256`.** A folder pinned by `sha256` has no
   signature in the store, so its modules are refused under
   `--trusted-keys`, as a single module pinned by `sha256` is.
-- **`download(folder = True)`.** A folder is named explicitly rather than
-  by its URL's trailing `/`, which is added when it's missing; a `url`
-  ending in `/` without `folder = True` is an error. (`s3_download` and
-  `load_remote` still go by the trailing `/`.)
+- **`download(folder = True)`.** A folder is named twice, by
+  `folder = True` and by the URL's trailing `/`, and either without the
+  other is an error, so a slip can't fetch the wrong thing. (`s3_download`
+  and `load_remote` still go by the trailing `/` alone.)
 - **`module`** (named `entry` in the first draft of this note; renamed to
   match `load_dynamic`'s `module`) must be a `.star` path the manifest
   lists, and is an error for a URL that isn't a folder.

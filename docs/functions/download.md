@@ -32,7 +32,7 @@ download(
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `url` | string | required | URL to fetch. Any status other than `200 OK` fails the run. A URL ending in `/` needs `folder = True`. |
-| `folder` | bool | `False` | `url` is a [folder](#folders) signed with `starcm sign --dir`: fetch every file its manifest lists. The trailing `/` is added when it's missing. |
+| `folder` | bool | `False` | `url` is a [folder](#folders) signed with `starcm sign --dir`: fetch every file its manifest lists. `url` must end in `/`. |
 | `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
 | `signature` | string | `sha256` or `signature` | URL of the file's signature, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](#pinning-by-signature). |
 | `save_to` | string | none | Where to save the file, as an absolute path (`~` expands). Missing parent directories are created. Leave it out to download into the [local store](#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
@@ -112,7 +112,7 @@ are read-only.
 
 ## Folders
 
-With `folder = True`, `url` names a folder: every file listed in its
+With `folder = True`, `url`, which must end in `/`, names a folder: every file listed in its
 `starcm-manifest.json`, which [starcm sign --dir](../cli.md#starcm-sign---dir-dir)
 writes and signs. Publishing a folder is signing it and uploading it as it is:
 
@@ -707,8 +707,9 @@ Error in download: download(label="folder with file_name"): file_name doesn't ap
 [1]
 ```
 
-A URL ending in `/` without `folder = True` is an error rather than a
-download of whatever the server returns for it:
+A folder is named both ways, by `folder = True` and by the URL's trailing
+`/`, so a slip in either is an error rather than a download of the wrong
+thing. A URL ending in `/` without `folder = True`:
 
 ```python
 # examples/download/edge/folder_without_flag.star
@@ -726,6 +727,28 @@ $ starcm --store-dir "$store" folder_without_flag.star 2>&1
 Traceback (most recent call last):
   folder_without_flag.star:3:9: in <toplevel>
 Error in download: download(label="folder without folder = True"): http://localhost:8000/examples/folders/agent/ ends in /; pass folder = True to download a folder
+[1]
+```
+
+and `folder = True` with a URL that doesn't end in `/`:
+
+```python
+# examples/download/edge/folder_without_slash.star
+load("starcm", "download")
+
+download(
+    label  = "folder url without the slash",
+    url    = "http://localhost:8000/examples/folders/agent",
+    folder = True,
+    sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca",
+)
+```
+
+```scrut
+$ starcm --store-dir "$store" folder_without_slash.star 2>&1
+Traceback (most recent call last):
+  folder_without_slash.star:3:9: in <toplevel>
+Error in download: download(label="folder url without the slash"): folder = True needs a url ending in /, got http://localhost:8000/examples/folders/agent
 [1]
 ```
 
