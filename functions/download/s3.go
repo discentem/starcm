@@ -57,8 +57,8 @@ func getS3(ctx context.Context, bucket, key string, obj S3Object) (io.ReadCloser
 // FetchS3 downloads obj as req describes, with credentials from the AWS
 // SDK's default chain (environment, shared config and credentials files,
 // SSO, instance role). req.Signature is the key of the signature file, in
-// the same bucket. A key ending in "/" is a folder, fetched with
-// FetchFolder.
+// the same bucket. With req.Folder, obj.Key is a folder's prefix, fetched
+// with FetchFolder.
 func (f *Fetcher) FetchS3(ctx context.Context, obj S3Object, req Request) (Fetched, error) {
 	if f.fsys == nil {
 		return Fetched{}, fmt.Errorf("fsys must be provided to s3_download module")
@@ -72,7 +72,10 @@ func (f *Fetcher) FetchS3(ctx context.Context, obj S3Object, req Request) (Fetch
 	if obj.Key == "" {
 		return Fetched{}, req.errorf("key must not be empty")
 	}
-	if IsFolder(obj.Key) {
+	if err := checkFolder(req, "key", fmt.Sprintf("s3://%s/%s", obj.Bucket, obj.Key), obj.Key); err != nil {
+		return Fetched{}, err
+	}
+	if req.Folder {
 		return f.FetchFolder(ctx, Source{S3: &obj}, req)
 	}
 	expectedHash, sig, err := f.pin(ctx, req, func(ctx context.Context, sigKey string) (io.ReadCloser, error) {
@@ -128,6 +131,7 @@ func NewS3(ctx context.Context, f *Fetcher) *base.Module {
 		[]base.ArgPair{
 			base.Arg[string]("bucket"),
 			base.Arg[string]("key"),
+			base.OptionalArgAllowNone[bool]("folder"),
 			base.OptionalArg[string]("sha256"),
 			base.OptionalArg[string]("signature"),
 			base.OptionalArg[string]("save_to"),

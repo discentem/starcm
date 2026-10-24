@@ -90,7 +90,7 @@ func TestFetchFolderIntoStore(t *testing.T) {
 	srv.content["/cfg/unlisted.star"] = []byte("never fetched")
 	f := storeFetcher(t)
 	mh := sumOf(srv.manifest)
-	req := Request{Label: "cfg", SHA256: mh}
+	req := Request{Folder: true, Label: "cfg", SHA256: mh}
 
 	got, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", req)
 	require.NoError(t, err)
@@ -119,7 +119,7 @@ func TestFetchFolderIntoStore(t *testing.T) {
 func TestFetchFolderNewRelease(t *testing.T) {
 	srv := newFolderServer(t, testFolder)
 	f := storeFetcher(t)
-	_, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: sumOf(srv.manifest)})
+	_, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: sumOf(srv.manifest)})
 	require.NoError(t, err)
 
 	files := map[string]string{}
@@ -128,7 +128,7 @@ func TestFetchFolderNewRelease(t *testing.T) {
 	}
 	files["main.star"] = "print('v2')\n"
 	v2 := newFolderServer(t, files)
-	got, err := f.FetchURL(context.Background(), v2.URL+"/cfg/", Request{SHA256: sumOf(v2.manifest)})
+	got, err := f.FetchURL(context.Background(), v2.URL+"/cfg/", Request{Folder: true, SHA256: sumOf(v2.manifest)})
 	require.NoError(t, err)
 	require.Contains(t, got.Message, "downloaded 1 of 3 files")
 	require.Equal(t, 0, v2.count("/cfg/templates/motd.jinja"))
@@ -139,26 +139,30 @@ func TestFetchFolderRefuses(t *testing.T) {
 	f := storeFetcher(t)
 	mh := sumOf(srv.manifest)
 
-	_, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: strings.Repeat("0", 64)})
+	_, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: strings.Repeat("0", 64)})
 	require.ErrorContains(t, err, "starcm-manifest.json: expected sha256 hash "+strings.Repeat("0", 64))
 
-	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Label: "x", SHA256: mh, FileName: "a"})
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, Label: "x", SHA256: mh, FileName: "a"})
 	require.ErrorContains(t, err, "file_name doesn't apply to a folder")
 
 	srv.set("/cfg/templates/motd.jinja", []byte("tampered\n"))
-	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh})
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh})
 	require.ErrorContains(t, err, "templates/motd.jinja: expected sha256 hash")
 
 	delete(srv.content, "/cfg/templates/motd.jinja")
-	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh})
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh})
 	require.ErrorContains(t, err, "404")
 
 	_, err = f.FetchFolder(context.Background(), Source{URL: srv.URL + "/cfg"}, Request{SHA256: mh})
 	require.ErrorContains(t, err, "must end in /")
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg", Request{Folder: true, SHA256: mh})
+	require.ErrorContains(t, err, "folder = True needs a url ending in /")
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh})
+	require.ErrorContains(t, err, "ends in /; pass folder = True for a folder")
 
 	bad := []byte(`{"version": 1, "files": {"../escape": "` + strings.Repeat("a", 64) + `"}}`)
 	srv.set("/cfg/"+signing.ManifestName, bad)
-	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: sumOf(bad)})
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: sumOf(bad)})
 	require.ErrorContains(t, err, "not a clean path")
 }
 
@@ -168,7 +172,7 @@ func TestFetchFolderSignature(t *testing.T) {
 	srv.content["/cfg/"+signing.ManifestName+".sig"] = sign(srv.manifest)
 	f := storeFetcher(t, WithKeyring(keyring))
 
-	got, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Signature: srv.URL + "/cfg/" + signing.ManifestName + ".sig"})
+	got, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, Signature: srv.URL + "/cfg/" + signing.ManifestName + ".sig"})
 	require.NoError(t, err)
 	sig, err := os.ReadFile(filepath.Join(got.Path, signing.ManifestName+".sig"))
 	require.NoError(t, err)
@@ -178,7 +182,7 @@ func TestFetchFolderSignature(t *testing.T) {
 	// fetched.
 	srv.set("/cfg/"+signing.ManifestName+".sig", sign([]byte("other")))
 	srv.set("/cfg/"+signing.ManifestName, []byte("other"))
-	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Signature: srv.URL + "/cfg/" + signing.ManifestName + ".sig"})
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, Signature: srv.URL + "/cfg/" + signing.ManifestName + ".sig"})
 	require.ErrorContains(t, err, "malformed manifest")
 }
 
@@ -190,7 +194,7 @@ func TestFetchFolderSaveTo(t *testing.T) {
 	dest := abs("managed/cfg")
 	require.NoError(t, afero.WriteFile(fsys, filepath.Join(dest, "local.txt"), []byte("mine"), 0o644))
 
-	got, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh, SaveTo: dest})
+	got, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh, SaveTo: dest})
 	require.NoError(t, err)
 	require.True(t, got.Changed)
 	require.Equal(t, dest, got.Path)
@@ -207,21 +211,21 @@ func TestFetchFolderSaveTo(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "mine", string(b), "files the manifest doesn't list are left alone")
 
-	again, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh, SaveTo: dest})
+	again, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh, SaveTo: dest})
 	require.NoError(t, err)
 	require.False(t, again.Changed)
 	require.Equal(t, 1, srv.count("/cfg/main.star"))
 
 	// A changed file is fetched again; the others aren't.
 	require.NoError(t, afero.WriteFile(fsys, filepath.Join(dest, "main.star"), []byte("edited"), 0o644))
-	fixed, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh, SaveTo: dest})
+	fixed, err := f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh, SaveTo: dest})
 	require.NoError(t, err)
 	require.True(t, fixed.Changed)
 	require.Equal(t, "downloaded 1 of 3 files to "+dest, fixed.Message)
 
-	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh, SaveTo: "relative"})
+	_, err = f.FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh, SaveTo: "relative"})
 	require.ErrorContains(t, err, "not an absolute path")
-	_, err = NewFetcher(fsys, nil, StoreOnly(true)).FetchURL(context.Background(), srv.URL+"/cfg/", Request{SHA256: mh, SaveTo: dest})
+	_, err = NewFetcher(fsys, nil, StoreOnly(true)).FetchURL(context.Background(), srv.URL+"/cfg/", Request{Folder: true, SHA256: mh, SaveTo: dest})
 	require.ErrorContains(t, err, "--store-only")
 }
 
@@ -244,7 +248,11 @@ func TestFetchFolderS3(t *testing.T) {
 
 	f := storeFetcher(t, WithKeyring(keyring))
 	obj := S3Object{Bucket: "config", Key: "agent/", Endpoint: srv.URL}
-	got, err := f.FetchS3(context.Background(), obj, Request{Signature: "agent/" + signing.ManifestName + ".sig"})
+	_, err := f.FetchS3(context.Background(), obj, Request{Signature: "agent/" + signing.ManifestName + ".sig"})
+	require.ErrorContains(t, err, "s3://config/agent/ ends in /; pass folder = True for a folder")
+	_, err = f.FetchS3(context.Background(), S3Object{Bucket: "config", Key: "agent", Endpoint: srv.URL}, Request{Folder: true, Signature: "agent/" + signing.ManifestName + ".sig"})
+	require.ErrorContains(t, err, "folder = True needs a key ending in /, got s3://config/agent")
+	got, err := f.FetchS3(context.Background(), obj, Request{Folder: true, Signature: "agent/" + signing.ManifestName + ".sig"})
 	require.NoError(t, err)
 	require.True(t, got.Changed)
 	b, err := os.ReadFile(filepath.Join(got.Path, "templates", "motd.jinja"))
@@ -276,7 +284,7 @@ func TestDownloadFolderArgument(t *testing.T) {
 	require.ErrorContains(t, err, `download(label="no slash"): folder = True needs a url ending in /, got `+srv.URL+"/cfg")
 
 	_, err = call("no folder", str("url", srv.URL+"/cfg/"), str("sha256", mh))
-	require.ErrorContains(t, err, `download(label="no folder"): `+srv.URL+"/cfg/ ends in /; pass folder = True to download a folder")
+	require.ErrorContains(t, err, `download(label="no folder"): `+srv.URL+"/cfg/ ends in /; pass folder = True for a folder")
 
 	_, err = call("file_name", str("url", srv.URL+"/cfg/"), str("sha256", mh), str("file_name", "x"), folder)
 	require.ErrorContains(t, err, "file_name doesn't apply to a folder")

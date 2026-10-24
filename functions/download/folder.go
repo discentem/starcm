@@ -35,7 +35,22 @@ func IsFolder(urlOrKey string) bool {
 	return strings.HasSuffix(urlOrKey, "/")
 }
 
-// FetchFolder downloads the folder src as req describes. req.SHA256 or
+// checkFolder requires a folder to be named twice, by req.Folder and by
+// the trailing "/" of p, a URL's path or an S3 key, so a slip in either is
+// an error rather than a fetch of the wrong thing. what ("url" or "key")
+// and src name it in the error.
+func checkFolder(req Request, what, src, p string) error {
+	switch {
+	case req.Folder && !IsFolder(p):
+		return req.errorf("folder = True needs a %s ending in /, got %s", what, src)
+	case !req.Folder && IsFolder(p):
+		return req.errorf("%s ends in /; pass folder = True for a folder", src)
+	}
+	return nil
+}
+
+// FetchFolder downloads the folder src as req describes, as FetchURL and
+// FetchS3 do with req.Folder set. req.SHA256 or
 // req.Signature pins the folder's manifest, src + signing.ManifestName;
 // each file the manifest lists is fetched relative to src and must have the
 // sha256 it lists. Files in the folder that the manifest doesn't list are
@@ -50,6 +65,7 @@ func (f *Fetcher) FetchFolder(ctx context.Context, src Source, req Request) (Fet
 	if f.fsys == nil {
 		return Fetched{}, fmt.Errorf("fsys must be provided to download module")
 	}
+	req.Folder = true
 	if req.FileName != "" {
 		return Fetched{}, req.errorf("file_name doesn't apply to a folder")
 	}

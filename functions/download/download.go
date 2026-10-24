@@ -57,6 +57,9 @@ type Request struct {
 	// the same bucket for FetchS3.
 	Signature    string
 	LiveProgress bool
+	// Folder fetches a folder with FetchFolder. The URL's path or S3 key
+	// must end in "/" exactly when Folder is set; see checkFolder.
+	Folder bool
 }
 
 // Fetched is a finished download.
@@ -84,13 +87,20 @@ func (r Request) errorf(format string, args ...any) error {
 	return fmt.Errorf("%s(label=%q): "+format, append([]any{fn, r.Label}, args...)...)
 }
 
-// FetchURL downloads url as req describes. A url ending in "/" is a
+// FetchURL downloads url as req describes. With req.Folder, url names a
 // folder, fetched with FetchFolder.
 func (f *Fetcher) FetchURL(ctx context.Context, url string, req Request) (Fetched, error) {
 	if f.fsys == nil {
 		return Fetched{}, fmt.Errorf("fsys must be provided to download module")
 	}
-	if IsFolder(url) {
+	u, err := neturl.Parse(url)
+	if err != nil {
+		return Fetched{}, req.errorf("%v", err)
+	}
+	if err := checkFolder(req, "url", url, u.Path); err != nil {
+		return Fetched{}, err
+	}
+	if req.Folder {
 		return f.FetchFolder(ctx, Source{URL: url}, req)
 	}
 	expectedHash, sig, err := f.pin(ctx, req, func(ctx context.Context, sigURL string) (io.ReadCloser, error) {
@@ -107,11 +117,7 @@ func (f *Fetcher) FetchURL(ctx context.Context, url string, req Request) (Fetche
 		}
 		return f.withProgress(body, size, url, req.LiveProgress), nil
 	}
-	urlName := ""
-	if u, err := neturl.Parse(url); err == nil {
-		urlName = path.Base(u.Path)
-	}
-	return f.save(ctx, req, urlName, expectedHash, sig, get)
+	return f.save(ctx, req, path.Base(u.Path), expectedHash, sig, get)
 }
 
 // downloadAction is download(): it reads the call's arguments into a
@@ -124,28 +130,11 @@ var _ base.Action = (*downloadAction)(nil)
 
 func (a *downloadAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
 	url, _ := base.Get[string](inst, "url")
-	folder, _ := base.Get[bool](inst, "folder")
 	req, err := requestFrom(inst, "download")
 	if err != nil {
 		return nil, err
 	}
-	// A folder is named twice, by folder = True and the url's trailing /,
-	// so a typo in either can't fetch the wrong thing.
-	u, err := neturl.Parse(url)
-	if err != nil {
-		return nil, req.errorf("%v", err)
-	}
-	var got Fetched
-	switch {
-	case folder && !IsFolder(u.Path):
-		return nil, req.errorf("folder = True needs a url ending in /, got %s", url)
-	case folder:
-		got, err = a.f.FetchFolder(inst.Ctx, Source{URL: url}, req)
-	case IsFolder(u.Path):
-		return nil, req.errorf("%s ends in /; pass folder = True to download a folder", url)
-	default:
-		got, err = a.f.FetchURL(inst.Ctx, url, req)
-	}
+	got, err := a.f.FetchURL(inst.Ctx, url, req)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +152,9 @@ func requestFrom(inst *base.FunctionInstance, fn string) (Request, error) {
 	sha, _ := base.Get[string](inst, "sha256")
 	sig, _ := base.Get[string](inst, "signature")
 	live, _ := base.Get[bool](inst, "live_progress")
+	folder, _ := base.Get[bool](inst, "folder")
 	return Request{
+		Folder:       folder,
 		Function:     fn,
 		Label:        inst.Label,
 		SaveTo:       saveTo,

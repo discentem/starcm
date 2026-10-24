@@ -13,7 +13,7 @@ that runs is the one that matched its pin, and a second run doesn't fetch it
 again. Pin it by `sha256` or, under
 [--trusted-keys](../cli.md#--trusted-keys-dir), by `signature`.
 
-A URL ending in `/` loads a [folder](#folders) instead: every file its
+With `folder = True` it loads a [folder](#folders) instead: every file its
 signed manifest lists, laid out as a folder in the store, so the module can
 `load()` its neighbours and use its templates and scripts the way it does
 from a checkout.
@@ -30,7 +30,8 @@ load_remote(
     label     = "screen lock",
 )
 load_remote(
-    url       = "https://config.example.com/agent/",   # a folder
+    url       = "https://config.example.com/agent/",
+    folder    = True,
     module    = "main.star",
     signature = "https://config.example.com/agent/starcm-manifest.json.sig",
     label     = "agent config",
@@ -47,8 +48,9 @@ load_remote(
 
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
-| `url` | string | required | The module, positionally or as `url =`: an `http://` or `https://` URL, or `s3://bucket/key`. Its name must end in `.star`, or the URL must end in `/` to load a [folder](#folders). |
-| `module` | string | `"main.star"` | Folders only: the `.star` file to run, as a path in the folder's manifest, such as `"site/main.star"`. |
+| `url` | string | required | The module, positionally or as `url =`: an `http://` or `https://` URL, or `s3://bucket/key`. Its name must end in `.star`; for a folder, the URL ends in `/`. |
+| `folder` | bool | `False` | `url` is a [folder](#folders) signed with `starcm sign --dir`; its URL must end in `/`, and a URL ending in `/` needs `folder = True`. |
+| `module` | string | `"main.star"` | `folder = True` only: the `.star` file to run, as a path in the folder's manifest, such as `"site/main.star"`. |
 | `sha256` | string | none | The sha256 the file must have; for a folder, the sha256 of its `starcm-manifest.json`. |
 | `signature` | string | none | The URL of the file's signature, checked against `--trusted-keys`; for a folder, the manifest's (usually `<url>starcm-manifest.json.sig`). For `s3://` URLs, an `s3://` URL in the same bucket. See [pinning by signature](download.md#pinning-by-signature). |
 | `endpoint` | string | AWS | `s3://` only: the S3-compatible server, as for [s3_download](s3_download.md). |
@@ -93,7 +95,7 @@ The module runs from its folder in the store, so:
 
 ## Folders
 
-A URL ending in `/` names a folder signed with
+With `folder = True`, `url`, which must end in `/`, names a folder signed with
 [starcm sign --dir](../cli.md#starcm-sign---dir-dir), which wrote a
 `starcm-manifest.json` listing every file in it with its sha256 and a
 signature for the manifest. `load_remote` fetches it the way
@@ -277,12 +279,13 @@ One signature, on the manifest, loads all of it:
 # examples/load_remote/folder.star
 load("starcm", "load_remote")
 
-# A URL ending in / loads a folder. The signature covers the folder's
+# folder = True loads a folder; its url ends in /. The signature covers the folder's
 # manifest, which pins every file in it, so main.star, lib/settings.star and
 # templates/motd.jinja need no .sig of their own. module is the .star file
 # in the folder to run.
 agent = load_remote(
     url       = "http://localhost:8000/examples/folders/agent/",
+    folder    = True,
     module    = "main.star",
     signature = "http://localhost:8000/examples/folders/agent/starcm-manifest.json.sig",
     label     = "agent config",
@@ -499,7 +502,7 @@ A folder pinned by `sha256` runs without `--trusted-keys`:
 # examples/load_remote/edge/folder_pinned.star
 load("starcm", "load_remote")
 
-load_remote("http://localhost:8000/examples/folders/agent/", sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "agent config").value["configure"]()
+load_remote("http://localhost:8000/examples/folders/agent/", folder = True, sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "agent config").value["configure"]()
 ```
 
 ```scrut
@@ -517,13 +520,30 @@ Error in load_remote: folder *f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35
 [1]
 ```
 
+A folder needs `folder = True` as well as the trailing `/`:
+
+```python
+# examples/load_remote/edge/folder_without_flag.star
+load("starcm", "load_remote")
+
+load_remote("http://localhost:8000/examples/folders/agent/", sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "folder without folder = True")
+```
+
+```scrut
+$ starcm --store-dir "$store" folder_without_flag.star 2>&1
+Traceback (most recent call last):
+  folder_without_flag.star:3:12: in <toplevel>
+Error in load_remote: load_remote(label="folder without folder = True"): http://localhost:8000/examples/folders/agent/ ends in /; pass folder = True for a folder
+[1]
+```
+
 `module` must be a `.star` file the manifest lists:
 
 ```python
 # examples/load_remote/edge/folder_module.star
 load("starcm", "load_remote")
 
-load_remote("http://localhost:8000/examples/folders/agent/", module = "setup.star", sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "no such module")
+load_remote("http://localhost:8000/examples/folders/agent/", folder = True, module = "setup.star", sha256 = "f7e8fbe643ea525dce9c8e0138f2ff4cad6d5ab1d539ed7a35ac55be380981ca", label = "no such module")
 ```
 
 ```scrut
@@ -547,7 +567,7 @@ load_remote("http://localhost:8000/examples/load_remote/edge/hello.star", module
 $ starcm --store-dir "$store" module_file.star 2>&1
 Traceback (most recent call last):
   module_file.star:3:12: in <toplevel>
-Error in load_remote: load_remote(label="module for a file"): module is only for a folder: a url ending in /
+Error in load_remote: load_remote(label="module for a file"): module is only for folder = True
 [1]
 ```
 
@@ -567,7 +587,7 @@ print(here("..", "..", "secrets.txt"))
 # examples/load_remote/edge/folder_escape.star
 load("starcm", "load_remote")
 
-load_remote("http://localhost:8000/examples/load_remote/edge/escape/", sha256 = "ea2126eca18f7445344e8d4387487dbbce4ed4effcabb9b5a4cd0891a78e5e02", label = "escape")
+load_remote("http://localhost:8000/examples/load_remote/edge/escape/", folder = True, sha256 = "ea2126eca18f7445344e8d4387487dbbce4ed4effcabb9b5a4cd0891a78e5e02", label = "escape")
 ```
 
 ```scrut

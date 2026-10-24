@@ -66,13 +66,15 @@ signature, are left out. Individual files don't need their own `.sig`.
 ```python
 r = load_remote(
     "s3://config/agent/",
+    folder    = True,
     module    = "main.star",
     signature = "s3://config/agent/starcm-manifest.json.sig",
     label     = "agent config",
 )
 ```
 
-- **Arguments.** `url` ends in `/` and names the folder; `module` is the
+- **Arguments.** `folder = True` and a `url` ending in `/` name the
+  folder; `module` is the
   module to run, a path in the manifest; `signature` or `sha256` pins the
   manifest, exactly as they pin a single file today. HTTP(S) and `s3://`
   work the same way: the manifest says what to fetch, so no directory
@@ -106,12 +108,13 @@ s3_download(
     label     = "fetch agent files",
     bucket    = "config",
     key       = "agent/",
+    folder    = True,
     signature = "agent/starcm-manifest.json.sig",
     save_to   = vars["managed_dir"] + "/agent",
 )
 ```
 
-- `download(folder = True)`, or an S3 `key` ending in `/`, names a folder.
+- `folder = True`, with a `url` (or `key`) ending in `/`, names a folder.
   `signature` or `sha256` pins its manifest; there's no per-file pin.
 - Without `save_to`, the folder is assembled in the store (below) and
   `value` is its absolute path.
@@ -226,10 +229,11 @@ What the implementation settled that the design above left open:
 - **`--trusted-keys` and `sha256`.** A folder pinned by `sha256` has no
   signature in the store, so its modules are refused under
   `--trusted-keys`, as a single module pinned by `sha256` is.
-- **`download(folder = True)`.** A folder is named twice, by
-  `folder = True` and by the URL's trailing `/`, and either without the
-  other is an error, so a slip can't fetch the wrong thing. (`s3_download`
-  and `load_remote` still go by the trailing `/` alone.)
+- **`folder = True`.** A folder is named twice, by `folder = True` and by
+  the URL's or key's trailing `/`, and either without the other is an error,
+  so a slip can't fetch the wrong thing. The shared `download.Fetcher`
+  enforces it (`Request.Folder`), so `download`, `s3_download` and
+  `load_remote` behave the same.
 - **`module`** (named `entry` in the first draft of this note; renamed to
   match `load_dynamic`'s `module`) must be a `.star` path the manifest
   lists, and is an error for a URL that isn't a folder.

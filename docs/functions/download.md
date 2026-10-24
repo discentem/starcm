@@ -726,7 +726,7 @@ download(
 $ starcm --store-dir "$store" folder_without_flag.star 2>&1
 Traceback (most recent call last):
   folder_without_flag.star:3:9: in <toplevel>
-Error in download: download(label="folder without folder = True"): http://localhost:8000/examples/folders/agent/ ends in /; pass folder = True to download a folder
+Error in download: download(label="folder without folder = True"): http://localhost:8000/examples/folders/agent/ ends in /; pass folder = True for a folder
 [1]
 ```
 

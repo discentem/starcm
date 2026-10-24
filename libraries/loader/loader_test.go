@@ -151,7 +151,7 @@ const localSettings = `SETTINGS = {"channel": "local"}`
 
 func loadAgent(srvURL, module, pin string) string {
 	return `load("starcm", "load_remote")
-r = load_remote("` + srvURL + `/cfg/", module = "` + module + `", ` + pin + `, label = "agent")
+r = load_remote("` + srvURL + `/cfg/", folder = True, module = "` + module + `", ` + pin + `, label = "agent")
 CHANGED = r.changed
 G = r.value
 `
@@ -256,4 +256,20 @@ func TestCheckFolderModule(t *testing.T) {
 	require.NoError(t, l.CheckSignature(filepath.Join(root, "main.star"), []byte(agent.files["main.star"])))
 	require.ErrorContains(t, l.CheckSignature(filepath.Join(root, "main.star"), []byte("evil")), "main.star has sha256")
 	require.ErrorContains(t, l.CheckSignature(filepath.Join(root, "other.star"), []byte("x")), "the manifest doesn't list other.star")
+}
+
+// load_remote names a folder with folder = True and a url ending in /, the
+// Fetcher's rule for every function; module is only for folders.
+func TestLoadRemoteFolderArgument(t *testing.T) {
+	e := newEnv(t)
+	srv := serve(t, agent, nil)
+	pin := `sha256 = "` + sumOf(agent.manifest) + `"`
+	for src, want := range map[string]string{
+		`load_remote("` + srv.URL + `/cfg/", ` + pin + `, label = "a")`:                                srv.URL + "/cfg/ ends in /; pass folder = True for a folder",
+		`load_remote("` + srv.URL + `/cfg", folder = True, ` + pin + `, label = "a")`:                  "folder = True needs a url ending in /, got " + srv.URL + "/cfg",
+		`load_remote("` + srv.URL + `/cfg/main.star", module = "main.star", ` + pin + `, label = "a")`: "module is only for folder = True",
+	} {
+		_, err := e.run(t, `load("starcm", "load_remote")`+"\n"+src+"\n", false)
+		require.ErrorContains(t, err, `load_remote(label="a"): `+want, src)
+	}
 }

@@ -15,8 +15,8 @@ type Remote struct {
 	URL string
 	// Name is the base name of the URL's path, e.g. "agent.pkg".
 	Name string
-	// Folder is set when the URL's path ends in "/": a folder, which
-	// FetchRemote fetches with FetchFolder.
+	// Folder is set when the URL's path ends in "/", the way a folder's
+	// does. Fetching one needs Request.Folder too.
 	Folder bool
 	// S3 is the object for s3:// URLs, nil for http(s).
 	S3 *S3Object

@@ -314,6 +314,7 @@ load("starcm", "load_remote", "s3_download", "vars")
 agent = load_remote(
     label     = "run the agent folder",
     url       = "s3://config/agent/",
+    folder    = True,
     module    = "main.star",
     signature = "s3://config/agent/starcm-manifest.json.sig",
     endpoint  = vars["s3_endpoint"],
@@ -325,6 +326,7 @@ r = s3_download(
     label     = "copy the agent folder",
     bucket    = "config",
     key       = "agent/",
+    folder    = True,
     signature = "agent/starcm-manifest.json.sig",
     save_to   = vars["managed_dir"] + "/agent",
     endpoint  = vars["s3_endpoint"],

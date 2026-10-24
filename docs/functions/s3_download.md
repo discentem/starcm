@@ -37,7 +37,8 @@ s3_download(
 | Argument | Type | Default | Description |
 | --- | --- | --- | --- |
 | `bucket` | string | required | The bucket. |
-| `key` | string | required | The object's key, such as `agent/agent-1.2.0.pkg`. A key ending in `/`, such as `agent/`, is a [folder](#folders). |
+| `key` | string | required | The object's key, such as `agent/agent-1.2.0.pkg`. A key ending in `/` needs `folder = True`. |
+| `folder` | bool | `False` | `key`, ending in `/` such as `agent/`, is a [folder](#folders)'s prefix. |
 | `sha256` | string | `sha256` or `signature` | Expected lowercase hex sha256 of the file. Use [sha256()](sha256.md) or `shasum -a 256` to get it. |
 | `signature` | string | `sha256` or `signature` | Key of the file's signature in the same bucket, made with [sign](sign.md). The file must have the sha256 it records. Needs [--trusted-keys](../cli.md#--trusted-keys-dir). See [Pinning by signature](download.md#pinning-by-signature) for when to use which. |
 | `save_to` | string | none | Where to save the file, as an absolute path (`~` expands). Leave it out to download into the [local store](download.md#the-local-store). Refused under [--store-only](../cli.md#--store-dir-dir-and---store-only). |
@@ -75,7 +76,7 @@ other regions, so set `region` for those.
 
 ## Folders
 
-A `key` ending in `/` is a folder signed with
+With `folder = True`, `key`, which must end in `/`, is a folder signed with
 [starcm sign --dir](../cli.md#starcm-sign---dir-dir) and uploaded as it is,
 for example with `aws s3 sync agent/ s3://config/agent/`. It works as for
 [download](download.md#folders): `sha256` or `signature` (here the key of
@@ -89,6 +90,7 @@ s3_download(
     label     = "fetch agent files",
     bucket    = "config",
     key       = "agent/",
+    folder    = True,
     signature = "agent/starcm-manifest.json.sig",
     save_to   = vars["managed_dir"] + "/agent",
 )
@@ -195,12 +197,13 @@ The same server holds the signed folder
 # examples/s3_download/folder.star
 load("starcm", "s3_download", "vars")
 
-# A key ending in / names a folder. signature is the key of its manifest's
+# folder = True fetches a folder; its key ends in /. signature is the key of its manifest's
 # signature, in the same bucket; the manifest pins every file in the folder.
 r = s3_download(
     label     = "fetch agent files from S3",
     bucket    = "examples",
     key       = "folders/agent/",
+    folder    = True,
     signature = "folders/agent/starcm-manifest.json.sig",
     save_to   = vars["managed_dir"] + "/agent",
     endpoint  = "http://localhost:8000",
