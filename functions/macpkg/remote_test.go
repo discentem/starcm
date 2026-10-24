@@ -194,6 +194,7 @@ func TestRemote(t *testing.T) {
 			{[]any{"url", url, "signer", " ", "sha256", pkgBytesSHA256}, "signer must name the certificate"},
 			{[]any{"url", url, "signer", tailscaleSigner, "sha256", "abc"}, `sha256 "abc" is not 64 hex characters`},
 			{[]any{"url", srv.URL + "/agent.dmg", "signer", tailscaleSigner, "sha256", pkgBytesSHA256}, srv.URL + "/agent.dmg doesn't name a .pkg file"},
+			{[]any{"url", srv.URL + "/agent.pkg/", "signer", tailscaleSigner, "sha256", pkgBytesSHA256}, srv.URL + "/agent.pkg/ ends in /: install_remote_mac_pkg installs one .pkg file, not a folder"},
 			{[]any{"url", "ftp://example.com/agent.pkg", "signer", tailscaleSigner, "sha256", pkgBytesSHA256}, "url must start with http://, https:// or s3://"},
 			{[]any{"url", url, "signer", tailscaleSigner, "sha256", pkgBytesSHA256, "region", "us-west-2"}, "endpoint and region are only for s3:// URLs"},
 			{[]any{"url", "s3://releases/agent.pkg", "signer", tailscaleSigner, "signature", "s3://elsewhere/agent.pkg.sig"}, `signature s3://elsewhere/agent.pkg.sig must be an s3:// URL in bucket "releases"`},

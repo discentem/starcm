@@ -34,7 +34,10 @@ func (a *remoteAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 	if err != nil {
 		return nil, p.errorf("%v", err)
 	}
-	if remote.Folder || path.Ext(remote.Name) != ".pkg" {
+	if remote.Folder {
+		return nil, p.errorf("%s ends in /: install_remote_mac_pkg installs one .pkg file, not a folder", rawURL)
+	}
+	if path.Ext(remote.Name) != ".pkg" {
 		return nil, p.errorf("%s doesn't name a .pkg file", rawURL)
 	}
 	// The Fetcher checks this too, but only after the platform check.
