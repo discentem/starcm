@@ -76,6 +76,7 @@ These take no `label` and don't return a `starcm_result`.
 | Name | Description |
 | --- | --- |
 | [json](functions/json.md) | `json.encode`, `json.decode` and `json.indent`. |
+| [path](functions/path.md) | `path.exists` (is a file or directory there?) and `path.join` (build a path from parts). |
 | [vars](functions/vars.md) | The `--var name=value` values, as a dict. |
 | [dedent](functions/dedent.md) | Take the shared indentation off a triple-quoted string. |
 | [temp_dir](functions/temp_dir.md) | The system's temporary directory, with optional path parts joined on. |
