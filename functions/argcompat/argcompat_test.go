@@ -22,6 +22,7 @@ import (
 	loading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmextract "github.com/discentem/starcm/functions/extract"
 	starcmfile "github.com/discentem/starcm/functions/file"
+	starcmglob "github.com/discentem/starcm/functions/glob"
 	starcmhere "github.com/discentem/starcm/functions/here"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
@@ -55,6 +56,7 @@ var cases = []argCase{
 	{"inspect", `inspect(label = "x", path = here("mod.star"))`, `inspect(here("mod.star"), label = "x")`},
 	{"list_files/1-positional", `list_files(label = "x", dir = here("listdir"), pattern = "*.txt")`, `list_files(here("listdir"), pattern = "*.txt", label = "x")`},
 	{"list_files/2-positional", `list_files(label = "x", dir = here("listdir"), pattern = "*.txt")`, `list_files(here("listdir"), "*.txt", label = "x")`},
+	{"glob", `glob(label = "x", pattern = here("listdir/*.txt"))`, `glob(here("listdir/*.txt"), label = "x")`},
 	{"write", `write(label = "x", str = "hello")`, `write("hello", label = "x")`},
 	{"file", `file(label = "x", path = here("out.txt"), content = "hi")`, `file(here("out.txt"), content = "hi", label = "x")`},
 	{"file/copy", `file(label = "x", path = here("copy.txt"), source = here("in.txt"))`, `file(here("copy.txt"), source = here("in.txt"), label = "x")`},
@@ -103,6 +105,7 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"sha256":       starcmchecksum.New(ctx, fsys),
 		"inspect":      starcminspect.New(ctx, fsys),
 		"list_files":   starcmlistfiles.New(ctx, fsys),
+		"glob":         starcmglob.New(ctx, fsys),
 		"write":        starcmwrite.New(ctx, out),
 		"file":         starcmfile.New(ctx, fsys),
 		"extract":      starcmextract.New(ctx),
@@ -133,7 +136,8 @@ func run(t *testing.T, expr string) string {
 	src := "r = " + expr + "\n"
 	globals, err := starlark.ExecFile(thread, filepath.Join(dir, "case.star"), src, predeclared(context.Background(), &out))
 	// Values print with Starlark string escapes, so on Windows a path's
-	// backslashes appear doubled; mask both forms of the temp dir.
+	// backslashes appear doubled, and some functions return
+	// paths with forward slashes; mask every form of the temp dir.
 	norm := func(s string) string {
 		dirs := []string{dir}
 		if real, err := filepath.EvalSymlinks(dir); err == nil {
@@ -141,6 +145,7 @@ func run(t *testing.T, expr string) string {
 		}
 		for _, d := range dirs {
 			s = strings.ReplaceAll(s, strings.ReplaceAll(d, `\`, `\\`), "$DIR")
+			s = strings.ReplaceAll(s, filepath.ToSlash(d), "$DIR")
 			s = strings.ReplaceAll(s, d, "$DIR")
 		}
 		return s

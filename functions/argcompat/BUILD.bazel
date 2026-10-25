@@ -12,6 +12,7 @@ go_test(
         "//functions/file",
         "//functions/here",
         "//functions/inspect",
+        "//functions/glob",
         "//functions/listfiles",
         "//functions/readfile",
         "//functions/shell",

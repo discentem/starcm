@@ -49,6 +49,7 @@ All of these functions can be enhanced by:
 | [date](functions/date.md) | The current time, formatted and as fields, in any timezone. |
 | [read_file](functions/read_file.md) | A file's content as a string. |
 | [list_files](functions/list_files.md) | Files under a directory that match a pattern. |
+| [glob](functions/glob.md) | Paths that match a pattern with wildcards in any part, such as `third_party/*/go.mod`. |
 | [sha256](functions/sha256.md) | A file's sha256. |
 | [inspect](functions/inspect.md) | What a `.star` file loads and calls, without running it. |
 | [check_mac_signature](functions/check_mac_signature.md) | Who signed a macOS package, binary or app; stops the run unless it's the developer you name. |

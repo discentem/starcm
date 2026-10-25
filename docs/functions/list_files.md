@@ -115,5 +115,6 @@ Error in list_files: invalid pattern "[": syntax error in pattern
 
 ## See also
 
+- [glob](glob.md) to match wildcards in directory names, such as `third_party/*/go.mod`.
 - [sign](sign.md) has an example that signs every `.star` file `list_files` finds.
 - [inspect](inspect.md) has an example that checks every file against a policy.

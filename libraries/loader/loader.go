@@ -29,6 +29,7 @@ import (
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmextract "github.com/discentem/starcm/functions/extract"
 	starcmFile "github.com/discentem/starcm/functions/file"
+	starcmglob "github.com/discentem/starcm/functions/glob"
 	starcmhere "github.com/discentem/starcm/functions/here"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
@@ -387,6 +388,10 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"list_files": starlark.NewBuiltin(
 						"list_files",
 						starcmlistfiles.New(ctx, fsys).Function(),
+					),
+					"glob": starlark.NewBuiltin(
+						"glob",
+						starcmglob.New(ctx, fsys).Function(),
 					),
 					"read_file": starlark.NewBuiltin(
 						"read_file",

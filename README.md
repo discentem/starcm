@@ -85,6 +85,7 @@ its arguments, return value and tested examples:
 - Read information with [date](docs/functions/date.md),
   [read_file](docs/functions/read_file.md),
   [list_files](docs/functions/list_files.md),
+  [glob](docs/functions/glob.md),
   [sha256](docs/functions/sha256.md),
   [inspect](docs/functions/inspect.md) and
   [check_mac_signature](docs/functions/check_mac_signature.md).
