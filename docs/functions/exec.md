@@ -21,6 +21,7 @@ exec(
     live_output        = False,
     check              = False,
     cwd                = "/opt/agent",
+    env                = {"AGENT_ENV": "prod"},
 )
 ```
 
@@ -34,12 +35,30 @@ exec(
 | `live_output` | bool | `False` | Also stream the command's output to starcm's stdout as it runs. |
 | `check` | bool | `False` | When `True`, stop the run if the command can't start or exits with a code other than `expected_exit_code`. The error includes the command's output. |
 | `cwd` | string | starcm's directory | The absolute directory to run the command in. |
+| `env` | dict of strings | `None` | Environment variables to set for the command, on top of the environment starcm runs with. See [Environment variables](#environment-variables). |
 
 `exec` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
 (required), `only_if`, `not_if`, `timeout` and `what_if`.
 `timeout` gives up waiting for the command after the given duration.
 `what_if` has no effect. The command runs in `cwd` when given, otherwise in
 the directory starcm runs in.
+
+### Environment variables
+
+The command gets starcm's own environment (`PATH`, `HOME` and the rest),
+plus every variable in `env`. A variable in `env` that starcm already has
+is overridden for the command; starcm's own environment doesn't change, so
+the next `exec` doesn't see it. To clear a variable, set it to `""`.
+Omitting `env`, or passing `None` or `{}`, runs the command with starcm's
+environment unchanged.
+
+Keys and values must be strings. A key can't be empty or contain `=`, and
+neither can contain a NUL character. On Windows, keys are matched without
+regard to case, so `{"path": ...}` overrides `PATH`.
+
+A `cmd` without a path separator is looked up on the `PATH` starcm runs
+with, not on a `PATH` set in `env`. Inside the command, `env`'s `PATH` is the
+one in effect, so a shell started with `cmd = "sh"` finds commands with it.
 
 ### Files from the local store
 
@@ -151,6 +170,31 @@ Traceback (most recent call last):
 Error in exec: exec(label="installer"): sh exited with status 3, expected 0
 installing
 [1]
+```
+
+### Set environment variables
+
+`GREETING` is set when starcm starts, and `env` overrides it for the command:
+
+```python
+# examples/exec/env.star
+load("starcm", "exec")
+
+# env adds to the environment starcm runs with, so PATH and HOME are still
+# there. A variable starcm already has, like GREETING below, is overridden.
+exec(
+    label       = "build",
+    cmd         = "sh",
+    args        = ["-c", "echo \"GOFLAGS=$GOFLAGS CGO_ENABLED=$CGO_ENABLED GREETING=$GREETING\"; command -v sh >/dev/null && echo 'PATH still finds sh'"],
+    env         = {"GOFLAGS": "-mod=readonly", "CGO_ENABLED": "0", "GREETING": "from env"},
+    live_output = True,
+)
+```
+
+```scrut
+$ GREETING=outer starcm env.star
+GOFLAGS=-mod=readonly CGO_ENABLED=0 GREETING=from env
+PATH still finds sh
 ```
 
 ### Stream output while it runs
@@ -297,7 +341,43 @@ Error in exec: no args: missing argument for args
 [1]
 ```
 
+### env values must be strings
+
+```python
+# examples/exec/edge/env_not_string.star
+load("starcm", "exec")
+
+exec(label = "bad env", cmd = "sh", args = ["-c", "true"], env = {"CGO_ENABLED": 0})
+```
+
+```scrut
+$ starcm env_not_string.star 2>&1
+Traceback (most recent call last):
+  env_not_string.star:3:5: in <toplevel>
+Error in exec: exec(label="bad env"): env["CGO_ENABLED"]: got int, want string
+[1]
+```
+
+### env keys can't contain =
+
+```python
+# examples/exec/edge/env_bad_name.star
+load("starcm", "exec")
+
+exec(label = "bad env", cmd = "sh", args = ["-c", "true"], env = {"GOFLAGS=-mod": "readonly"})
+```
+
+```scrut
+$ starcm env_bad_name.star 2>&1
+Traceback (most recent call last):
+  env_bad_name.star:3:5: in <toplevel>
+Error in exec: exec(label="bad env"): env: invalid variable name "GOFLAGS=-mod"
+[1]
+```
+
 ## See also
+
+- [env](env.md) to read starcm's own environment variables.
 
 - [download](download.md#the-local-store) for the local store.
 - [Common functionality](../common-functionality.md) for `only_if`, `not_if` and `timeout`.
