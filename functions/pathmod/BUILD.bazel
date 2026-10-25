@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pathmod",
+    srcs = ["pathmod.go"],
+    importpath = "github.com/discentem/starcm/functions/pathmod",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libraries/paths",
+        "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)
+
+go_test(
+    name = "pathmod_test",
+    srcs = ["pathmod_test.go"],
+    embed = [":pathmod"],
+    deps = [
+        "@com_github_mitchellh_go_homedir//:go-homedir",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@net_starlark_go//starlark",
+    ],
+)

@@ -34,6 +34,7 @@ import (
 	starcminspect "github.com/discentem/starcm/functions/inspect"
 	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
 	starcmmacpkg "github.com/discentem/starcm/functions/macpkg"
+	starcmpathmod "github.com/discentem/starcm/functions/pathmod"
 	starcmreadfile "github.com/discentem/starcm/functions/readfile"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmsign "github.com/discentem/starcm/functions/sign"
@@ -449,6 +450,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"home_dir": starcmsysinfo.HomeDir(),
 					"here":     starcmhere.New(l.inStore),
 					"json":     starlarkjson.Module,
+					"path":     starcmpathmod.New(fsys),
 					"vars":     vars,
 				}, nil
 			case "stdlib":

@@ -186,3 +186,4 @@ Error in glob: glob(label="bad pattern"): invalid pattern "*third_party*[.mod": 
 ## See also
 
 - [list_files](list_files.md) to search a directory tree for files by name.
+- [path.exists](path.md) to check a single path.

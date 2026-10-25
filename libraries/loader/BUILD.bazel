@@ -19,6 +19,7 @@ go_library(
         "//functions/glob",
         "//functions/listfiles",
         "//functions/macpkg",
+        "//functions/pathmod",
         "//functions/readfile",
         "//functions/shell",
         "//functions/sign",

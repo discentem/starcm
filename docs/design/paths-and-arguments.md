@@ -29,7 +29,7 @@ to the `.star` file.** Everything else must be absolute.
 | --- | --- | --- |
 | Bundled resources | `template(template)`, `load_dynamic(module)` | Next to the `.star` file the call is written in |
 | Outputs | `file(path)`, `template(destination)`, `download(save_to)`, `extract(dest)`, files `sign` writes | Error: must be absolute |
-| Other inputs | `read_file`, `sha256`, `inspect`, `list_files`, `glob`, `extract(archive)`, `install_mac_pkg`, `verify`, `file(source)` | Error: must be absolute |
+| Other inputs | `read_file`, `sha256`, `inspect`, `list_files`, `glob`, `path.exists`, `extract(archive)`, `install_mac_pkg`, `verify`, `file(source)` | Error: must be absolute |
 
 - When you leave a file behind you know where it should go, so outputs
   name it. There is no working directory to resolve against: the
