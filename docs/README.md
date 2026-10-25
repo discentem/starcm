@@ -35,7 +35,7 @@ All of these functions can be enhanced by:
 | --- | --- |
 | [download](functions/download.md) | Download a file over HTTP(S), to a path or into a local store, and check its sha256. Does nothing if it's already there. |
 | [s3_download](functions/s3_download.md) | The same, for an object in S3 or an S3-compatible store, with AWS credentials. |
-| [exec](functions/exec.md) | Run a command, capture its output and check its exit code. |
+| [exec](functions/exec.md) | Run a command, with extra environment variables if you like, capture its output and check its exit code. |
 | [file](functions/file.md) | Create a file with given content or as a copy of another file (optionally only if it's signed by the macOS developer you name), or delete it. |
 | [extract](functions/extract.md) | Unpack a `.zip`, `.tar.gz` or `.tgz` archive, refusing entries that would escape the destination. |
 | [template](functions/template.md) | Render a Jinja2-style template to a file. |

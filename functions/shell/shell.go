@@ -50,6 +50,11 @@ func (a *shellAction) Execute(inst *base.FunctionInstance) (*base.Result, error)
 	}
 	liveOutput, _ := base.Get[starlark.Bool](inst, "live_output")
 	check, _ := base.Get[starlark.Bool](inst, "check")
+	envDict, _ := base.Get[*starlark.Dict](inst, "env")
+	env, err := envList(envDict)
+	if err != nil {
+		return nil, fmt.Errorf("exec(label=%q): %w", moduleName, err)
+	}
 
 	var cmdArgsGo []string
 	for i := 0; i < cargs.Len(); i++ {
@@ -71,6 +76,11 @@ func (a *shellAction) Execute(inst *base.FunctionInstance) (*base.Result, error)
 	ex := &shelllib.RealExecutor{}
 	ex.Command(c, cmdArgsGo...)
 	ex.Dir = cwd
+	if env != nil {
+		// Added to starcm's own environment, not instead of it: later
+		// entries win, so env overrides a variable starcm has.
+		ex.Env = append(os.Environ(), env...)
+	}
 
 	buff := bytes.NewBuffer(nil)
 	wc := shelllib.NopBufferCloser{
@@ -140,6 +150,35 @@ func (a *shellAction) Execute(inst *base.FunctionInstance) (*base.Result, error)
 	}
 }
 
+// envList returns d, exec()'s env argument, as KEY=value strings. A nil d
+// (env omitted) returns nil. Keys and values must be strings; a key can't be
+// empty or hold "=", and neither can hold a NUL byte, which can't be passed
+// to a process.
+func envList(d *starlark.Dict) ([]string, error) {
+	if d == nil {
+		return nil, nil
+	}
+	env := make([]string, 0, d.Len())
+	for _, item := range d.Items() {
+		k, ok := starlark.AsString(item[0])
+		if !ok {
+			return nil, fmt.Errorf("env: key %s: got %s, want string", item[0], item[0].Type())
+		}
+		v, ok := starlark.AsString(item[1])
+		if !ok {
+			return nil, fmt.Errorf("env[%q]: got %s, want string", k, item[1].Type())
+		}
+		if k == "" || strings.ContainsAny(k, "=\x00") {
+			return nil, fmt.Errorf("env: invalid variable name %q", k)
+		}
+		if strings.ContainsRune(v, 0) {
+			return nil, fmt.Errorf("env[%q]: value holds a NUL byte", k)
+		}
+		env = append(env, k+"="+v)
+	}
+	return env, nil
+}
+
 // checkError is the error that stops the run when check = True and the
 // command couldn't start or exited with a code other than expected.
 func checkError(label, cmd string, ex shelllib.Executor, res *base.Result, expected int64, output string) error {
@@ -166,6 +205,7 @@ var execArgs = []base.ArgPair{
 	base.OptionalArgAllowNone[starlark.Bool]("live_output"),
 	base.OptionalArgAllowNone[starlark.Bool]("check"),
 	base.OptionalArg[string]("cwd"),
+	base.OptionalArgAllowNone[*starlark.Dict]("env"),
 }
 
 // Option configures exec().
