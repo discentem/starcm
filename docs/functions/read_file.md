@@ -11,8 +11,8 @@ changing it.
 ```python
 load("starcm", "read_file")
 
-read_file("/etc/agent/settings.json", label = "read settings").value
-read_file(path = "~/.agent/settings.json", label = "read settings").value
+read_file("/etc/agent/settings.json")
+read_file(path = "~/.agent/settings.json")
 ```
 
 ## Arguments
@@ -21,15 +21,14 @@ read_file(path = "~/.agent/settings.json", label = "read settings").value
 | --- | --- | --- | --- |
 | `path` | string | required | The file to read, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
 
-`read_file` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout` and
-`what_if`. Only `only_if` and `not_if` affect it.
+`read_file` only reads, so it's a plain function: it takes no `label` or other
+[common arguments](../common-functionality.md#common-arguments) and returns
+its answer directly, not a `starcm_result`. Use `if` to call it
+conditionally. It runs under `what_if` too.
 
 ## Returns
 
-A [starcm_result](../common-functionality.md#starcm_result) with `success =
-True`, `changed = False` and `value` set to the file's content as a string. A
-file that can't be read stops the run.
+The file's content as a string. A file that can't be read stops the run.
 
 ## Examples
 
@@ -46,15 +45,13 @@ $ cp -R "$TESTDIR/../../examples/read_file/." "$TMPDIR" && cd "$TMPDIR"
 # examples/read_file/read.star
 load("starcm", "read_file", "here")
 
-r = read_file(here("notes.txt"), label = "read notes")
-print("success=%s changed=%s" % (r.success, r.changed))
-print(repr(r.value))
-print(r.value.splitlines())
+notes = read_file(here("notes.txt"))
+print(repr(notes))
+print(notes.splitlines())
 ```
 
 ```scrut
 $ starcm read.star
-success=True changed=False
 "line one\nline two\n"
 ["line one", "line two"]
 ```
@@ -71,7 +68,7 @@ success=True changed=False
 # examples/read_file/json_config.star
 load("starcm", "json", "read_file", "here")
 
-settings = json.decode(read_file(path = here("settings.json"), label = "read settings").value)
+settings = json.decode(read_file(path = here("settings.json")))
 print("channel=%s hosts=%s" % (settings["channel"], settings["hosts"]))
 ```
 
@@ -88,7 +85,7 @@ Here `HOME` points at the scratch directory, which has a `notes.txt`.
 # examples/read_file/home.star
 load("starcm", "read_file")
 
-print(read_file("~/notes.txt", label = "read from home").value.strip())
+print(read_file("~/notes.txt").strip())
 ```
 
 ```scrut
@@ -112,14 +109,14 @@ $ cd "$TMPDIR/edge"
 ```python
 # examples/read_file/edge/missing.star
 load("starcm", "read_file", "here")
-read_file(here("missing.txt"), label = "missing")
+read_file(here("missing.txt"))
 ```
 
 ```scrut
 $ starcm missing.star 2>&1
 Traceback (most recent call last):
   missing.star:2:10: in <toplevel>
-Error in read_file: failed to read file ".*[/\\]missing\.txt": open .*[/\\]missing\.txt: (no such file or directory|The system cannot find the file specified\.) (regex)
+Error in read_file: read_file: open .*[/\\]missing\.txt: (no such file or directory|The system cannot find the file specified\.) (regex)
 [1]
 ```
 

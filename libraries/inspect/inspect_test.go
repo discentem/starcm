@@ -75,7 +75,7 @@ greeting = "say hello " + vars["user"]
 words = ["-c"]
 words.append(greeting)
 sh(label = "through names", cmd = "sh", args = words)
-cmd = read_file("cmd.txt", label = "read").value
+cmd = read_file("cmd.txt")
 exec(label = "from a file", cmd = cmd, args = [], timeout = vars["timeout"])
 
 def quoted(s):
@@ -91,7 +91,7 @@ opts = {"cmd": "echo"}
 opts["args"] = [x for x in vars["list"]]
 exec(label = "unpacked", **opts)
 value = vars["unrelated"]
-exec(label = "field names aren't names", cmd = read_file("x", label = "x").value, args = [])
+exec(label = "field names aren't names", cmd = read_file("x"), args = [])
 `
 	r, err := File("main.star", []byte(src))
 	require.NoError(t, err)

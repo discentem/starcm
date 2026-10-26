@@ -384,10 +384,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"verify",
 						starcmverify.New(ctx, fsys, l.Keyring).Function(),
 					),
-					"read_file": starlark.NewBuiltin(
-						"read_file",
-						starcmreadfile.New(ctx, fsys).Function(),
-					),
+					"read_file": starcmreadfile.New(ctx, fsys).Builtin(),
 					"install_mac_pkg": starlark.NewBuiltin(
 						"install_mac_pkg",
 						starcmmacpkg.New(
@@ -420,14 +417,8 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							starcmcheckmacsig.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
-					"sha256": starlark.NewBuiltin(
-						"sha256",
-						starcmchecksum.New(ctx, fsys).Function(),
-					),
-					"inspect": starlark.NewBuiltin(
-						"inspect",
-						starcminspect.New(ctx, fsys).Function(),
-					),
+					"sha256":  starcmchecksum.New(ctx, fsys).Builtin(),
+					"inspect": starcminspect.New(ctx, fsys).Builtin(),
 					"sign": starlark.NewBuiltin(
 						"sign",
 						// Disabled under --trusted-keys: deployed runs never sign.

@@ -1,7 +1,7 @@
 load("starcm", "here", "inspect", "path")
 
 for f in path.list(here(), pattern = "*.star"):
-    for c in inspect(here(f), label = "inspect " + f).value["calls"]:
+    for c in inspect(here(f))["calls"]:
         if c["function"] != "exec":
             continue
         for i in c.get("inputs", []):

@@ -18,8 +18,8 @@ check, for example, that no `--var` value ends up in an `exec` command.
 ```python
 load("starcm", "here", "inspect")
 
-inspect(here("bootstrap.star"), label = "check bootstrap").value
-inspect(path = here("bootstrap.star"), label = "check bootstrap").value
+inspect(here("bootstrap.star"))
+inspect(path = here("bootstrap.star"))
 ```
 
 ```bash
@@ -32,15 +32,14 @@ starcm inspect FILE...
 | --- | --- | --- | --- |
 | `path` | string | required | The `.star` file to inspect, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. `starcm inspect` takes paths relative to the directory it runs in. |
 
-`inspect` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout` and
-`what_if`. Only `only_if` and `not_if` affect it.
+`inspect` only reads, so it's a plain function: it takes no `label` or other
+[common arguments](../common-functionality.md#common-arguments) and returns
+its answer directly, not a `starcm_result`. Use `if` to call it
+conditionally. It runs under `what_if` too.
 
 ## Returns
 
-A [starcm_result](../common-functionality.md#starcm_result) with `success =
-True`, `changed = False` and `value` set to a report dict. `starcm inspect`
-prints a JSON list with one report per file.
+A report dict. `starcm inspect` prints a JSON list with one report per file.
 
 | Key | Description |
 | --- | --- |
@@ -146,7 +145,7 @@ for f in path.list(here(), pattern = "*.star"):
     # Only this folder's configuration files, not this script or subfolders.
     if f == "policy.star" or "/" in f:
         continue
-    report = inspect(here(f), label = "inspect " + f).value
+    report = inspect(here(f))
     bad = [c["function"] for c in report["calls"] if c["function"] not in ALLOWED]
     print("%s: %s" % (f, "ok" if not bad else "uses %s" % ", ".join(bad)))
 ```
@@ -183,7 +182,7 @@ exec(label = "show computer name", cmd = "scutil", args = ["--get", "ComputerNam
 load("starcm", "here", "inspect", "path")
 
 for f in path.list(here(), pattern = "*.star"):
-    for c in inspect(here(f), label = "inspect " + f).value["calls"]:
+    for c in inspect(here(f))["calls"]:
         if c["function"] != "exec":
             continue
         for i in c.get("inputs", []):
@@ -209,7 +208,7 @@ and the parameters and return values of functions defined in the same file.
 It goes by name and ignores the order of statements, so it can report a use
 that can't happen but shouldn't miss one that can. It doesn't follow values
 into or out of other files: a function loaded from another file is reported
-as a use, like `read_file` in `read_file(...).value`.
+as a use, like `read_file` in `cmd = read_file(...)`.
 
 ## Errors and edge cases
 
@@ -281,7 +280,7 @@ The same report, as a Starlark value.
 # examples/inspect/edge/inspect_fn.star
 load("starcm", "inspect", "here")
 
-r = inspect(here("main.star"), label = "inspect main.star").value
+r = inspect(here("main.star"))
 print([c["function"] for c in r["calls"]])
 print([c.get("path") for c in r["calls"] if c["function"] == "load_dynamic"])
 print(r["loads"][0]["names"]["run"])

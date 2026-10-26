@@ -213,7 +213,7 @@ fetch agent 1.2.0: success=True changed=True
 load("starcm", "download", "sha256", "here", "vars")
 
 # Hash a copy you trust once, then pin that hash in your configuration.
-pinned = sha256(here("files/agent-1.2.0.json"), label = "hash trusted copy").value
+pinned = sha256(here("files/agent-1.2.0.json"))
 print(pinned)
 
 r = download(

@@ -180,7 +180,7 @@ The paths are absolute, so they can go straight to another function:
 load("starcm", "here", "path", "read_file")
 
 for m in path.glob(here("third_party/*/go.mod")):
-    print(read_file(m, label = "read go.mod").value.splitlines()[0])
+    print(read_file(m).splitlines()[0])
 ```
 
 ```scrut
@@ -214,7 +214,7 @@ $ cd list && starcm list.star
 load("starcm", "here", "path", "sha256")
 
 for f in path.list(here("config"), pattern = "*.star"):
-    h = sha256(here("config", f), label = "hash " + f).value
+    h = sha256(here("config", f))
     print("%s  %s" % (h[:12], f))
 ```
 

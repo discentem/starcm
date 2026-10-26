@@ -13,7 +13,7 @@ type Input struct {
 	// argument, or "*" / "**" for unpacked arguments.
 	Arg string `json:"arg"`
 	// Uses are the loaded names the argument's value is computed from,
-	// sorted: vars for vars["cmd"], read_file for read_file(...).value.
+	// sorted: vars for vars["cmd"], read_file for read_file(...).
 	Uses []Use `json:"uses"`
 }
 

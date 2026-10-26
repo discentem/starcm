@@ -50,9 +50,9 @@ var echoCmd, echoArgs = func() (string, string) {
 }()
 
 var cases = []argCase{
-	{"read_file", `read_file(label = "x", path = here("in.txt"))`, `read_file(here("in.txt"), label = "x")`},
-	{"sha256", `sha256(label = "x", path = here("in.txt"))`, `sha256(here("in.txt"), label = "x")`},
-	{"inspect", `inspect(label = "x", path = here("mod.star"))`, `inspect(here("mod.star"), label = "x")`},
+	{"read_file", `read_file(path = here("in.txt"))`, `read_file(here("in.txt"))`},
+	{"sha256", `sha256(path = here("in.txt"))`, `sha256(here("in.txt"))`},
+	{"inspect", `inspect(path = here("mod.star"))`, `inspect(here("mod.star"))`},
 	{"path.list/1-positional", `path.list(dir = here("listdir"), pattern = "*.txt")`, `path.list(here("listdir"), pattern = "*.txt")`},
 	{"path.list/2-positional", `path.list(dir = here("listdir"), pattern = "*.txt")`, `path.list(here("listdir"), "*.txt")`},
 	{"path.exists", `path.exists(path = here("in.txt"))`, `path.exists(here("in.txt"))`},
@@ -101,9 +101,6 @@ func fixtures(t *testing.T, dir string) {
 func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 	fsys := afero.NewOsFs()
 	mods := map[string]*base.Module{
-		"read_file":    starcmreadfile.New(ctx, fsys),
-		"sha256":       starcmchecksum.New(ctx, fsys),
-		"inspect":      starcminspect.New(ctx, fsys),
 		"write":        starcmwrite.New(ctx, out),
 		"file":         starcmfile.New(ctx, fsys),
 		"extract":      starcmextract.New(ctx),
@@ -113,8 +110,11 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"date":         starcmdate.New(ctx),
 	}
 	d := starlark.StringDict{
-		"here": starcmhere.New(func(string) bool { return false }),
-		"path": starcmpathmod.New(ctx, fsys),
+		"here":      starcmhere.New(func(string) bool { return false }),
+		"path":      starcmpathmod.New(ctx, fsys),
+		"read_file": starcmreadfile.New(ctx, fsys).Builtin(),
+		"sha256":    starcmchecksum.New(ctx, fsys).Builtin(),
+		"inspect":   starcminspect.New(ctx, fsys).Builtin(),
 	}
 	for name, m := range mods {
 		d[name] = starlark.NewBuiltin(name, m.Function())
