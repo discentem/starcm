@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "base.go",
         "instance.go",
+        "query.go",
         "result.go",
         "unwrap.go",
     ],
@@ -26,6 +27,7 @@ go_test(
     srcs = [
         "base_test.go",
         "instance_test.go",
+        "query_test.go",
         "unwrap_test.go",
     ],
     embed = [":base"],
