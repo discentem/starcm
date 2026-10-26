@@ -1,7 +1,7 @@
 load("starcm", "here", "verify")
 
 for f in ["agent.pkg", "unsigned.pkg"]:
-    r = verify(here(f), label = "check " + f)
-    print("%s: success=%s key=%s" % (f, r.success, r.value))
-    if not r.success:
-        print("  error: %s" % r.error)
+    v = verify(here(f))
+    print("%s: verified=%s key_id=%s" % (f, v.verified, v.key_id))
+    if not v.verified:
+        print("  error: %s" % v.error)

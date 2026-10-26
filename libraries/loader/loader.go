@@ -377,10 +377,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"load_dynamic",
 						dynamicloading.New(ctx).Function(),
 					),
-					"verify": starlark.NewBuiltin(
-						"verify",
-						starcmverify.New(ctx, fsys, l.Keyring).Function(),
-					),
+					"verify":    starcmverify.New(ctx, fsys, l.Keyring).Builtin(),
 					"read_file": starcmreadfile.New(ctx, fsys).Builtin(),
 					"install_mac_pkg": starlark.NewBuiltin(
 						"install_mac_pkg",
@@ -406,14 +403,11 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 							starcmextract.WithStoreCheck(l.StoreCheck),
 						).Function(),
 					),
-					"check_mac_signature": starlark.NewBuiltin(
-						"check_mac_signature",
-						starcmcheckmacsig.New(
-							ctx,
-							ex,
-							starcmcheckmacsig.WithStoreCheck(l.StoreCheck),
-						).Function(),
-					),
+					"check_mac_signature": starcmcheckmacsig.New(
+						ctx,
+						ex,
+						starcmcheckmacsig.WithStoreCheck(l.StoreCheck),
+					).Builtin(),
 					"sha256":  starcmchecksum.New(ctx, fsys).Builtin(),
 					"inspect": starcminspect.New(ctx, fsys).Builtin(),
 					"sign": starlark.NewBuiltin(

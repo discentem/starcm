@@ -10,5 +10,6 @@ go_library(
         "//libraries/signing",
         "@com_github_spf13_afero//:afero",
         "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
     ],
 )
