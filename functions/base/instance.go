@@ -100,7 +100,17 @@ func (c *FunctionInstance) ResourcePath(name string) (string, bool, error) {
 }
 
 func (c *FunctionInstance) argErr(name string, err error) error {
-	return fmt.Errorf("%s(label=%q): %s: %w", c.fn, c.Label, name, err)
+	return c.Errorf("%s: %w", name, err)
+}
+
+// Errorf returns an error that names the call: fn(label="...") for a step,
+// or just fn for a query, which has no label.
+func (c *FunctionInstance) Errorf(format string, a ...any) error {
+	where := c.fn
+	if c.Label != "" {
+		where = fmt.Sprintf("%s(label=%q)", c.fn, c.Label)
+	}
+	return fmt.Errorf("%s: "+format, append([]any{where}, a...)...)
 }
 
 // checkRequired reports the first argument declared with Arg (no ? suffix)

@@ -96,17 +96,7 @@ func (m Module) Call(thread *starlark.Thread, args starlark.Tuple, kwargs []star
 		whatIf  starlark.Bool
 	)
 
-	finalArgs := make([]any, 0, 2*(len(m.Args)+5))
-	// names and targets let the FunctionInstance read the parsed values.
-	names := make([]string, 0, len(m.Args)+5)
-	targets := make(map[string]any, len(m.Args))
-	// Add arguments that are specific to this module.
-	for _, arg := range m.Args {
-		target := arg.newTarget()
-		finalArgs = append(finalArgs, arg.Key, target)
-		names = append(names, arg.Key)
-		targets[argName(arg.Key)] = target
-	}
+	finalArgs, names, targets := declare(m.Args, 5)
 	// Common arguments automatically available for all Starcm functions
 	finalArgs = append(finalArgs,
 		"label", &label,
@@ -174,6 +164,23 @@ func (m Module) Call(thread *starlark.Thread, args starlark.Tuple, kwargs []star
 	r, err := m.Action.Execute(inst)
 	logging.Log("base.go", deck.V(3), "info", "finished %s(label=%q)", m.Type, label)
 	return r, err
+}
+
+// declare returns fresh UnpackArgs targets for args, with room for extra
+// more: the pairs to pass to UnpackArgs, the keys in order (so positional
+// argument i fills names[i]), and the parsed values by name for the
+// FunctionInstance.
+func declare(args []ArgPair, extra int) (finalArgs []any, names []string, targets map[string]any) {
+	finalArgs = make([]any, 0, 2*(len(args)+extra))
+	names = make([]string, 0, len(args)+extra)
+	targets = make(map[string]any, len(args))
+	for _, arg := range args {
+		target := arg.newTarget()
+		finalArgs = append(finalArgs, arg.Key, target)
+		names = append(names, arg.Key)
+		targets[argName(arg.Key)] = target
+	}
+	return finalArgs, names, targets
 }
 
 // NewModule returns the starcm function fnType, which takes args (plus the
