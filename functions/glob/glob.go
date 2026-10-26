@@ -1,4 +1,4 @@
-// Package glob implements glob(), which finds the paths that match a pattern
+// Package glob implements path.glob(), which finds the paths that match a pattern
 // whose wildcards can appear in any path segment, directories included.
 package glob
 
@@ -178,41 +178,25 @@ func unescape(seg string) string {
 	return b.String()
 }
 
-type globAction struct {
-	fsys afero.Fs
-}
-
-var _ base.Action = (*globAction)(nil)
-
-// Execute returns the paths matching the pattern argument as a sorted list
-// of absolute paths with forward slashes on every platform. pattern must be
-// absolute; a leading ~ is expanded.
-func (a *globAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
-	pattern, _, err := inst.AbsPath("pattern")
-	if err != nil {
-		return nil, err
-	}
-	matches, err := Glob(a.fsys, pattern)
-	if err != nil {
-		return nil, fmt.Errorf("glob(label=%q): %w", inst.Label, err)
-	}
-	list := make([]starlark.Value, len(matches))
-	for i, m := range matches {
-		list[i] = starlark.String(filepath.ToSlash(m))
-	}
-	return &base.Result{Label: inst.Label, Success: true, Return: starlark.NewList(list)}, nil
-}
-
-// New returns the glob() builtin.
+// New returns path.glob(), which returns the paths matching its pattern
+// argument as a sorted list of absolute paths with forward slashes on every
+// platform. pattern must be absolute; a leading ~ is expanded.
 //
-//	mods = glob(here("third_party/*/go.mod"), label = "find modules").value
-func New(ctx context.Context, fsys afero.Fs) *base.Module {
-	return base.NewModule(
-		ctx,
-		"glob",
-		[]base.ArgPair{
-			base.Arg[string]("pattern"),
-		},
-		&globAction{fsys: fsys},
-	)
+//	for mod in path.glob(here("third_party/*/go.mod")):
+func New(ctx context.Context, fsys afero.Fs) *base.Query {
+	return base.NewQuery(ctx, "path.glob", []base.ArgPair{base.Arg[string]("pattern")}, func(inst *base.FunctionInstance) (starlark.Value, error) {
+		pattern, _, err := inst.AbsPath("pattern")
+		if err != nil {
+			return nil, err
+		}
+		matches, err := Glob(fsys, pattern)
+		if err != nil {
+			return nil, inst.Errorf("%w", err)
+		}
+		list := make([]starlark.Value, len(matches))
+		for i, m := range matches {
+			list[i] = starlark.String(filepath.ToSlash(m))
+		}
+		return starlark.NewList(list), nil
+	})
 }

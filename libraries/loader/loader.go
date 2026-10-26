@@ -29,10 +29,8 @@ import (
 	dynamicloading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmextract "github.com/discentem/starcm/functions/extract"
 	starcmFile "github.com/discentem/starcm/functions/file"
-	starcmglob "github.com/discentem/starcm/functions/glob"
 	starcmhere "github.com/discentem/starcm/functions/here"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
-	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
 	starcmmacpkg "github.com/discentem/starcm/functions/macpkg"
 	starcmpathmod "github.com/discentem/starcm/functions/pathmod"
 	starcmreadfile "github.com/discentem/starcm/functions/readfile"
@@ -386,14 +384,6 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"verify",
 						starcmverify.New(ctx, fsys, l.Keyring).Function(),
 					),
-					"list_files": starlark.NewBuiltin(
-						"list_files",
-						starcmlistfiles.New(ctx, fsys).Function(),
-					),
-					"glob": starlark.NewBuiltin(
-						"glob",
-						starcmglob.New(ctx, fsys).Function(),
-					),
 					"read_file": starlark.NewBuiltin(
 						"read_file",
 						starcmreadfile.New(ctx, fsys).Function(),
@@ -450,7 +440,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 					"home_dir": starcmsysinfo.HomeDir(),
 					"here":     starcmhere.New(l.inStore),
 					"json":     starlarkjson.Module,
-					"path":     starcmpathmod.New(fsys),
+					"path":     starcmpathmod.New(ctx, fsys),
 					"vars":     vars,
 				}, nil
 			case "stdlib":

@@ -2,7 +2,6 @@ package listfiles
 
 import (
 	"context"
-	"fmt"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -13,16 +12,27 @@ import (
 	"go.starlark.net/starlark"
 )
 
-type listFilesAction struct {
-	fsys afero.Fs
+// New returns path.list(), which lists the files under dir, recursively,
+// whose base name matches pattern. It returns a sorted list of paths
+// relative to dir, with forward slashes on every platform. dir must be
+// absolute; a leading ~ is expanded.
+//
+//	stars = path.list(here("channel"), pattern = "*.star")
+func New(ctx context.Context, fsys afero.Fs) *base.Query {
+	return base.NewQuery(
+		ctx,
+		"path.list",
+		[]base.ArgPair{
+			base.Arg[string]("dir"),
+			base.OptionalArg[string]("pattern"),
+		},
+		func(inst *base.FunctionInstance) (starlark.Value, error) {
+			return list(fsys, inst)
+		},
+	)
 }
 
-var _ base.Action = (*listFilesAction)(nil)
-
-// Execute lists the files under dir, recursively, whose base name matches
-// pattern. value is a sorted list of paths relative to dir, with forward
-// slashes on every platform. dir must be absolute; a leading ~ is expanded.
-func (a *listFilesAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
+func list(fsys afero.Fs, inst *base.FunctionInstance) (starlark.Value, error) {
 	dir, _, err := inst.AbsPath("dir")
 	if err != nil {
 		return nil, err
@@ -32,11 +42,10 @@ func (a *listFilesAction) Execute(inst *base.FunctionInstance) (*base.Result, er
 		pattern = "*"
 	}
 	if _, err := path.Match(pattern, ""); err != nil {
-		return nil, fmt.Errorf("invalid pattern %q: %w", pattern, err)
+		return nil, inst.Errorf("invalid pattern %q: %w", pattern, err)
 	}
-
 	var files []string
-	err = afero.Walk(a.fsys, dir, func(p string, info fs.FileInfo, err error) error {
+	err = afero.Walk(fsys, dir, func(p string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -54,28 +63,12 @@ func (a *listFilesAction) Execute(inst *base.FunctionInstance) (*base.Result, er
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, inst.Errorf("%w", err)
 	}
 	sort.Strings(files)
-
-	list := make([]starlark.Value, len(files))
+	out := make([]starlark.Value, len(files))
 	for i, f := range files {
-		list[i] = starlark.String(f)
+		out[i] = starlark.String(f)
 	}
-	return &base.Result{Label: inst.Label, Success: true, Return: starlark.NewList(list)}, nil
-}
-
-// New returns the list_files() builtin.
-//
-//	stars = list_files(here("channel"), pattern = "*.star", label = "find config").value
-func New(ctx context.Context, fsys afero.Fs) *base.Module {
-	return base.NewModule(
-		ctx,
-		"list_files",
-		[]base.ArgPair{
-			base.Arg[string]("dir"),
-			base.OptionalArg[string]("pattern"),
-		},
-		&listFilesAction{fsys: fsys},
-	)
+	return starlark.NewList(out), nil
 }

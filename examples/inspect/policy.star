@@ -1,8 +1,8 @@
-load("starcm", "inspect", "list_files", "here")
+load("starcm", "here", "inspect", "path")
 
 ALLOWED = ["download", "here", "load_dynamic"]
 
-for f in list_files(here(), pattern = "*.star", label = "find config").value:
+for f in path.list(here(), pattern = "*.star"):
     # Only this folder's configuration files, not this script or subfolders.
     if f == "policy.star" or "/" in f:
         continue

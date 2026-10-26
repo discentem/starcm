@@ -48,8 +48,6 @@ All of these functions can be enhanced by:
 | --- | --- |
 | [date](functions/date.md) | The current time, formatted and as fields, in any timezone. |
 | [read_file](functions/read_file.md) | A file's content as a string. |
-| [list_files](functions/list_files.md) | Files under a directory that match a pattern. |
-| [glob](functions/glob.md) | Paths that match a pattern with wildcards in any part, such as `third_party/*/go.mod`. |
 | [sha256](functions/sha256.md) | A file's sha256. |
 | [inspect](functions/inspect.md) | What a `.star` file loads and calls, without running it. |
 | [check_mac_signature](functions/check_mac_signature.md) | Who signed a macOS package, binary or app; stops the run unless it's the developer you name. |
@@ -76,7 +74,7 @@ These take no `label` and don't return a `starcm_result`.
 | Name | Description |
 | --- | --- |
 | [json](functions/json.md) | `json.encode`, `json.decode` and `json.indent`. |
-| [path](functions/path.md) | `path.exists` (is a file or directory there?) and `path.join` (build a path from parts). |
+| [path](functions/path.md) | `path.exists`, `path.join`, `path.glob` (wildcards in any part, such as `third_party/*/go.mod`) and `path.list` (files under a directory by name). |
 | [vars](functions/vars.md) | The `--var name=value` values, as a dict. |
 | [dedent](functions/dedent.md) | Take the shared indentation off a triple-quoted string. |
 | [temp_dir](functions/temp_dir.md) | The system's temporary directory, with optional path parts joined on. |

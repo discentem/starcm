@@ -138,11 +138,11 @@ $ starcm inspect bootstrap.star | jq -c '[.[].values[] | [.function, .line]]'
 
 ```python
 # examples/inspect/policy.star
-load("starcm", "inspect", "list_files", "here")
+load("starcm", "here", "inspect", "path")
 
 ALLOWED = ["download", "here", "load_dynamic"]
 
-for f in list_files(here(), pattern = "*.star", label = "find config").value:
+for f in path.list(here(), pattern = "*.star"):
     # Only this folder's configuration files, not this script or subfolders.
     if f == "policy.star" or "/" in f:
         continue
@@ -180,9 +180,9 @@ exec(label = "show computer name", cmd = "scutil", args = ["--get", "ComputerNam
 
 ```python
 # examples/inspect/lint/no_vars_in_exec.star
-load("starcm", "inspect", "list_files", "here")
+load("starcm", "here", "inspect", "path")
 
-for f in list_files(here(), pattern = "*.star", label = "find config").value:
+for f in path.list(here(), pattern = "*.star"):
     for c in inspect(here(f), label = "inspect " + f).value["calls"]:
         if c["function"] != "exec":
             continue
