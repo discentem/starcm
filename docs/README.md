@@ -64,13 +64,13 @@ These are queries: no `label`, and they return their answer directly.
 | [sha256](functions/sha256.md) | A file's sha256. |
 | [inspect](functions/inspect.md) | What a `.star` file loads and calls, without running it. |
 | [check_mac_signature](functions/check_mac_signature.md) | Who signed a macOS package, binary or app; stops the run unless it's the developer you name. |
-| [verify](functions/verify.md) | Whether a file's signature checks out against `--trusted-keys`. |
+| [verify_all](functions/verify_all.md) | Check many files against `--trusted-keys` signatures, and stop the run listing every one that fails. |
 
 ### Signing
 
 | Function | Description |
 | --- | --- |
-| [sign](functions/sign.md) | Sign a file with an ed25519 key (also `starcm sign`). [verify](functions/verify.md) checks the signature. |
+| [sign](functions/sign.md) | Sign a file with an ed25519 key (also `starcm sign`). [verify_all](functions/verify_all.md) audits signed files. |
 
 ### Output and control flow
 

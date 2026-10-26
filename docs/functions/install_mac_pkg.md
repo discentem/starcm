@@ -264,4 +264,4 @@ Error in install_mac_pkg: install_mac_pkg(label="no version"): id and version mu
 
 - [download](download.md) to fetch the package first.
 - [install_remote_mac_pkg](install_remote_mac_pkg.md) to fetch and install in one step.
-- [verify](verify.md) to check files signed with `starcm sign` instead.
+- [verify_all](verify_all.md) to audit files signed with `starcm sign` instead.

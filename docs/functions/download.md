@@ -57,7 +57,7 @@ Give exactly one of `sha256` or `signature`.
   configuration.
 
 The signature is saved next to the file, as `<save_to>.sig` or next to the
-file in the local store. So `verify()` finds it, and a `.star` file fetched
+file in the local store. So `verify_all()` finds it, and a `.star` file fetched
 this way can be loaded with [load_dynamic](load_dynamic.md) under
 `--trusted-keys`.
 
@@ -579,4 +579,4 @@ $ rm -rf "$store" ${store_root:+"$store_root"}
 
 - [sha256](sha256.md) to compute the hash to pin.
 - [exec](exec.md) re-checks stored files before running them.
-- [verify](verify.md) to check a download's signature as well as its hash.
+- [verify_all](verify_all.md) to audit files that didn't come through `download`.

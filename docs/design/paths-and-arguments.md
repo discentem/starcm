@@ -29,7 +29,7 @@ to the `.star` file.** Everything else must be absolute.
 | --- | --- | --- |
 | Bundled resources | `template(template)`, `load_dynamic(module)` | Next to the `.star` file the call is written in |
 | Outputs | `file(path)`, `template(destination)`, `download(save_to)`, `extract(dest)`, files `sign` writes | Error: must be absolute |
-| Other inputs | `read_file`, `sha256`, `inspect`, `path.list`, `path.glob`, `path.exists`, `extract(archive)`, `install_mac_pkg`, `verify`, `file(source)` | Error: must be absolute |
+| Other inputs | `read_file`, `sha256`, `inspect`, `path.list`, `path.glob`, `path.exists`, `extract(archive)`, `install_mac_pkg`, `verify_all`, `file(source)` | Error: must be absolute |
 
 - When you leave a file behind you know where it should go, so outputs
   name it. There is no working directory to resolve against: the
@@ -112,7 +112,7 @@ something.
 
 Every function that only reads is a **query**: `path.exists`, `path.join`,
 `path.glob`, `path.list`, `read_file`, `sha256`, `inspect`, `date`,
-`verify`, `check_mac_signature`, and the helpers (`here`, `home_dir`,
+`verify_all`, `check_mac_signature`, and the helpers (`here`, `home_dir`,
 `temp_dir`, `env`, `platform`, `dedent`). A query takes no common arguments
 and returns its answer directly, so it works in `if`, `for` and
 comprehensions without `.value`. Any error stops the run. It runs under
@@ -142,5 +142,11 @@ stay hand-written builtins, since `UnpackArgs` has no varargs.
   `path.list`), and a result in `only_if`/`not_if` stands for its
   `success`.
 - Breaking: queries no longer take `label` or return a `starcm_result`, so
-  `read_file(p, label = "x").value` becomes `read_file(p)`, and `verify()`
-  returns a `verification` struct whose `verified` replaces `success`.
+  `read_file(p, label = "x").value` becomes `read_file(p)`.
+- Breaking: `verify()` is removed. Checking a file and then using it in a
+  separate step leaves a gap in which it can be swapped, so files you use
+  are verified by the function that uses them (`download` and
+  `load_remote` pinning, the store's re-hash, `install_mac_pkg`,
+  `file(source, signer)`). `verify_all(paths)` remains for auditing files
+  that arrived some other way: it checks them all and stops the run once,
+  listing every failure.

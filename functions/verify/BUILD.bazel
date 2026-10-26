@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "verify",
@@ -7,8 +7,23 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//functions/base",
+        "//libraries/paths",
         "//libraries/signing",
         "@com_github_spf13_afero//:afero",
+        "@net_starlark_go//starlark",
+        "@net_starlark_go//starlarkstruct",
+    ],
+)
+
+go_test(
+    name = "verify_test",
+    srcs = ["verify_test.go"],
+    embed = [":verify"],
+    deps = [
+        "//libraries/signing",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",
     ],

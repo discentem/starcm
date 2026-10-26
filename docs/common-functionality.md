@@ -163,8 +163,8 @@ changed=True message="Hello from a dry run.\n"
 
 ## starcm_result
 
-Functions return a frozen `starcm_result` struct. Each function's page says
-what its fields hold.
+Steps return a frozen `starcm_result` struct; queries don't (see above).
+Each step's page says what its fields hold.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -176,10 +176,9 @@ what its fields hold.
 | `value` | any | The function's output, e.g. a command's output or a file's content, or `None`. |
 
 Most problems (bad arguments, missing files, failed downloads) stop the run
-with an error and a traceback instead of returning a result. A few functions
-report failure in the result instead, so the configuration can decide what to
-do: [exec](functions/exec.md) for unexpected exit codes and timeouts, and
-[verify](functions/verify.md) for files that don't verify. Call `fail()` to
+with an error and a traceback instead of returning a result.
+[exec](functions/exec.md) reports unexpected exit codes and timeouts in the
+result instead, so the configuration can decide what to do. Call `fail()` to
 stop the run yourself.
 
 ```python

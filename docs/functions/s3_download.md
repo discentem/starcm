@@ -184,6 +184,6 @@ s3_download(
 ## See also
 
 - [download](download.md) for HTTP(S), and for how the local store works.
-- [verify](verify.md) to check a download's signature as well as its hash.
+- [Pinning by signature](download.md#pinning-by-signature) to check a download's signature instead of its hash.
 - [install_mac_pkg](install_mac_pkg.md) to install a downloaded `.pkg`.
 - [tests/integration/s3/chain.md](../../tests/integration/s3/chain.md) runs a chain of signed `.star` files from a real S3-compatible server, [rustfs](https://github.com/rustfs/rustfs), in CI: credentials the server refuses, a tampered bucket and missing objects.

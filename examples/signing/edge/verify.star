@@ -1,9 +1,4 @@
-load("starcm", "verify", "here")
+load("starcm", "here", "verify_all")
 
-def show(name, v):
-    print("%s: verified=%s key_id=%s error=%s" % (name, v.verified, v.key_id, v.error))
-
-show("signed", verify(here("payload.txt")))
-show("signature= kwarg", verify(path = here("copy.txt"), signature = here("payload.txt.sig")))
-show("tampered", verify(here("tampered.txt"), signature = here("payload.txt.sig")))
-show("no signature", verify(here("unsigned.txt")))
+v = verify_all([here("payload.txt")])[0]
+print("signed: key_id=%s release=%r" % (v.key_id, v.release))

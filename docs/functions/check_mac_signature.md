@@ -287,4 +287,4 @@ Error in check_mac_signature: check_mac_signature: kind must be "auto", "pkg" or
 - [install_mac_pkg](install_mac_pkg.md) to check and install a package.
 - [file](file.md#copy-a-signed-binary-into-place) to check and install a
   binary.
-- [verify](verify.md) to check files signed with `starcm sign` instead.
+- [verify_all](verify_all.md) to audit files signed with `starcm sign` instead.
