@@ -95,8 +95,10 @@ it. Functions never call each other by building Starlark arguments.
 Once arguments are parsed in one place, a `starcm_result` passed directly as
 an argument is replaced by its `value` (including inside a list or dict),
 so `extract(archive = zip)` works without `.value`. A result that didn't
-succeed stops the run instead. `only_if` and `not_if` are not unwrapped:
-write `r.success` or `r.value` there.
+succeed stops the run instead. In `only_if` and `not_if` a result stands
+for its `success` instead of its value, and one that didn't succeed is
+`False` rather than an error, so `not_if = check` runs the step when `check`
+failed.
 
 ## Consequences
 

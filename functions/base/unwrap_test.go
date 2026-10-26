@@ -64,9 +64,31 @@ fn(label = "also skipped", path = bad, args = [], not_if = True)
 	require.Empty(t, action.calls)
 }
 
-// only_if and not_if aren't unwrapped: they want a bool, so a result there
-// is the same type error as before.
-func TestUnwrap_ConditionsAreNotUnwrapped(t *testing.T) {
-	_, err := runWithResults(t, `fn(label = "cond", path = "p", args = [], only_if = ok)`)
-	require.ErrorContains(t, err, `for parameter "only_if": got struct, want bool`)
+// In only_if and not_if a result stands for its success, and one that
+// didn't succeed is False rather than a failure that stops the run.
+func TestUnwrap_ConditionsReadSuccess(t *testing.T) {
+	action, err := runWithResults(t, `
+fn(label = "only_if ok", path = "p", args = [], only_if = ok)
+fn(label = "only_if bad", path = "p", args = [], only_if = bad)
+fn(label = "not_if ok", path = "p", args = [], not_if = ok)
+fn(label = "not_if bad", path = "p", args = [], not_if = bad)
+`)
+	require.NoError(t, err)
+	var ran []string
+	for _, c := range action.calls {
+		ran = append(ran, c.Label)
+	}
+	require.Equal(t, []string{"only_if ok", "not_if bad"}, ran)
+}
+
+// A condition reading a result doesn't change how the other arguments read
+// theirs: a failed result passed as a value still stops a call that runs.
+func TestUnwrap_ConditionDoesntExcuseFailedValue(t *testing.T) {
+	_, err := runWithResults(t, `fn(label = "runs", path = bad, args = [], only_if = ok)`)
+	require.ErrorContains(t, err, `runs: path is the result of "broken", which didn't succeed`)
+
+	// Skipped by a failed result in only_if: the failed value is never used.
+	action, err := runWithResults(t, `fn(label = "skipped", path = bad, args = [], only_if = bad)`)
+	require.NoError(t, err)
+	require.Empty(t, action.calls)
 }
