@@ -377,8 +377,8 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"load_dynamic",
 						dynamicloading.New(ctx).Function(),
 					),
-					"verify":    starcmverify.New(ctx, fsys, l.Keyring).Builtin(),
-					"read_file": starcmreadfile.New(ctx, fsys).Builtin(),
+					"verify_all": starcmverify.NewAll(ctx, fsys, l.Keyring).Builtin(),
+					"read_file":  starcmreadfile.New(ctx, fsys).Builtin(),
 					"install_mac_pkg": starlark.NewBuiltin(
 						"install_mac_pkg",
 						starcmmacpkg.New(

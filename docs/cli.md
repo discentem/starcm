@@ -19,7 +19,7 @@ code, don't change the exit code unless the configuration calls `fail()`.
 | Option | Default | Description |
 | --- | --- | --- |
 | [--var name=value](#--var-namevalue) | none | Pass a value to the run as `vars["name"]`. Repeatable. |
-| [--trusted-keys DIR](#--trusted-keys-dir) | none | Require every `.star` file to be signed by a key in `DIR`, and enable `verify()`. |
+| [--trusted-keys DIR](#--trusted-keys-dir) | none | Require every `.star` file to be signed by a key in `DIR`, and enable `verify_all()`. |
 | [--max-expiry DURATION](#--max-expiry-duration) | none | With `--trusted-keys`, also refuse signatures that expire more than `DURATION` (e.g. `30d`, `36h`) from now. |
 | [--release ID](#--release-id) | none | With `--trusted-keys`, refuse signatures that weren't made for release `ID`. |
 | [--store-dir DIR](#--store-dir-dir-and---store-only) | see below | Where `download()` keeps files when `save_to` is omitted. |
@@ -71,7 +71,7 @@ hello, fleet
 `release.pub.pem` for key id `release`. With it, starcm checks each `.star`
 file's `<file>.sig` before running it, including files loaded with `load()`
 and `load_dynamic()`, and stops at the first one that isn't signed by a
-trusted key. [verify()](functions/verify.md) checks other files against the
+trusted key. [verify_all()](functions/verify_all.md) checks other files against the
 same keys, and [sign()](functions/sign.md) is disabled. See
 [sign](functions/sign.md) for making keys and signatures.
 
@@ -221,5 +221,5 @@ open missing\.star: (no such file or directory|The system cannot find the file s
 
 ## See also
 
-- [vars](functions/vars.md), [sign](functions/sign.md) and [verify](functions/verify.md).
+- [vars](functions/vars.md), [sign](functions/sign.md) and [verify_all](functions/verify_all.md).
 

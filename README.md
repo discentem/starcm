@@ -89,7 +89,7 @@ its arguments, return value and tested examples:
   [inspect](docs/functions/inspect.md) and
   [check_mac_signature](docs/functions/check_mac_signature.md).
 - Run only signed configuration with [sign](docs/functions/sign.md),
-  [verify](docs/functions/verify.md) and
+  [verify_all](docs/functions/verify_all.md) and
   [--trusted-keys](docs/cli.md#--trusted-keys-dir).
 - Pass values in with [--var](docs/functions/vars.md), and split
   configuration across files with [load()](docs/loading.md) and

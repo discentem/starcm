@@ -8,7 +8,7 @@ Machines that run starcm with
 [--trusted-keys DIR](../cli.md#--trusted-keys-dir) then refuse any `.star`
 file, including ones pulled in by `load()` and
 [load_dynamic](load_dynamic.md), that isn't signed by one of those keys, and
-can check other files with [verify](verify.md).
+can audit other files with [verify_all](verify_all.md).
 
 Every signature expires. The expiry is part of what's signed, so it can't be
 extended by editing the `.sig` file, and an old release stops being accepted
@@ -273,23 +273,26 @@ print("dyn.star ran")
 
 ```python
 # examples/signing/edge/verify.star
-load("starcm", "verify", "here")
+load("starcm", "here", "verify_all")
 
-def show(name, v):
-    print("%s: verified=%s key_id=%s error=%s" % (name, v.verified, v.key_id, v.error))
+v = verify_all([here("payload.txt")])[0]
+print("signed: key_id=%s release=%r" % (v.key_id, v.release))
+```
 
-show("signed", verify(here("payload.txt")))
-show("signature= kwarg", verify(path = here("copy.txt"), signature = here("payload.txt.sig")))
-show("tampered", verify(here("tampered.txt"), signature = here("payload.txt.sig")))
-show("no signature", verify(here("unsigned.txt")))
+```python
+# examples/signing/edge/verify_bad.star
+load("starcm", "here", "verify_all")
+
+verify_all([here("payload.txt"), here("tampered.txt"), here("unsigned.txt")])
 ```
 
 ```scrut
-$ starcm sign --expires 30d --key private/test.pem main.star lib.star dyn.star verify.star payload.txt
+$ starcm sign --expires 30d --key private/test.pem main.star lib.star dyn.star verify.star verify_bad.star payload.txt
 signed main.star with key "test" until * -> main.star.sig (glob)
 signed lib.star with key "test" until * -> lib.star.sig (glob)
 signed dyn.star with key "test" until * -> dyn.star.sig (glob)
 signed verify.star with key "test" until * -> verify.star.sig (glob)
+signed verify_bad.star with key "test" until * -> verify_bad.star.sig (glob)
 signed payload.txt with key "test" until * -> payload.txt.sig (glob)
 ```
 
@@ -372,34 +375,40 @@ signed unsigned.star with key "release-2027" until * -> unsigned.star.sig (glob)
 key=release-2027
 ```
 
-### verify()
+### verify_all()
 
-A file that doesn't verify is an answer, not an error: `verified` is `False`
-and `error` says why, so scripts decide whether to `fail()`. `key_id` is the
-key that signed it.
+`key_id` is the key that signed the file.
 
 ```scrut
 $ starcm --trusted-keys trusted verify.star
-signed: verified=True key_id=test error=None
-signature= kwarg: verified=True key_id=test error=None
-tampered: verified=False key_id=None error=*tampered.txt: key "test": signature does not match (glob)
-no signature: verified=False key_id=None error=.*[/\\]unsigned\.txt: reading signature: open .*[/\\]unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
+signed: key_id=test release=""
 ```
 
-verify() needs `--trusted-keys`.
+A file that doesn't verify stops the run, after `verify_all` has checked
+every file, listing each one that failed. `tampered.txt` gets a copy of
+`payload.txt`'s signature, which doesn't match its content:
+
+```scrut
+$ cp payload.txt.sig tampered.txt.sig && starcm --trusted-keys trusted verify_bad.star 2>&1 | tail -3
+Error in verify_all: verify_all: 2 of 3 files didn't verify:
+  *tampered.txt: key "test": signature does not match (glob)
+  .*[/\\]unsigned\.txt: reading signature: open .*[/\\]unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
+```
+
+verify_all() needs `--trusted-keys`.
 
 ```python
 # examples/signing/edge/verify_untrusted_run.star
-load("starcm", "verify", "here")
+load("starcm", "here", "verify_all")
 
-verify(here("payload.txt"))
+verify_all([here("payload.txt")])
 ```
 
 ```scrut
 $ starcm verify_untrusted_run.star 2>&1
 Traceback (most recent call last):
-  verify_untrusted_run.star:3:7: in <toplevel>
-Error in verify: verify() needs trusted keys: run starcm with --trusted-keys
+  verify_untrusted_run.star:3:11: in <toplevel>
+Error in verify_all: verify_all: needs trusted keys: run starcm with --trusted-keys
 [1]
 ```
 
@@ -482,8 +491,8 @@ signature check failed for unsigned.star: key "test": signature does not match
 ```
 
 ```scrut
-$ starcm sign --expires 2020-01-01 --key private/test.pem payload.txt >/dev/null && starcm --trusted-keys trusted verify.star | head -1
-signed: verified=False key_id=None error=*payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
+$ starcm sign --expires 2020-01-01 --key private/test.pem payload.txt >/dev/null && starcm --trusted-keys trusted verify.star 2>&1 | tail -1
+  *payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
 ```
 
 Signatures in older formats, without an expiry or without the file's
@@ -575,16 +584,16 @@ $ starcm sign --expires 30d --key private/test.pem --release 2026.09 unsigned.st
 unsigned.star ran
 ```
 
-verify() applies the same check:
+verify_all() applies the same check:
 
 ```scrut
 $ starcm sign --expires 30d --key private/test.pem --release 2026.10 verify.star payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
-signed: verified=True key_id=test error=None
+signed: key_id=test release="2026.10"
 ```
 
 ```scrut
-$ starcm sign --expires 30d --key private/test.pem --release 2026.09 payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
-signed: verified=False key_id=None error=*payload.txt: key "test": signature is for release "2026.09", want release "2026.10" (glob)
+$ starcm sign --expires 30d --key private/test.pem --release 2026.09 payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star 2>&1 | tail -1
+  *payload.txt: key "test": signature is for release "2026.09", want release "2026.10" (glob)
 ```
 
 ```scrut
@@ -596,5 +605,5 @@ sign: invalid release "two words": must have no spaces
 ## See also
 
 - [download](download.md#pinning-by-signature) and [s3_download](s3_download.md) can pin a download to its signature instead of a sha256.
-- [verify](verify.md) to check signatures on downloads and other files.
+- [verify_all](verify_all.md) to audit files that arrived some other way.
 - [--trusted-keys](../cli.md#--trusted-keys-dir).

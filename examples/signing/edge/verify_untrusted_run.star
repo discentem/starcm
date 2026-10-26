@@ -1,3 +1,3 @@
-load("starcm", "verify", "here")
+load("starcm", "here", "verify_all")
 
-verify(here("payload.txt"))
+verify_all([here("payload.txt")])
