@@ -2,7 +2,6 @@ package date
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	// Windows hosts have no zoneinfo database, so embed Go's copy for timezone=.
@@ -29,18 +28,12 @@ var namedLayouts = map[string]string{
 	"iso8601basic": "20060102T150405Z0700",
 }
 
-type dateAction struct {
-	now func() time.Time
-}
-
-var _ base.Action = (*dateAction)(nil)
-
 type parsedArgs struct {
 	layout   string
 	location *time.Location
 }
 
-func (a *dateAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) {
+func parseArgs(inst *base.FunctionInstance) (*parsedArgs, error) {
 	format, given := base.Get[string](inst, "format")
 	if !given {
 		format = "rfc3339"
@@ -56,19 +49,20 @@ func (a *dateAction) parseArgs(inst *base.FunctionInstance) (*parsedArgs, error)
 	}
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		return nil, fmt.Errorf("invalid timezone %q: %w", tz, err)
+		return nil, inst.Errorf("invalid timezone %q: %w", tz, err)
 	}
 
 	return &parsedArgs{layout: layout, location: loc}, nil
 }
 
-func (a *dateAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
-	parsed, err := a.parseArgs(inst)
+// run returns the date struct for now, read from the clock.
+func run(inst *base.FunctionInstance, clock func() time.Time) (starlark.Value, error) {
+	parsed, err := parseArgs(inst)
 	if err != nil {
 		return nil, err
 	}
 
-	now := a.now().In(parsed.location)
+	now := clock().In(parsed.location)
 	formatted := now.Format(parsed.layout)
 	zone, offset := now.Zone()
 
@@ -90,32 +84,29 @@ func (a *dateAction) Execute(inst *base.FunctionInstance) (*base.Result, error) 
 		"offset_seconds": starlark.MakeInt(offset),
 	})
 
-	return &base.Result{
-		Label:   inst.Label,
-		Message: &formatted,
-		Success: true,
-		Changed: false,
-		Return:  ret,
-	}, nil
+	return ret, nil
 }
 
-// New returns the date() builtin. It reads the clock natively in Go, so it
-// works anywhere starcm.exe does (including WinPE) without a shell.
+// New returns date(), a query for the current time. It reads the clock
+// natively in Go, so it works anywhere starcm.exe does (including WinPE)
+// without a shell.
 //
-//	d = date(label = "now", format = "rfc3339", timezone = "UTC")
-//	d.value.formatted, d.value.year, d.value.unix, ...
-func New(ctx context.Context) *base.Module {
+//	d = date(format = "rfc3339", timezone = "UTC")
+//	d.formatted, d.year, d.unix, ...
+func New(ctx context.Context) *base.Query {
 	return newWithClock(ctx, time.Now)
 }
 
-func newWithClock(ctx context.Context, now func() time.Time) *base.Module {
-	return base.NewModule(
+func newWithClock(ctx context.Context, clock func() time.Time) *base.Query {
+	return base.NewQuery(
 		ctx,
 		"date",
 		[]base.ArgPair{
 			base.OptionalArgAllowNone[string]("format"),
 			base.OptionalArgAllowNone[string]("timezone"),
 		},
-		&dateAction{now: now},
+		func(inst *base.FunctionInstance) (starlark.Value, error) {
+			return run(inst, clock)
+		},
 	)
 }
