@@ -67,7 +67,7 @@ var cases = []argCase{
 	{"template", `template(label = "x", template = "t.tmpl", data = {"name": "a"}, destination = here("t.txt"))`, `template("t.tmpl", data = {"name": "a"}, destination = here("t.txt"), label = "x")`},
 	{"load_dynamic", `load_dynamic(label = "x", module = "mod.star").value["x"]`, `load_dynamic("mod.star", label = "x").value["x"]`},
 	// date returns the time of the call; compare only the part format controls.
-	{"date", `date(label = "x", format = "2006").value.formatted`, `date("2006", label = "x").value.formatted`},
+	{"date", `date(format = "2006").formatted`, `date("2006").formatted`},
 }
 
 // fixtures creates the files the cases read, inside dir.
@@ -107,7 +107,6 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"exec":         starcmshell.New(ctx, &shelllib.RealExecutor{}),
 		"template":     starcmtemplate.New(ctx, fsys),
 		"load_dynamic": loading.New(ctx),
-		"date":         starcmdate.New(ctx),
 	}
 	d := starlark.StringDict{
 		"here":      starcmhere.New(func(string) bool { return false }),
@@ -115,6 +114,7 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"read_file": starcmreadfile.New(ctx, fsys).Builtin(),
 		"sha256":    starcmchecksum.New(ctx, fsys).Builtin(),
 		"inspect":   starcminspect.New(ctx, fsys).Builtin(),
+		"date":      starcmdate.New(ctx).Builtin(),
 	}
 	for name, m := range mods {
 		d[name] = starlark.NewBuiltin(name, m.Function())

@@ -1,5 +1,5 @@
 load("starcm", "date")
 
-r = date(label = "now")
-print("formatted: %s" % r.value.formatted)
-print("message:   %s" % r.message)
+now = date()
+print("formatted: %s" % now.formatted)
+print("year:      %d" % now.year)

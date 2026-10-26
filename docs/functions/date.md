@@ -13,7 +13,6 @@ too.
 load("starcm", "date")
 
 date(
-    label    = "now",       # required
     format   = "rfc3339",
     timezone = "Local",
 )
@@ -40,14 +39,15 @@ date(
 | `stamp` | `Oct 17 14:05:09` |
 | `iso8601basic` | `20261017T140509Z` |
 
-`date` also takes the [common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout` and
-`what_if`. Only `only_if` and `not_if` affect it.
+Both can be passed positionally or by name: `date("date", "UTC")`.
+
+`date` only reads, so it's a plain function: it takes no `label` or other
+[common arguments](../common-functionality.md#common-arguments) and returns
+its answer directly, not a `starcm_result`.
 
 ## Returns
 
-A [starcm_result](../common-functionality.md#starcm_result) whose `message` is
-the formatted time and whose `value` is a `date` struct:
+A `date` struct:
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -61,8 +61,6 @@ the formatted time and whose `value` is a `date` struct:
 | `timezone` | string | The timezone name, e.g. `"Asia/Tokyo"` or `"Local"` |
 | `zone` | string | The zone abbreviation, e.g. `"JST"` |
 | `offset_seconds` | int | Offset from UTC in seconds |
-
-`success` is `True` and `changed` is `False`.
 
 ## Examples
 
@@ -82,15 +80,15 @@ $ cp -R "$TESTDIR/../../examples/date/." "$TMPDIR" && cd "$TMPDIR" && managed="$
 # examples/date/now.star
 load("starcm", "date")
 
-r = date(label = "now")
-print("formatted: %s" % r.value.formatted)
-print("message:   %s" % r.message)
+now = date()
+print("formatted: %s" % now.formatted)
+print("year:      %d" % now.year)
 ```
 
 ```scrut
 $ TZ=UTC starcm now.star
 formatted: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (regex)
-message:   \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (regex)
+year:      \d{4} (regex)
 ```
 
 ### Named formats and Go layouts
@@ -100,7 +98,7 @@ message:   \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z (regex)
 load("starcm", "date")
 
 for fmt in ["date", "datetime", "kitchen", "iso8601basic", "2006/01/02"]:
-    print("%s: %s" % (fmt, date(label = fmt, format = fmt, timezone = "UTC").value.formatted))
+    print("%s: %s" % (fmt, date(format = fmt, timezone = "UTC").formatted))
 ```
 
 ```scrut
@@ -118,7 +116,7 @@ iso8601basic: \d{8}T\d{6}Z (regex)
 # examples/date/fields.star
 load("starcm", "date")
 
-d = date(label = "tokyo", timezone = "Asia/Tokyo").value
+d = date(timezone = "Asia/Tokyo")
 print("timezone=%s zone=%s offset_seconds=%d" % (d.timezone, d.zone, d.offset_seconds))
 print("year=%d month=%d day=%d weekday=%s" % (d.year, d.month, d.day, d.weekday))
 print("unix=%d" % d.unix)
@@ -137,7 +135,7 @@ unix=\d+ (regex)
 # examples/date/stamp_file.star
 load("starcm", "date", "file", "vars")
 
-today = date(label = "today", format = "date", timezone = "UTC").value.formatted
+today = date(format = "date", timezone = "UTC").formatted
 r = file(label = "last run", path = vars["managed_dir"] + "/last-run.txt", content = today + "\n")
 print("changed=%s" % r.changed)
 ```
@@ -157,13 +155,13 @@ matches the system clock
 load("starcm", "date")
 load("starcm", "write")
 
-now = date(label = "current time").value
+now = date()
 write("local: " + now.formatted, label = "print local")
 
-utc = date(label = "utc date", format = "date", timezone = "UTC").value
+utc = date(format = "date", timezone = "UTC")
 write("utc date: %s (%s, day %d of the year)" % (utc.formatted, utc.weekday, utc.yearday), label = "print utc")
 
-la = date(label = "custom layout", format = "Mon Jan 2 15:04 MST", timezone = "America/Los_Angeles").value
+la = date(format = "Mon Jan 2 15:04 MST", timezone = "America/Los_Angeles")
 write("los angeles: " + la.formatted, label = "print la")
 ```
 
@@ -185,16 +183,15 @@ behaviour that the examples above don't show.
 # examples/date/invalid_timezone.star
 load("starcm", "date")
 
-# An unknown IANA timezone stops the run with an error instead of
-# returning a failed result.
-date(label = "bad timezone", timezone = "Not/AZone")
+# An unknown IANA timezone stops the run.
+date(timezone = "Not/AZone")
 ```
 
 ```scrut
 $ starcm invalid_timezone.star 2>&1
 Traceback (most recent call last):
-  invalid_timezone.star:5:5: in <toplevel>
-Error in date: invalid timezone "Not/AZone": unknown time zone Not/AZone
+  invalid_timezone.star:4:5: in <toplevel>
+Error in date: date: invalid timezone "Not/AZone": unknown time zone Not/AZone
 [1]
 ```
 

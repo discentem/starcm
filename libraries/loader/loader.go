@@ -372,10 +372,7 @@ func Default(ctx context.Context, fsys afero.Fs, ex starcmshelllib.Executor, wor
 						"template",
 						starcmtemplate.New(ctx, fsys).Function(),
 					),
-					"date": starlark.NewBuiltin(
-						"date",
-						starcmdate.New(ctx).Function(),
-					),
+					"date": starcmdate.New(ctx).Builtin(),
 					"load_dynamic": starlark.NewBuiltin(
 						"load_dynamic",
 						dynamicloading.New(ctx).Function(),

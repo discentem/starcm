@@ -13,22 +13,19 @@ import (
 
 var fixed = time.Date(2026, time.October, 11, 14, 30, 5, 0, time.UTC)
 
-func run(t *testing.T, kwargs []starlark.Tuple) (*starlarkstruct.Struct, error) {
+func call(t *testing.T, kwargs []starlark.Tuple) (*starlarkstruct.Struct, error) {
 	t.Helper()
 	// FunctionInstance date() from Starlark, as scripts do, so it has a calling frame.
 	thread := &starlark.Thread{}
-	globals, err := starlark.ExecFile(thread, "test.star", "def call(**kw):\n    return date(label = \"test\", **kw)\n", starlark.StringDict{
-		"date": starlark.NewBuiltin("date", newWithClock(context.Background(), func() time.Time { return fixed }).Function()),
+	globals, err := starlark.ExecFile(thread, "test.star", "def call(**kw):\n    return date(**kw)\n", starlark.StringDict{
+		"date": newWithClock(context.Background(), func() time.Time { return fixed }).Builtin(),
 	})
 	require.NoError(t, err)
 	v, err := starlark.Call(thread, globals["call"], nil, kwargs)
 	if err != nil {
 		return nil, err
 	}
-	r, ok := v.(*starlarkstruct.Struct)
-	require.True(t, ok)
-	require.Equal(t, starlark.True, attr(t, r, "success"))
-	s, ok := attr(t, r, "value").(*starlarkstruct.Struct)
+	s, ok := v.(*starlarkstruct.Struct)
 	require.True(t, ok)
 	return s, nil
 }
@@ -90,7 +87,7 @@ func TestDateAction_Run(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := run(t, tt.kwargs)
+			s, err := call(t, tt.kwargs)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
@@ -104,22 +101,20 @@ func TestDateAction_Run(t *testing.T) {
 	}
 }
 
-// Exercises the builtin end to end through starlark, including base.Module's
-// label handling and the starcm_result wrapper.
+// Exercises the builtin end to end through starlark, including positional
+// arguments.
 func TestDate_Starlark(t *testing.T) {
 	ctx := context.Background()
 	predeclared := starlark.StringDict{
-		"date": starlark.NewBuiltin("date", newWithClock(ctx, func() time.Time { return fixed }).Function()),
+		"date": newWithClock(ctx, func() time.Time { return fixed }).Builtin(),
 	}
 	src := `
-d = date(label = "now", format = "date", timezone = "UTC")
-formatted = d.value.formatted
-success = d.success
-weekday = d.value.weekday
+d = date("date", "UTC")
+formatted = d.formatted
+weekday = d.weekday
 `
 	globals, err := starlark.ExecFileOptions(&syntax.FileOptions{}, &starlark.Thread{}, "test.star", src, predeclared)
 	require.NoError(t, err)
 	require.Equal(t, starlark.String("2026-10-11"), globals["formatted"])
-	require.Equal(t, starlark.True, globals["success"])
 	require.Equal(t, starlark.String("Sunday"), globals["weekday"])
 }

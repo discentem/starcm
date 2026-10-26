@@ -299,7 +299,7 @@ render = template(
             {"name": "ada", "groups": ("admin", "dev"), "shell": "/bin/zsh"},
             {"name": "bob", "groups": ["dev"], "shell": None},
         ],
-        "now": date(label = "build date", format = "date", timezone = "UTC").value,
+        "now": date(format = "date", timezone = "UTC"),
     },
     what_if = True,
 )
