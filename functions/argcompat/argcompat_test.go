@@ -22,10 +22,9 @@ import (
 	loading "github.com/discentem/starcm/functions/dynamic_loading"
 	starcmextract "github.com/discentem/starcm/functions/extract"
 	starcmfile "github.com/discentem/starcm/functions/file"
-	starcmglob "github.com/discentem/starcm/functions/glob"
 	starcmhere "github.com/discentem/starcm/functions/here"
 	starcminspect "github.com/discentem/starcm/functions/inspect"
-	starcmlistfiles "github.com/discentem/starcm/functions/listfiles"
+	starcmpathmod "github.com/discentem/starcm/functions/pathmod"
 	starcmreadfile "github.com/discentem/starcm/functions/readfile"
 	starcmshell "github.com/discentem/starcm/functions/shell"
 	starcmtemplate "github.com/discentem/starcm/functions/template"
@@ -54,9 +53,10 @@ var cases = []argCase{
 	{"read_file", `read_file(label = "x", path = here("in.txt"))`, `read_file(here("in.txt"), label = "x")`},
 	{"sha256", `sha256(label = "x", path = here("in.txt"))`, `sha256(here("in.txt"), label = "x")`},
 	{"inspect", `inspect(label = "x", path = here("mod.star"))`, `inspect(here("mod.star"), label = "x")`},
-	{"list_files/1-positional", `list_files(label = "x", dir = here("listdir"), pattern = "*.txt")`, `list_files(here("listdir"), pattern = "*.txt", label = "x")`},
-	{"list_files/2-positional", `list_files(label = "x", dir = here("listdir"), pattern = "*.txt")`, `list_files(here("listdir"), "*.txt", label = "x")`},
-	{"glob", `glob(label = "x", pattern = here("listdir/*.txt"))`, `glob(here("listdir/*.txt"), label = "x")`},
+	{"path.list/1-positional", `path.list(dir = here("listdir"), pattern = "*.txt")`, `path.list(here("listdir"), pattern = "*.txt")`},
+	{"path.list/2-positional", `path.list(dir = here("listdir"), pattern = "*.txt")`, `path.list(here("listdir"), "*.txt")`},
+	{"path.exists", `path.exists(path = here("in.txt"))`, `path.exists(here("in.txt"))`},
+	{"path.glob", `path.glob(pattern = here("listdir/*.txt"))`, `path.glob(here("listdir/*.txt"))`},
 	{"write", `write(label = "x", str = "hello")`, `write("hello", label = "x")`},
 	{"file", `file(label = "x", path = here("out.txt"), content = "hi")`, `file(here("out.txt"), content = "hi", label = "x")`},
 	{"file/copy", `file(label = "x", path = here("copy.txt"), source = here("in.txt"))`, `file(here("copy.txt"), source = here("in.txt"), label = "x")`},
@@ -104,8 +104,6 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"read_file":    starcmreadfile.New(ctx, fsys),
 		"sha256":       starcmchecksum.New(ctx, fsys),
 		"inspect":      starcminspect.New(ctx, fsys),
-		"list_files":   starcmlistfiles.New(ctx, fsys),
-		"glob":         starcmglob.New(ctx, fsys),
 		"write":        starcmwrite.New(ctx, out),
 		"file":         starcmfile.New(ctx, fsys),
 		"extract":      starcmextract.New(ctx),
@@ -114,7 +112,10 @@ func predeclared(ctx context.Context, out *bytes.Buffer) starlark.StringDict {
 		"load_dynamic": loading.New(ctx),
 		"date":         starcmdate.New(ctx),
 	}
-	d := starlark.StringDict{"here": starcmhere.New(func(string) bool { return false })}
+	d := starlark.StringDict{
+		"here": starcmhere.New(func(string) bool { return false }),
+		"path": starcmpathmod.New(ctx, fsys),
+	}
 	for name, m := range mods {
 		d[name] = starlark.NewBuiltin(name, m.Function())
 	}

@@ -6,7 +6,9 @@ go_library(
     importpath = "github.com/discentem/starcm/functions/pathmod",
     visibility = ["//visibility:public"],
     deps = [
-        "//libraries/paths",
+        "//functions/base",
+        "//functions/glob",
+        "//functions/listfiles",
         "@com_github_spf13_afero//:afero",
         "@net_starlark_go//starlark",
         "@net_starlark_go//starlarkstruct",

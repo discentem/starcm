@@ -125,4 +125,4 @@ Error in read_file: failed to read file ".*[/\\]missing\.txt": open .*[/\\]missi
 
 ## See also
 
-- [json](json.md), [sha256](sha256.md), [list_files](list_files.md).
+- [json](json.md), [sha256](sha256.md), [path.list](path.md#pathlist).

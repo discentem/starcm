@@ -1,6 +1,7 @@
 package pathmod
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -22,7 +23,7 @@ func TestExists(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "f.txt")
 	require.NoError(t, os.WriteFile(file, nil, 0o644))
-	exists := Exists(afero.NewOsFs())
+	exists := Exists(context.Background(), afero.NewOsFs()).Builtin()
 
 	for _, tc := range []struct {
 		path string
@@ -48,7 +49,7 @@ func TestExistsTilde(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	require.NoError(t, os.WriteFile(filepath.Join(home, "f.txt"), nil, 0o644))
-	v, err := call(t, Exists(afero.NewOsFs()), starlark.String("~/f.txt"))
+	v, err := call(t, Exists(context.Background(), afero.NewOsFs()).Builtin(), starlark.String("~/f.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, starlark.True, v)
 }
@@ -60,7 +61,7 @@ func TestExistsSymlink(t *testing.T) {
 		t.Skipf("can't create a symlink here: %v", err)
 	}
 	// A link to nothing doesn't exist: path.exists follows links.
-	v, err := call(t, Exists(afero.NewOsFs()), starlark.String(link))
+	v, err := call(t, Exists(context.Background(), afero.NewOsFs()).Builtin(), starlark.String(link))
 	require.NoError(t, err)
 	assert.Equal(t, starlark.False, v)
 }
@@ -78,15 +79,15 @@ func TestExistsUnreadable(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(locked, "inner"), 0o755))
 	require.NoError(t, os.Chmod(locked, 0o000))
 	t.Cleanup(func() { os.Chmod(locked, 0o755) })
-	_, err := call(t, Exists(afero.NewOsFs()), starlark.String(filepath.Join(locked, "inner")))
+	_, err := call(t, Exists(context.Background(), afero.NewOsFs()).Builtin(), starlark.String(filepath.Join(locked, "inner")))
 	assert.ErrorIs(t, err, os.ErrPermission)
 	assert.ErrorContains(t, err, "path.exists: ")
 }
 
 func TestExistsErrors(t *testing.T) {
-	exists := Exists(afero.NewOsFs())
+	exists := Exists(context.Background(), afero.NewOsFs()).Builtin()
 	_, err := call(t, exists, starlark.String("relative.txt"))
-	assert.ErrorContains(t, err, `path.exists: "relative.txt" is not an absolute path`)
+	assert.ErrorContains(t, err, `path.exists: path: "relative.txt" is not an absolute path`)
 	_, err = call(t, exists)
 	assert.Error(t, err)
 	_, err = call(t, exists, starlark.MakeInt(1))
@@ -128,7 +129,7 @@ func TestJoinErrors(t *testing.T) {
 }
 
 func TestModule(t *testing.T) {
-	m := New(afero.NewOsFs())
+	m := New(context.Background(), afero.NewOsFs())
 	assert.Equal(t, "path", m.Name)
-	assert.ElementsMatch(t, []string{"exists", "join"}, m.Members.Keys())
+	assert.ElementsMatch(t, []string{"exists", "glob", "join", "list"}, m.Members.Keys())
 }

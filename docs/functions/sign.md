@@ -153,9 +153,9 @@ file with the same expiry; only the edited `lib.star` changes.
 
 ```python
 # examples/signing/sign_all.star
-load("starcm", "list_files", "sign", "vars", "here")
+load("starcm", "here", "path", "sign", "vars")
 
-for f in list_files(here(), pattern = "*.star", label = "find config").value:
+for f in path.list(here(), pattern = "*.star"):
     # Only this folder's configuration files, not this script or subfolders.
     if f == "sign_all.star" or "/" in f:
         continue
