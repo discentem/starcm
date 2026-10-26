@@ -29,7 +29,10 @@ later calls.
 
 ### only_if and not_if
 
-`only_if` and `not_if` take a bool, usually from an earlier result. A
+`only_if` and `not_if` take a bool, or an earlier step's result, which
+stands for its `success`: `not_if = installed` means `not_if =
+installed.success`. A result that didn't succeed is just `False` there; it
+never stops the run the way it does as another argument. A
 skipped call logs why and returns an empty result: `success = False`,
 `changed = False`, `label = ""` and `value = None`.
 
@@ -39,8 +42,9 @@ load("starcm", "exec", "write")
 
 installed = exec(label = "already installed?", cmd = "sh", args = ["-c", "exit 1"])
 
-write("installing", label = "install", not_if = installed.success)
-write("configuring", label = "configure", only_if = installed.success)
+# A result in only_if or not_if stands for its success.
+write("installing", label = "install", not_if = installed)
+write("configuring", label = "configure", only_if = installed)
 skipped = write("never printed", label = "skipped", only_if = False)
 print("skipped: %s" % skipped)
 ```
@@ -212,8 +216,9 @@ $ starcm pass_result.star
 
 A result that didn't succeed (`success = False`) stops the run instead of
 passing on a value nobody checked, unless `only_if` or `not_if` skip the
-call. To use the value anyway, pass `r.value`. `only_if` and `not_if` are
-never unwrapped: write `only_if = r.success`.
+call. To use the value anyway, pass `r.value`. In `only_if` and `not_if` a
+result stands for its `success` instead, so a failed one is `False` there
+(see [only_if and not_if](#only_if-and-not_if)).
 
 ```python
 # examples/common_functionality/failed_result.star

@@ -11,9 +11,39 @@ import (
 // Result.ToStarlark.
 var resultConstructor = starlark.String("starcm_result")
 
-// notUnwrapped are the arguments whose results stay results: conditions read
-// r.success or r.value themselves.
-var notUnwrapped = map[string]bool{"only_if": true, "not_if": true}
+// project returns what a starcm_result stands for in one argument, and
+// whether it counts as a failure that stops the run.
+type project func(s *starlarkstruct.Struct) (v starlark.Value, failed bool)
+
+// byValue is how most arguments read a result: as its value. One that didn't
+// succeed is a failure.
+func byValue(s *starlarkstruct.Struct) (starlark.Value, bool) {
+	success, err := s.Attr("success")
+	failed := err != nil || success != starlark.True
+	value, err := s.Attr("value")
+	if err != nil {
+		return starlark.None, failed
+	}
+	return value, failed
+}
+
+// bySuccess is how conditions read a result: only_if = r means
+// only_if = r.success. A result that didn't succeed is just False, never a
+// failure, so not_if = check runs the step when check failed.
+func bySuccess(s *starlarkstruct.Struct) (starlark.Value, bool) {
+	if success, err := s.Attr("success"); err == nil && success == starlark.True {
+		return starlark.True, false
+	}
+	return starlark.False, false
+}
+
+// projectionFor returns how argument name reads a result.
+func projectionFor(name string) project {
+	if name == "only_if" || name == "not_if" {
+		return bySuccess
+	}
+	return byValue
+}
 
 // failedResult records the first result passed as an argument that didn't
 // succeed. Its value still stands in for it, so the call can be checked and
@@ -29,8 +59,9 @@ func (f *failedResult) err(fn string) error {
 }
 
 // unwrapArgs replaces every starcm_result in args and kwargs, including
-// inside lists, tuples and dicts, with its value, so extract(archive = zip)
-// works without .value. names gives positional arguments their names for
+// inside lists, tuples and dicts, with what it stands for in that argument
+// (see projectionFor): its value, so extract(archive = zip) works without
+// .value, or its success in only_if and not_if. names gives positional arguments their names for
 // errors. Values that hold no result are returned as they are.
 func unwrapArgs(names []string, args starlark.Tuple, kwargs []starlark.Tuple) (starlark.Tuple, []starlark.Tuple, *failedResult) {
 	var failed *failedResult
@@ -57,10 +88,7 @@ func unwrapArgs(names []string, args starlark.Tuple, kwargs []starlark.Tuple) (s
 		if i < len(names) {
 			name = argName(names[i])
 		}
-		if notUnwrapped[name] {
-			continue
-		}
-		if u, ok := unwrap(v, func(s *starlarkstruct.Struct) { note(name, s) }); ok {
+		if u, ok := unwrap(v, projectionFor(name), func(s *starlarkstruct.Struct) { note(name, s) }); ok {
 			if newArgs == nil {
 				newArgs = append(starlark.Tuple(nil), args...)
 			}
@@ -74,10 +102,7 @@ func unwrapArgs(names []string, args starlark.Tuple, kwargs []starlark.Tuple) (s
 	var newKwargs []starlark.Tuple
 	for i, kv := range kwargs {
 		name, _ := starlark.AsString(kv[0])
-		if notUnwrapped[name] {
-			continue
-		}
-		if u, ok := unwrap(kv[1], func(s *starlarkstruct.Struct) { note(name, s) }); ok {
+		if u, ok := unwrap(kv[1], projectionFor(name), func(s *starlarkstruct.Struct) { note(name, s) }); ok {
 			if newKwargs == nil {
 				newKwargs = append([]starlark.Tuple(nil), kwargs...)
 			}
@@ -96,26 +121,24 @@ func isResult(v starlark.Value) (*starlarkstruct.Struct, bool) {
 	return s, ok && s.Constructor() == resultConstructor
 }
 
-// unwrap returns v with every starcm_result in it replaced by its value, and
-// whether anything was replaced. Containers are copied only when something
-// in them changed. onFailed is called for each result that didn't succeed.
-func unwrap(v starlark.Value, onFailed func(*starlarkstruct.Struct)) (starlark.Value, bool) {
+// unwrap returns v with every starcm_result in it replaced by what p says it
+// stands for, and whether anything was replaced. Containers are copied only
+// when something in them changed. onFailed is called for each result p
+// counts as a failure.
+func unwrap(v starlark.Value, p project, onFailed func(*starlarkstruct.Struct)) (starlark.Value, bool) {
 	if s, ok := isResult(v); ok {
-		if success, err := s.Attr("success"); err != nil || success != starlark.True {
+		value, failed := p(s)
+		if failed {
 			onFailed(s)
 		}
-		value, err := s.Attr("value")
-		if err != nil {
-			return starlark.None, true
-		}
-		u, _ := unwrap(value, onFailed)
+		u, _ := unwrap(value, p, onFailed)
 		return u, true
 	}
 	switch x := v.(type) {
 	case *starlark.List:
 		var out []starlark.Value
 		for i := 0; i < x.Len(); i++ {
-			if u, ok := unwrap(x.Index(i), onFailed); ok {
+			if u, ok := unwrap(x.Index(i), p, onFailed); ok {
 				if out == nil {
 					out = make([]starlark.Value, x.Len())
 					for j := 0; j < x.Len(); j++ {
@@ -131,7 +154,7 @@ func unwrap(v starlark.Value, onFailed func(*starlarkstruct.Struct)) (starlark.V
 	case starlark.Tuple:
 		var out starlark.Tuple
 		for i, e := range x {
-			if u, ok := unwrap(e, onFailed); ok {
+			if u, ok := unwrap(e, p, onFailed); ok {
 				if out == nil {
 					out = append(starlark.Tuple(nil), x...)
 				}
@@ -145,7 +168,7 @@ func unwrap(v starlark.Value, onFailed func(*starlarkstruct.Struct)) (starlark.V
 		changed := false
 		items := x.Items()
 		for i, kv := range items {
-			if u, ok := unwrap(kv[1], onFailed); ok {
+			if u, ok := unwrap(kv[1], p, onFailed); ok {
 				items[i] = starlark.Tuple{kv[0], u}
 				changed = true
 			}

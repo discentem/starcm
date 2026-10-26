@@ -5,6 +5,6 @@ exec(
     label   = "install the tool",
     cmd     = "echo",
     args    = ["installing not-a-real-tool"],
-    not_if  = check.success,
+    not_if  = check,
     live_output = True,
 )
