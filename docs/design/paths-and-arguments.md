@@ -100,6 +100,33 @@ for its `success` instead of its value, and one that didn't succeed is
 `False` rather than an error, so `not_if = check` runs the step when `check`
 failed.
 
+### Steps and queries
+
+A function is a **step** if it changes the machine, or runs something whose
+effect starcm can't know: `file`, `template`, `download`, `s3_download`,
+`extract`, `exec`, `install_mac_pkg`, `install_remote_mac_pkg`, `sign`,
+`write`, `load_dynamic`, `load_remote`. Steps take a `label` and the common
+arguments and return a `starcm_result`, since that's where naming a step in
+the log, gating it with `only_if`/`not_if`, a `timeout` and `what_if` mean
+something.
+
+Every function that only reads is a **query**: `path.exists`, `path.join`,
+`path.glob`, `path.list`, `read_file`, `sha256`, `inspect`, `date`,
+`verify`, `check_mac_signature`, and the helpers (`here`, `home_dir`,
+`temp_dir`, `env`, `platform`, `dedent`). A query takes no common arguments
+and returns its answer directly, so it works in `if`, `for` and
+comprehensions without `.value`. Any error stops the run. It runs under
+`what_if` like any other read, so a dry run sees the real state.
+
+The line is whether the call changes something, not whether it touches the
+filesystem: `path.exists` and `path.glob` read the disk but are queries.
+
+Queries use `base.Query`, which checks arguments the same way as steps
+(through `FunctionInstance`, so the path rule, `~` expansion, positional
+arguments and result unwrapping are shared) and adds no common arguments.
+Helpers that take `*parts` (`path.join`, `here`, `home_dir`, `temp_dir`)
+stay hand-written builtins, since `UnpackArgs` has no varargs.
+
 ## Consequences
 
 - Breaking: relative outputs and inputs (other than bundled resources) stop
@@ -111,4 +138,9 @@ failed.
   `base.FunctionInstance`; (2) every function moved to
   `base.FunctionInstance` and the path rule, the old interface and
   `working_directory` removed; (3) results unwrapped when passed as
-  arguments.
+  arguments; (4) read-only functions became queries (`list_files` became
+  `path.list`), and a result in `only_if`/`not_if` stands for its
+  `success`.
+- Breaking: queries no longer take `label` or return a `starcm_result`, so
+  `read_file(p, label = "x").value` becomes `read_file(p)`, and `verify()`
+  returns a `verification` struct whose `verified` replaces `success`.

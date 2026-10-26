@@ -2,10 +2,17 @@
 
 [← Documentation index](README.md)
 
-Every starcm function except the [json](functions/json.md),
-[vars](functions/vars.md) and [struct](functions/struct.md) helpers shares
-the behaviour on this page: the same [common arguments](#common-arguments),
-and the same kind of return value, a [starcm_result](#starcm_result).
+Every starcm step, a function that changes the machine or runs something,
+shares the behaviour on this page: the same
+[common arguments](#common-arguments), and the same kind of return value, a
+[starcm_result](#starcm_result).
+
+Queries, the functions that only read (such as [read_file](functions/read_file.md),
+[path](functions/path.md) and [date](functions/date.md)), and the helpers
+such as [json](functions/json.md) and [here](functions/here.md), don't: they
+take no `label`, return their answer directly, and any error stops the run.
+A `starcm_result` passed to a query stands for its value, as below. See
+[the documentation index](README.md) for which is which.
 
 The examples run in a scratch copy of
 [examples/common_functionality/](../examples/common_functionality).
