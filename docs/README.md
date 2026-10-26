@@ -6,7 +6,18 @@ But Starcm offers many additional functions that are not built into Starlark.
 
 
 Each function below has its own page with its syntax, arguments, return
-value and examples. 
+value and examples.
+
+Functions come in two kinds:
+
+- **Steps** change the machine, or run something whose effect starcm can't
+  know. They take a `label` and the other
+  [common arguments](common-functionality.md#common-arguments) (`only_if`,
+  `not_if`, `timeout`, `what_if`) and return a
+  [starcm_result](common-functionality.md#starcm_result).
+- **Queries** only read. They take no `label`, return their answer directly
+  (`read_file(p)` is the file's content), and run under `what_if` like any
+  other read. Any error stops the run. Use `if` to call one conditionally.
 
 Every example on these pages runs in CI with
 [scrut](https://github.com/facebookincubator/scrut) on Linux, macOS and
@@ -44,6 +55,8 @@ All of these functions can be enhanced by:
 
 ### Reading information
 
+These are queries: no `label`, and they return their answer directly.
+
 | Function | Description |
 | --- | --- |
 | [date](functions/date.md) | The current time, formatted and as fields, in any timezone. |
@@ -51,13 +64,13 @@ All of these functions can be enhanced by:
 | [sha256](functions/sha256.md) | A file's sha256. |
 | [inspect](functions/inspect.md) | What a `.star` file loads and calls, without running it. |
 | [check_mac_signature](functions/check_mac_signature.md) | Who signed a macOS package, binary or app; stops the run unless it's the developer you name. |
+| [verify](functions/verify.md) | Whether a file's signature checks out against `--trusted-keys`. |
 
 ### Signing
 
 | Function | Description |
 | --- | --- |
-| [sign](functions/sign.md) | Sign a file with an ed25519 key (also `starcm sign`). |
-| [verify](functions/verify.md) | Check a file's signature against `--trusted-keys`. |
+| [sign](functions/sign.md) | Sign a file with an ed25519 key (also `starcm sign`). [verify](functions/verify.md) checks the signature. |
 
 ### Output and control flow
 
@@ -69,7 +82,8 @@ All of these functions can be enhanced by:
 
 ### Values and helpers
 
-These take no `label` and don't return a `starcm_result`.
+These are queries too, or plain values: they take no `label` and don't
+return a `starcm_result`.
 
 | Name | Description |
 | --- | --- |
