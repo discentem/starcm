@@ -5,8 +5,8 @@
 Use `verify` to check a file, such as a downloaded installer, against a
 signature made with [sign](sign.md) by one of the keys passed with
 [--trusted-keys](../cli.md#--trusted-keys-dir). A file that doesn't verify
-is a failed result, not an error, so your configuration decides what happens
-next, usually `fail()`.
+is an answer, not an error: `verified` is `False`, so your configuration
+decides what happens next, usually `fail()`.
 
 `verify` only works when starcm runs with `--trusted-keys`, which also means
 the `.star` file calling it must itself be signed. It applies the same
@@ -19,8 +19,8 @@ expiry and release checks, including
 ```python
 load("starcm", "verify")
 
-verify("/opt/agent/agent.pkg", label = "check agent")          # reads agent.pkg.sig next to it
-verify(path = "/opt/agent/agent.pkg", signature = "/opt/agent/sigs/agent.pkg.sig", label = "check agent")
+verify("/opt/agent/agent.pkg")   # reads agent.pkg.sig next to it
+verify(path = "/opt/agent/agent.pkg", signature = "/opt/agent/sigs/agent.pkg.sig")
 ```
 
 ## Arguments
@@ -30,21 +30,21 @@ verify(path = "/opt/agent/agent.pkg", signature = "/opt/agent/sigs/agent.pkg.sig
 | `path` | string | required | The file to check, positionally or as `path =`. An absolute path; a leading `~` expands to the home directory. |
 | `signature` | string | `path + ".sig"` | The signature file, as an absolute path. |
 
-`verify` also takes the [common arguments](../common-functionality.md#common-arguments):
-`label` (required), `only_if`, `not_if`, `timeout` and
-`what_if`. Only `only_if` and `not_if` affect it.
+`verify` only reads, so it's a plain function: it takes no `label` or other
+[common arguments](../common-functionality.md#common-arguments) and returns
+its answer directly, not a `starcm_result`. It runs under `what_if` too.
 
 ## Returns
 
-A [starcm_result](../common-functionality.md#starcm_result):
+A `verification` struct:
 
 | Field | Verified | Not verified |
 | --- | --- | --- |
-| `success` | `True` | `False` |
-| `value` | The id of the key that signed it | `None` |
-| `message` | `<path> verified with key "<id>", signature expires <expiry>` | `""` |
-| `error` | `"<nil>"` | Why, e.g. `<path>: key "release": signature does not match` or `... signature expired at <expiry> (now <time>)` |
-| `changed` | `False` | `False` |
+| `verified` | `True` | `False` |
+| `key_id` | The id of the key that signed it | `None` |
+| `release` | The release it was signed for, or `""` | `None` |
+| `expires` | When the signature expires, in RFC 3339 | `None` |
+| `error` | `None` | Why, e.g. `<path>: key "release": signature does not match` or `... signature expired at <expiry> (now <time>)` |
 
 Running without `--trusted-keys` stops the run.
 
@@ -73,16 +73,16 @@ signed detached.star with key "release" until 2099-01-01T00:00:00Z -> detached.s
 load("starcm", "here", "verify")
 
 for f in ["agent.pkg", "unsigned.pkg"]:
-    r = verify(here(f), label = "check " + f)
-    print("%s: success=%s key=%s" % (f, r.success, r.value))
-    if not r.success:
-        print("  error: %s" % r.error)
+    v = verify(here(f))
+    print("%s: verified=%s key_id=%s" % (f, v.verified, v.key_id))
+    if not v.verified:
+        print("  error: %s" % v.error)
 ```
 
 ```scrut
 $ starcm --trusted-keys trusted check.star
-agent.pkg: success=True key=release
-unsigned.pkg: success=False key=None
+agent.pkg: verified=True key_id=release
+unsigned.pkg: verified=False key_id=None
   error: .*[/\\]unsigned\.pkg: reading signature: open .*[/\\]unsigned\.pkg\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
 ```
 
@@ -92,8 +92,8 @@ unsigned.pkg: success=False key=None
 # examples/verify/must_verify.star
 load("starcm", "exec", "verify", "here")
 
-check = verify(here("agent.pkg"), label = "check agent signature")
-if not check.success:
+check = verify(here("agent.pkg"))
+if not check.verified:
     fail(check.error)
 exec(label = "install agent", cmd = "cat", args = ["agent.pkg"], live_output = True)
 ```
@@ -127,13 +127,13 @@ Error in fail: fail: *agent.pkg: key "release": signature expired at 2020-01-01T
 # examples/verify/detached.star
 load("starcm", "verify", "here")
 
-r = verify(here("agent.pkg"), signature = here("sigs/agent.pkg.sig"), label = "check with a detached signature")
-print("success=%s key=%s" % (r.success, r.value))
+v = verify(here("agent.pkg"), signature = here("sigs/agent.pkg.sig"))
+print("verified=%s key_id=%s expires=%s" % (v.verified, v.key_id, v.expires))
 ```
 
 ```scrut
 $ starcm sign --expires 2099-01-01 --key release.pem agent.pkg >/dev/null && mkdir sigs && mv agent.pkg.sig sigs/ && starcm --trusted-keys trusted detached.star
-success=True key=release
+verified=True key_id=release expires=2099-01-01T00:00:00Z
 ```
 
 ### `verify` needs `--trusted-keys`

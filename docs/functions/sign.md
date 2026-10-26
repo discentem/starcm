@@ -275,13 +275,13 @@ print("dyn.star ran")
 # examples/signing/edge/verify.star
 load("starcm", "verify", "here")
 
-def show(r):
-    print("%s: success=%s value=%s error=%s" % (r.label, r.success, r.value, r.error))
+def show(name, v):
+    print("%s: verified=%s key_id=%s error=%s" % (name, v.verified, v.key_id, v.error))
 
-show(verify(here("payload.txt"), label = "signed"))
-show(verify(path = here("copy.txt"), signature = here("payload.txt.sig"), label = "signature= kwarg"))
-show(verify(here("tampered.txt"), signature = here("payload.txt.sig"), label = "tampered"))
-show(verify(here("unsigned.txt"), label = "no signature"))
+show("signed", verify(here("payload.txt")))
+show("signature= kwarg", verify(path = here("copy.txt"), signature = here("payload.txt.sig")))
+show("tampered", verify(here("tampered.txt"), signature = here("payload.txt.sig")))
+show("no signature", verify(here("unsigned.txt")))
 ```
 
 ```scrut
@@ -374,15 +374,16 @@ key=release-2027
 
 ### verify()
 
-A file that doesn't verify is a failed result, not an error, so scripts decide
-whether to `fail()`. `value` is the key id that signed it.
+A file that doesn't verify is an answer, not an error: `verified` is `False`
+and `error` says why, so scripts decide whether to `fail()`. `key_id` is the
+key that signed it.
 
 ```scrut
 $ starcm --trusted-keys trusted verify.star
-signed: success=True value=test error=<nil>
-signature= kwarg: success=True value=test error=<nil>
-tampered: success=False value=None error=*tampered.txt: key "test": signature does not match (glob)
-no signature: success=False value=None error=.*[/\\]unsigned\.txt: reading signature: open .*[/\\]unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
+signed: verified=True key_id=test error=None
+signature= kwarg: verified=True key_id=test error=None
+tampered: verified=False key_id=None error=*tampered.txt: key "test": signature does not match (glob)
+no signature: verified=False key_id=None error=.*[/\\]unsigned\.txt: reading signature: open .*[/\\]unsigned\.txt\.sig: (no such file or directory|The system cannot find the file specified\.) (regex)
 ```
 
 verify() needs `--trusted-keys`.
@@ -391,7 +392,7 @@ verify() needs `--trusted-keys`.
 # examples/signing/edge/verify_untrusted_run.star
 load("starcm", "verify", "here")
 
-verify(here("payload.txt"), label = "needs keys")
+verify(here("payload.txt"))
 ```
 
 ```scrut
@@ -482,7 +483,7 @@ signature check failed for unsigned.star: key "test": signature does not match
 
 ```scrut
 $ starcm sign --expires 2020-01-01 --key private/test.pem payload.txt >/dev/null && starcm --trusted-keys trusted verify.star | head -1
-signed: success=False value=None error=*payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
+signed: verified=False key_id=None error=*payload.txt: key "test": signature expired at 2020-01-01T00:00:00Z (now *) (glob)
 ```
 
 Signatures in older formats, without an expiry or without the file's
@@ -578,12 +579,12 @@ verify() applies the same check:
 
 ```scrut
 $ starcm sign --expires 30d --key private/test.pem --release 2026.10 verify.star payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
-signed: success=True value=test error=<nil>
+signed: verified=True key_id=test error=None
 ```
 
 ```scrut
 $ starcm sign --expires 30d --key private/test.pem --release 2026.09 payload.txt >/dev/null && starcm --trusted-keys trusted --release 2026.10 verify.star | head -1
-signed: success=False value=None error=*payload.txt: key "test": signature is for release "2026.09", want release "2026.10" (glob)
+signed: verified=False key_id=None error=*payload.txt: key "test": signature is for release "2026.09", want release "2026.10" (glob)
 ```
 
 ```scrut

@@ -79,7 +79,6 @@ check_mac_signature(
     signer            = "Developer ID Application: Hashicorp, Inc. (D38WU7D763)",  # required
     require_notarized = True,
     kind              = "auto",                                   # or "pkg", "code"
-    label             = "check terraform",                        # required
 )
 ```
 
@@ -92,10 +91,10 @@ check_mac_signature(
 | `require_notarized` | bool | `True` | Refuse anything Apple hasn't notarized. |
 | `kind` | string | `"auto"` | `"pkg"` to check an installer package with `pkgutil`, `"code"` to check a binary or app with `codesign`. `"auto"` picks `"pkg"` for paths ending in `.pkg` and `"code"` otherwise. |
 
-`check_mac_signature` also takes the
-[common arguments](../common-functionality.md#common-arguments): `label`
-(required), `only_if`, `not_if`, `timeout` and
-`what_if`. `what_if` has no effect.
+`check_mac_signature` only reads, so it's a plain function: it takes no
+`label` or other [common arguments](../common-functionality.md#common-arguments)
+and returns the signature directly, not a `starcm_result`. It runs under
+`what_if` too.
 
 A file is copied into a private temporary directory and the copy is checked
 and hashed, so `sha256` is the sha256 of exactly the bytes whose signature
@@ -125,14 +124,9 @@ For packages, see [install_mac_pkg](install_mac_pkg.md#finding-the-signer).
 
 ## Returns
 
-A [starcm_result](../common-functionality.md#starcm_result):
-
-| Field | Value |
-| --- | --- |
-| `success` | `True` |
-| `changed` | `False` |
-| `message` | `<path> is signed by "<signer>"` |
-| `value` | A `mac_signature` struct with `signer`, `team_id`, `signer_sha256` (the certificate's fingerprint), `notarized`, `kind` (`"pkg"` or `"code"`) and `sha256` (of the file checked, `""` for an app). |
+A `mac_signature` struct with `signer`, `team_id`, `signer_sha256` (the
+certificate's fingerprint), `notarized`, `kind` (`"pkg"` or `"code"`) and
+`sha256` (of the file checked, `""` for an app).
 
 A signature that fails any check, or a missing file, stops the run.
 
@@ -146,7 +140,7 @@ On macOS they check `/bin/ls`, and copies of it without a signature, with an
 ad-hoc signature and with bytes added after signing. On Linux and Windows
 the same calls fail because `check_mac_signature` only works on macOS.
 Git Bash on Windows also rewrites `--var path=/bin/ls` to a Windows path
-such as `C:/Program Files/Git/usr/bin/ls`, so the labels below allow a
+such as `C:/Program Files/Git/usr/bin/ls`, so the paths below allow a
 prefix.
 
 ```scrut
@@ -163,23 +157,22 @@ starcm --var path="$PWD/terraform" --var "signer=Developer ID Application: Hashi
 # examples/check_mac_signature/check.star
 load("starcm", "check_mac_signature", "vars")
 
-r = check_mac_signature(
+sig = check_mac_signature(
     vars["path"],
     signer            = vars["signer"],
     require_notarized = vars.get("require_notarized", "yes") == "yes",
-    label             = "check " + vars["path"],
 )
-print("%s (notarized=%s, kind=%s)" % (r.message, r.value.notarized, r.value.kind))
+print("signed by %r (notarized=%s, kind=%s)" % (sig.signer, sig.notarized, sig.kind))
 ```
 
 ```text
-terraform is signed by "Developer ID Application: Hashicorp, Inc. (D38WU7D763)" (notarized=True, kind=code)
+signed by "Developer ID Application: Hashicorp, Inc. (D38WU7D763)" (notarized=True, kind=code)
 ```
 
 Named with another developer, the same binary is refused:
 
 ```text
-Error in check_mac_signature: check_mac_signature(label="check terraform"): terraform: signed by "Developer ID Application: Hashicorp, Inc. (D38WU7D763)", not the expected "Developer ID Application: Example Corp (ABCDE12345)"
+Error in check_mac_signature: check_mac_signature: terraform: signed by "Developer ID Application: Hashicorp, Inc. (D38WU7D763)", not the expected "Developer ID Application: Example Corp (ABCDE12345)"
 ```
 
 ### Check Apple's own code
@@ -190,32 +183,31 @@ load("starcm", "check_mac_signature")
 
 # /bin/ls is Apple's own code. Apple doesn't notarize what ships with
 # macOS, so require_notarized must be off.
-r = check_mac_signature(
+sig = check_mac_signature(
     "/bin/ls",
     signer            = "macOS Software Signing",
     require_notarized = False,
-    label             = "check ls",
 )
-print("%s, notarized=%s, %d-digit sha256" % (r.message, r.value.notarized, len(r.value.sha256)))
+print("signed by %r, notarized=%s, %d-digit sha256" % (sig.signer, sig.notarized, len(sig.sha256)))
 ```
 
 ```scrut
 $ starcm report.star 2>&1 | tail -1
-(/bin/ls is signed by "macOS Software Signing", notarized=False, 64-digit sha256|Error in check_mac_signature: check_mac_signature\(label="check ls"\): check_mac_signature\(\) only works on macOS) (regex)
+(signed by "macOS Software Signing", notarized=False, 64-digit sha256|Error in check_mac_signature: check_mac_signature: check_mac_signature\(\) only works on macOS) (regex)
 ```
 
 With `require_notarized` left on, it's refused:
 
 ```scrut
 $ starcm --var path=/bin/ls --var "signer=macOS Software Signing" check.star 2>&1 | tail -1
-Error in check_mac_signature: check_mac_signature\(label="check (.*)?/bin/ls"\): (/bin/ls: not notarized by Apple; pass require_notarized = False to install it anyway|check_mac_signature\(\) only works on macOS) (regex)
+Error in check_mac_signature: check_mac_signature: (/bin/ls: not notarized by Apple; pass require_notarized = False to install it anyway|check_mac_signature\(\) only works on macOS) (regex)
 ```
 
 So is another signer, even with `require_notarized = False`:
 
 ```scrut
 $ starcm --var path=/bin/ls --var "signer=Developer ID Application: Example Corp (ABCDE12345)" --var require_notarized=no check.star 2>&1 | tail -1
-Error in check_mac_signature: check_mac_signature\(label="check (.*)?/bin/ls"\): (/bin/ls: signed by "macOS Software Signing", not the expected "Developer ID Application: Example Corp \(ABCDE12345\)"|check_mac_signature\(\) only works on macOS) (regex)
+Error in check_mac_signature: check_mac_signature: (/bin/ls: signed by "macOS Software Signing", not the expected "Developer ID Application: Example Corp \(ABCDE12345\)"|check_mac_signature\(\) only works on macOS) (regex)
 ```
 
 ### Unsigned, ad-hoc signed and modified code is refused
@@ -225,12 +217,12 @@ intact but not who made it.
 
 ```scrut
 $ starcm --var path="$(pwd -W 2>/dev/null || pwd)/unsigned" --var "signer=macOS Software Signing" --var require_notarized=no check.star 2>&1 | tail -1
-Error in check_mac_signature: check_mac_signature\(label="check .*[/\\]unsigned"\): (.*[/\\]unsigned: not signed with a certificate Apple issued for distribution: no signature|check_mac_signature\(\) only works on macOS) (regex)
+Error in check_mac_signature: check_mac_signature: (.*[/\\]unsigned: not signed with a certificate Apple issued for distribution: no signature|check_mac_signature\(\) only works on macOS) (regex)
 ```
 
 ```scrut
 $ starcm --var path="$(pwd -W 2>/dev/null || pwd)/adhoc" --var "signer=macOS Software Signing" --var require_notarized=no check.star 2>&1 | tail -1
-Error in check_mac_signature: check_mac_signature\(label="check .*[/\\]adhoc"\): (.*[/\\]adhoc: not signed with a certificate Apple issued for distribution: ad-hoc signature|check_mac_signature\(\) only works on macOS) (regex)
+Error in check_mac_signature: check_mac_signature: (.*[/\\]adhoc: not signed with a certificate Apple issued for distribution: ad-hoc signature|check_mac_signature\(\) only works on macOS) (regex)
 ```
 
 A binary changed after it was signed fails `codesign --verify`. The error
@@ -238,8 +230,8 @@ names the private copy that was checked:
 
 ```scrut
 $ starcm --var path="$(pwd -W 2>/dev/null || pwd)/tampered" --var "signer=macOS Software Signing" --var require_notarized=no check.star 2>&1 | tail -2
-(Error in check_mac_signature: check_mac_signature\(label="check .*[/\\]tampered"\): .*[/\\]tampered: codesign --verify: exit status 1|  check\.star:3:\d+: in <toplevel>) (regex)
-(.*/tampered: main executable failed strict validation|Error in check_mac_signature: check_mac_signature\(label="check .*[/\\]tampered"\): check_mac_signature\(\) only works on macOS) (regex)
+(Error in check_mac_signature: check_mac_signature: .*[/\\]tampered: codesign --verify: exit status 1|  check\.star:3:\d+: in <toplevel>) (regex)
+(.*/tampered: main executable failed strict validation|Error in check_mac_signature: check_mac_signature: check_mac_signature\(\) only works on macOS) (regex)
 ```
 
 ## Errors and edge cases
@@ -258,14 +250,14 @@ $ cd "$TMPDIR/edge"
 # examples/check_mac_signature/edge/empty_signer.star
 load("starcm", "check_mac_signature", "here")
 
-check_mac_signature(here("agent"), signer = "", label = "no signer")
+check_mac_signature(here("agent"), signer = "")
 ```
 
 ```scrut
 $ starcm empty_signer.star 2>&1
 Traceback (most recent call last):
   empty_signer.star:3:20: in <toplevel>
-Error in check_mac_signature: check_mac_signature(label="no signer"): signer must name the certificate, e.g. "Developer ID Application: Example Corp (ABCDE12345)"
+Error in check_mac_signature: check_mac_signature: signer must name the certificate, e.g. "Developer ID Application: Example Corp (ABCDE12345)"
 [1]
 ```
 
@@ -279,7 +271,6 @@ check_mac_signature(
     here("agent.dmg"),
     signer = "Developer ID Application: Example Corp (ABCDE12345)",
     kind   = "dmg",
-    label  = "bad kind",
 )
 ```
 
@@ -287,7 +278,7 @@ check_mac_signature(
 $ starcm bad_kind.star 2>&1
 Traceback (most recent call last):
   bad_kind.star:3:20: in <toplevel>
-Error in check_mac_signature: check_mac_signature(label="bad kind"): kind must be "auto", "pkg" or "code", not "dmg"
+Error in check_mac_signature: check_mac_signature: kind must be "auto", "pkg" or "code", not "dmg"
 [1]
 ```
 

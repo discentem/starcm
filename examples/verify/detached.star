@@ -1,4 +1,4 @@
 load("starcm", "verify", "here")
 
-r = verify(here("agent.pkg"), signature = here("sigs/agent.pkg.sig"), label = "check with a detached signature")
-print("success=%s key=%s" % (r.success, r.value))
+v = verify(here("agent.pkg"), signature = here("sigs/agent.pkg.sig"))
+print("verified=%s key_id=%s expires=%s" % (v.verified, v.key_id, v.expires))

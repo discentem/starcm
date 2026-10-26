@@ -50,6 +50,6 @@ changed=False signer=Developer ID Application: Hashicorp, Inc. (D38WU7D763) nota
 ## check_mac_signature reports the installed binary
 
 ```scrut
-$ printf '%s\n' 'load("starcm", "check_mac_signature", "vars")' 'r = check_mac_signature(vars["path"], signer = "Developer ID Application: Hashicorp, Inc. (D38WU7D763)", label = "check")' 'print("%s team=%s notarized=%s sha256=%s" % (r.message, r.value.team_id, r.value.notarized, r.value.sha256))' > check.star && starcm --var path="$bin/terraform" check.star
-*terraform is signed by "Developer ID Application: Hashicorp, Inc. (D38WU7D763)" team=D38WU7D763 notarized=True sha256=6cb9932b1fbe2d461f98abd384e9488ea325f531137c7d83f01bde83e3dc52cc (glob)
+$ printf '%s\n' 'load("starcm", "check_mac_signature", "vars")' 'sig = check_mac_signature(vars["path"], signer = "Developer ID Application: Hashicorp, Inc. (D38WU7D763)")' 'print("signed by %r team=%s notarized=%s sha256=%s" % (sig.signer, sig.team_id, sig.notarized, sig.sha256))' > check.star && starcm --var path="$bin/terraform" check.star
+signed by "Developer ID Application: Hashicorp, Inc. (D38WU7D763)" team=D38WU7D763 notarized=True sha256=6cb9932b1fbe2d461f98abd384e9488ea325f531137c7d83f01bde83e3dc52cc
 ```

@@ -10,23 +10,17 @@ import (
 	"github.com/discentem/starcm/libraries/signing"
 	"github.com/spf13/afero"
 	"go.starlark.net/starlark"
+	"go.starlark.net/starlarkstruct"
 )
 
-type verifyAction struct {
-	fsys    afero.Fs
-	keyring *signing.Keyring
-}
-
-var _ base.Action = (*verifyAction)(nil)
-
-// Execute checks path against its signature file using the --trusted-keys
-// keyring. A file that doesn't verify is a failed result rather than an
-// error, like exec(); scripts decide whether to fail().
-func (a *verifyAction) Execute(inst *base.FunctionInstance) (*base.Result, error) {
-	if a.keyring == nil {
+// check verifies path against its signature file using keyring, and
+// returns a verification struct. A file that doesn't verify is an answer,
+// not an error: verified is False and error says why, so scripts decide
+// whether to fail().
+func check(fsys afero.Fs, keyring *signing.Keyring, inst *base.FunctionInstance) (starlark.Value, error) {
+	if keyring == nil {
 		return nil, errors.New("verify() needs trusted keys: run starcm with --trusted-keys")
 	}
-	moduleName := inst.Label
 	path, _, err := inst.AbsPath("path")
 	if err != nil {
 		return nil, err
@@ -38,49 +32,55 @@ func (a *verifyAction) Execute(inst *base.FunctionInstance) (*base.Result, error
 	if !given {
 		sigPath = path + signing.SignatureSuffix
 	}
-
-	failed := func(err error) *base.Result {
-		return &base.Result{Label: moduleName, Success: false, Error: fmt.Errorf("%s: %w", path, err)}
+	failed := func(err error) starlark.Value {
+		return verification(false, starlark.None, starlark.None, starlark.None, starlark.String(fmt.Sprintf("%s: %s", path, err)))
 	}
-	data, err := afero.ReadFile(a.fsys, path)
+	data, err := afero.ReadFile(fsys, path)
 	if err != nil {
 		return failed(err), nil
 	}
-	sigFile, err := afero.ReadFile(a.fsys, sigPath)
+	sigFile, err := afero.ReadFile(fsys, sigPath)
 	if err != nil {
 		return failed(fmt.Errorf("reading signature: %w", err)), nil
 	}
-	sig, err := a.keyring.Verify(data, sigFile)
+	sig, err := keyring.Verify(data, sigFile)
 	if err != nil {
 		return failed(err), nil
 	}
-
-	var release string
-	if sig.Release != "" {
-		release = fmt.Sprintf(" for release %q", sig.Release)
-	}
-	msg := fmt.Sprintf("%s verified with key %q%s, signature expires %s", path, sig.KeyID, release, sig.Expires.Format(time.RFC3339))
-	return &base.Result{
-		Label:   moduleName,
-		Success: true,
-		Message: &msg,
-		Return:  starlark.String(sig.KeyID),
-	}, nil
+	return verification(true,
+		starlark.String(sig.KeyID),
+		starlark.String(sig.Release),
+		starlark.String(sig.Expires.Format(time.RFC3339)),
+		starlark.None,
+	), nil
 }
 
-// New returns the verify() builtin. keyring comes from --trusted-keys and
-// may be nil, in which case verify() errors.
+func verification(verified bool, keyID, release, expires, errMsg starlark.Value) starlark.Value {
+	return starlarkstruct.FromStringDict(starlark.String("verification"), starlark.StringDict{
+		"verified": starlark.Bool(verified),
+		"key_id":   keyID,
+		"release":  release,
+		"expires":  expires,
+		"error":    errMsg,
+	})
+}
+
+// New returns verify(), a query that checks a file against its signature
+// with the --trusted-keys keyring. keyring may be nil, in which case
+// verify() stops the run.
 //
-//	r = verify("/opt/agent.msi", label = "check agent")  # reads /opt/agent.msi.sig
-//	r.success, r.value (the key id), r.error
-func New(ctx context.Context, fsys afero.Fs, keyring *signing.Keyring) *base.Module {
-	return base.NewModule(
+//	v = verify("/opt/agent.msi")  # reads /opt/agent.msi.sig
+//	v.verified, v.key_id, v.error
+func New(ctx context.Context, fsys afero.Fs, keyring *signing.Keyring) *base.Query {
+	return base.NewQuery(
 		ctx,
 		"verify",
 		[]base.ArgPair{
 			base.Arg[string]("path"),
 			base.OptionalArg[string]("signature"),
 		},
-		&verifyAction{fsys: fsys, keyring: keyring},
+		func(inst *base.FunctionInstance) (starlark.Value, error) {
+			return check(fsys, keyring, inst)
+		},
 	)
 }

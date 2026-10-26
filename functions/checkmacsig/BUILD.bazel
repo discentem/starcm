@@ -8,6 +8,7 @@ go_library(
     deps = [
         "//functions/base",
         "//libraries/fileutils",
+        "//libraries/logging",
         "//libraries/macsig",
         "//libraries/shell",
         "@net_starlark_go//starlark",
