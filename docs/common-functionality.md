@@ -2,18 +2,18 @@
 
 [← Documentation index](README.md)
 
-Starcm has two kinds of function, and the kind decides what a call takes and
-returns: [steps](#steps) share the behaviour on this page, and
-[queries](#queries) don't.
+What starcm provides is either a [function](#functions) or a
+[query](#queries), and the kind decides what a call takes and returns:
+functions share the behaviour on this page, and queries don't.
 
-## Steps and queries
+## Functions and queries
 
 The line is whether the call changes something, not whether it touches the
 filesystem: `path.exists` and `path.glob` read the disk but are queries.
 
-### Steps
+### Functions
 
-A **step** changes the machine, or runs something whose effect starcm can't
+A **function** changes the machine, or runs something whose effect starcm can't
 know: [file](functions/file.md), [template](functions/template.md),
 [download](functions/download.md), [s3_download](functions/s3_download.md),
 [extract](functions/extract.md), [exec](functions/exec.md),
@@ -23,8 +23,8 @@ know: [file](functions/file.md), [template](functions/template.md),
 [load_dynamic](functions/load_dynamic.md) and
 [load_remote](functions/load_remote.md).
 
-A step takes a `label` and the other [common arguments](#common-arguments),
-and returns a [starcm_result](#starcm_result). Naming a step in the log,
+A function takes a `label` and the other [common arguments](#common-arguments),
+and returns a [starcm_result](#starcm_result). Naming a call in the log,
 gating it with `only_if` and `not_if`, giving it a `timeout` and a `what_if`
 dry run only mean something for a call that does something.
 
@@ -75,7 +75,7 @@ later calls.
 
 ### only_if and not_if
 
-`only_if` and `not_if` take a bool, or an earlier step's result, which
+`only_if` and `not_if` take a bool, or an earlier function's result, which
 stands for its `success`: `not_if = installed` means `not_if =
 installed.success`. A result that didn't succeed is just `False` there; it
 never stops the run the way it does as another argument. A
@@ -132,7 +132,7 @@ the `.star` file the call is written in, such as a
 [load_dynamic](functions/load_dynamic.md) module. Every other path, the
 files a call writes and the files it reads that something else produced,
 must be absolute. Write the full path out (`"/etc/agent.conf"`), pass the
-result of the step that made the file, or use
+result of the function that made the file, or use
 [home_dir](functions/home_dir.md) or [temp_dir](functions/temp_dir.md). `~`
 is expanded, and paths a function returns are absolute.
 [here](functions/here.md) builds paths to the read-only files that ship next
@@ -202,8 +202,8 @@ changed=True message="Hello from a dry run.\n"
 
 ## starcm_result
 
-Steps return a frozen `starcm_result` struct; queries don't (see above).
-Each step's page says what its fields hold.
+Functions return a frozen `starcm_result` struct; queries don't (see above).
+Each function's page says what its fields hold.
 
 | Field | Type | Description |
 | --- | --- | --- |

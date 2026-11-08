@@ -97,16 +97,16 @@ an argument is replaced by its `value` (including inside a list or dict),
 so `extract(archive = zip)` works without `.value`. A result that didn't
 succeed stops the run instead. In `only_if` and `not_if` a result stands
 for its `success` instead of its value, and one that didn't succeed is
-`False` rather than an error, so `not_if = check` runs the step when `check`
+`False` rather than an error, so `not_if = check` runs the function when `check`
 failed.
 
-### Steps and queries
+### Functions and queries
 
-A function is a **step** if it changes the machine, or runs something whose
+A **function** changes the machine, or runs something whose
 effect starcm can't know: `file`, `template`, `download`, `s3_download`,
 `extract`, `exec`, `install_mac_pkg`, `install_remote_mac_pkg`, `sign`,
-`write`, `load_dynamic`, `load_remote`. Steps take a `label` and the common
-arguments and return a `starcm_result`, since that's where naming a step in
+`write`, `load_dynamic`, `load_remote`. They take a `label` and the common
+arguments and return a `starcm_result`, since that's where naming a call in
 the log, gating it with `only_if`/`not_if`, a `timeout` and `what_if` mean
 something.
 
@@ -121,7 +121,7 @@ comprehensions without `.value`. Any error stops the run. It runs under
 The line is whether the call changes something, not whether it touches the
 filesystem: `path.exists` and `path.glob` read the disk but are queries.
 
-Queries use `base.Query`, which checks arguments the same way as steps
+Queries use `base.Query`, which checks arguments the same way as functions
 (through `FunctionInstance`, so the path rule, `~` expansion, positional
 arguments and result unwrapping are shared) and adds no common arguments.
 Helpers that take `*parts` (`path.join`, `here`, `home_dir`, `temp_dir`)

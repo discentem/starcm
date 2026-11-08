@@ -8,10 +8,10 @@ But Starcm offers many additional functions that are not built into Starlark.
 Each function below has its own page with its syntax, arguments, return
 value and examples.
 
-Functions come in two kinds (the rule is in
-[Common functionality](common-functionality.md#steps-and-queries)):
+Starcm provides functions and queries (the rule is in
+[Common functionality](common-functionality.md#functions-and-queries)):
 
-- **Steps** change the machine, or run something whose effect starcm can't
+- **Functions** change the machine, or run something whose effect starcm can't
   know. They take a `label` and the other
   [common arguments](common-functionality.md#common-arguments) (`only_if`,
   `not_if`, `timeout`, `what_if`) and return a
