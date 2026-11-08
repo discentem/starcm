@@ -74,7 +74,7 @@ dockutil.cli.tool 3.1.3 is already installed
 **[docs/](docs/README.md)** lists every function starcm provides, each with
 its arguments, return value and tested examples.
 
-A configuration calls **functions** and **queries**. A function changes the machine or runs
+Starcm offers **functions** and **queries**. A function changes the machine or runs
 something (`download`, `exec`, `file`, `template`, `install_mac_pkg`, ...): it
 takes a `label` and `only_if`, `not_if`, `timeout` and `what_if`, and returns a
 `starcm_result`. A query only reads (`read_file`, `path`, `date`, `platform`,

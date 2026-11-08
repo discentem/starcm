@@ -2,7 +2,7 @@
 
 [← Documentation index](README.md)
 
-A configuration calls [functions](#functions), which change the machine, and
+Starcm offers [functions](#functions), which change the machine, and
 [queries](#queries), which only read it. The kind decides what a call takes
 and returns: functions share the behaviour on this page, and queries don't.
 
