@@ -8,7 +8,8 @@ But Starcm offers many additional functions that are not built into Starlark.
 Each function below has its own page with its syntax, arguments, return
 value and examples.
 
-Functions come in two kinds:
+Functions come in two kinds (the rule is in
+[Common functionality](common-functionality.md#steps-and-queries)):
 
 - **Steps** change the machine, or run something whose effect starcm can't
   know. They take a `label` and the other
