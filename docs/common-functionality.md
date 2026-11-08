@@ -2,17 +2,56 @@
 
 [← Documentation index](README.md)
 
-Every starcm step, a function that changes the machine or runs something,
-shares the behaviour on this page: the same
-[common arguments](#common-arguments), and the same kind of return value, a
-[starcm_result](#starcm_result).
+Starcm offers [functions](#functions), which change the machine, and
+[queries](#queries), which only read it. The kind decides what a call takes
+and returns: functions share the behaviour on this page, and queries don't.
 
-Queries, the functions that only read (such as [read_file](functions/read_file.md),
-[path](functions/path.md) and [date](functions/date.md)), and the helpers
-such as [json](functions/json.md) and [here](functions/here.md), don't: they
-take no `label`, return their answer directly, and any error stops the run.
-A `starcm_result` passed to a query stands for its value, as below. See
-[the documentation index](README.md) for which is which.
+## Functions and queries
+
+The line is whether the call changes something, not whether it touches the
+filesystem: `path.exists` and `path.glob` read the disk but are queries.
+
+### Functions
+
+A **function** changes the machine, or runs something whose effect starcm can't
+know: [file](functions/file.md), [template](functions/template.md),
+[download](functions/download.md), [s3_download](functions/s3_download.md),
+[extract](functions/extract.md), [exec](functions/exec.md),
+[install_mac_pkg](functions/install_mac_pkg.md),
+[install_remote_mac_pkg](functions/install_remote_mac_pkg.md),
+[sign](functions/sign.md), [write](functions/write.md),
+[load_dynamic](functions/load_dynamic.md) and
+[load_remote](functions/load_remote.md).
+
+A function takes a `label` and the other [common arguments](#common-arguments),
+and returns a [starcm_result](#starcm_result). Naming a call in the log,
+gating it with `only_if` and `not_if`, giving it a `timeout` and a `what_if`
+dry run only mean something for a call that does something.
+
+### Queries
+
+A **query** only reads, so it takes none of the common arguments. It returns
+its answer directly, which means it works in `if`, `for` and comprehensions
+without `.value`: `read_file(p)` is the file's content. Any error stops the
+run, and a query runs under `what_if` like any other read, so a dry run sees
+the real state. Use `if` to call one conditionally.
+
+Queries include [read_file](functions/read_file.md),
+[sha256](functions/sha256.md), [path](functions/path.md),
+[date](functions/date.md), [inspect](functions/inspect.md),
+[verify_all](functions/verify_all.md) and
+[check_mac_signature](functions/check_mac_signature.md).
+
+The **helpers** are queries too: they describe the machine or the run, or
+reshape a value, and nothing else.
+[platform](functions/platform.md), [env](functions/env.md),
+[home_dir](functions/home_dir.md), [temp_dir](functions/temp_dir.md),
+[here](functions/here.md), [json](functions/json.md)
+and [dedent](functions/dedent.md) are helpers. The
+[documentation index](README.md) lists each function under its kind.
+
+A `starcm_result` passed to a query stands for its value, as
+[below](#passing-a-result-to-another-function).
 
 The examples run in a scratch copy of
 [examples/common_functionality/](../examples/common_functionality).
@@ -36,7 +75,7 @@ later calls.
 
 ### only_if and not_if
 
-`only_if` and `not_if` take a bool, or an earlier step's result, which
+`only_if` and `not_if` take a bool, or an earlier function's result, which
 stands for its `success`: `not_if = installed` means `not_if =
 installed.success`. A result that didn't succeed is just `False` there; it
 never stops the run the way it does as another argument. A
@@ -93,7 +132,7 @@ the `.star` file the call is written in, such as a
 [load_dynamic](functions/load_dynamic.md) module. Every other path, the
 files a call writes and the files it reads that something else produced,
 must be absolute. Write the full path out (`"/etc/agent.conf"`), pass the
-result of the step that made the file, or use
+result of the function that made the file, or use
 [home_dir](functions/home_dir.md) or [temp_dir](functions/temp_dir.md). `~`
 is expanded, and paths a function returns are absolute.
 [here](functions/here.md) builds paths to the read-only files that ship next
@@ -163,8 +202,8 @@ changed=True message="Hello from a dry run.\n"
 
 ## starcm_result
 
-Steps return a frozen `starcm_result` struct; queries don't (see above).
-Each step's page says what its fields hold.
+Functions return a frozen `starcm_result` struct; queries don't (see above).
+Each function's page says what its fields hold.
 
 | Field | Type | Description |
 | --- | --- | --- |
